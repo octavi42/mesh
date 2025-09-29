@@ -12,10 +12,9 @@ import { ArrowUp, Menu, Paperclip, Square, X, Settings, MoreHorizontal, Edit3, T
 import { useRef, useState, use, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { sidebarStore } from "@/lib/sidebar-store"
-// import { Sheet, VisuallyHidden } from "@silk-hq/components"
 
-export default function ProjectChat({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function ChatPage({ params }: { params: Promise<{ id: string; chatId: string }> }) {
+  const { id, chatId } = use(params)
   const router = useRouter()
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -73,6 +72,7 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
 
   // Get the current project based on the route ID
   const currentProject = projectsData.find(p => p.value === id) || projectsData[0]
+  const currentChat = chatTitles.find(c => c.id === chatId)
 
   // Subscribe to global sidebar store
   useEffect(() => {
@@ -111,6 +111,7 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
       // Here you would handle the actual message sending
       console.log("Sending message:", input)
       console.log("Project ID:", id)
+      console.log("Chat ID:", chatId)
 
       setTimeout(() => {
         setIsLoading(false)
@@ -119,9 +120,6 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
       }, 2000)
     }
   }
-
-  // Debug function
-  console.log("Menu state:", isMenuOpen)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -140,24 +138,24 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
   const handleProjectSelect = (projectValue: string) => {
     const project = projectsData.find(p => p.value === projectValue)
     if (project) {
-      // Just navigate - the global store will maintain state
-      router.push(`/project/${projectValue}`)
+      // Navigate to project with same chat
+      router.push(`/project/${projectValue}/${chatId}`)
     }
   }
 
-  const handleChatAction = (action: string, chatId: string) => {
-    console.log(`${action} action for chat:`, chatId)
-    console.log(`Navigating to: /project/${id}/${chatId}/settings`)
+  const handleChatAction = (action: string, chatActionId: string) => {
+    console.log(`${action} action for chat:`, chatActionId)
+    console.log(`Navigating to: /project/${id}/${chatActionId}/settings`)
     setOpenDropdown(null)
 
     if (action === 'edit') {
-      router.push(`/project/${id}/${chatId}/settings`)
+      router.push(`/project/${id}/${chatActionId}/settings`)
     }
     // Add other action implementations here
   }
 
-  const handleChatClick = (chatId: string) => {
-    router.push(`/project/${id}/${chatId}`)
+  const handleChatClick = (clickedChatId: string) => {
+    router.push(`/project/${id}/${clickedChatId}`)
   }
 
   return (
@@ -227,11 +225,17 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
               {chatTitles.map((chat) => (
                 <div
                   key={chat.id}
-                  className="group px-3 py-3 rounded-lg hover:bg-gray-200 cursor-pointer relative"
+                  className={`group px-3 py-3 rounded-lg cursor-pointer relative ${
+                    chat.id === chatId
+                      ? 'bg-blue-100 border-l-4 border-blue-500'
+                      : 'hover:bg-gray-200'
+                  }`}
                   onClick={() => handleChatClick(chat.id)}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="font-medium text-gray-900 text-base flex-1 mr-2">
+                    <div className={`font-medium text-base flex-1 mr-2 ${
+                      chat.id === chatId ? 'text-blue-900' : 'text-gray-900'
+                    }`}>
                       {chat.title}
                     </div>
 
@@ -289,24 +293,29 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
       {/* Main Chat Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="p-4">
-          <button
-            className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-all duration-300 ${
-              isMenuOpen ? "opacity-0 pointer-events-none" : "opacity-100"
-            }`}
-            onClick={() => {
-              setAllowAnimations(true)  // Enable animations for user interaction
-              sidebarStore.setIsOpen(true, false)  // Open but don't save to sessionStorage
-            }}
-          >
-            <Menu className="w-6 h-6 text-gray-600" />
-          </button>
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center gap-4">
+            <button
+              className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-all duration-300 ${
+                isMenuOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+              }`}
+              onClick={() => {
+                setAllowAnimations(true)  // Enable animations for user interaction
+                sidebarStore.setIsOpen(true, false)  // Open but don't save to sessionStorage
+              }}
+            >
+              <Menu className="w-6 h-6 text-gray-600" />
+            </button>
+            <h1 className="text-xl font-semibold text-gray-900">
+              {currentChat?.title || 'Chat'}
+            </h1>
+          </div>
         </div>
 
         {/* Chat Messages Area */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="flex h-full items-center justify-center text-gray-400">
-            Start chatting with your team...
+            {currentChat ? `Welcome to ${currentChat.title}` : 'Start chatting with your team...'}
           </div>
         </div>
 

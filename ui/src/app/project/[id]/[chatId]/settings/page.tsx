@@ -8,14 +8,13 @@ import {
 } from "@/components/ui/prompt-input"
 import { Button } from "@/components/ui/button"
 import Select from "@/components/ui/select"
-import { ArrowUp, Menu, Paperclip, Square, X, Settings, MoreHorizontal, Edit3, Type, Trash2, Plus } from "lucide-react"
+import { ArrowLeft, ArrowUp, Menu, Paperclip, Square, X, Settings, MoreHorizontal, Edit3, Type, Trash2, Plus } from "lucide-react"
 import { useRef, useState, use, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { sidebarStore } from "@/lib/sidebar-store"
-// import { Sheet, VisuallyHidden } from "@silk-hq/components"
 
-export default function ProjectChat({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function ChatSettings({ params }: { params: Promise<{ id: string; chatId: string }> }) {
+  const { id, chatId } = use(params)
   const router = useRouter()
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -73,6 +72,7 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
 
   // Get the current project based on the route ID
   const currentProject = projectsData.find(p => p.value === id) || projectsData[0]
+  const currentChat = chatTitles.find(c => c.id === chatId)
 
   // Subscribe to global sidebar store
   useEffect(() => {
@@ -83,12 +83,6 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
 
     // Hydrate store (only happens once)
     sidebarStore.hydrate()
-
-    // Ensure local state matches store state
-    const currentState = sidebarStore.getIsOpen()
-    if (currentState !== isMenuOpen) {
-      setIsMenuOpen(currentState)
-    }
 
     return unsubscribe
   }, [])
@@ -111,6 +105,7 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
       // Here you would handle the actual message sending
       console.log("Sending message:", input)
       console.log("Project ID:", id)
+      console.log("Chat ID:", chatId)
 
       setTimeout(() => {
         setIsLoading(false)
@@ -119,9 +114,6 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
       }, 2000)
     }
   }
-
-  // Debug function
-  console.log("Menu state:", isMenuOpen)
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -140,24 +132,19 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
   const handleProjectSelect = (projectValue: string) => {
     const project = projectsData.find(p => p.value === projectValue)
     if (project) {
-      // Just navigate - the global store will maintain state
-      router.push(`/project/${projectValue}`)
+      // Navigate to project with same chat settings
+      router.push(`/project/${projectValue}/${chatId}/settings`)
     }
   }
 
-  const handleChatAction = (action: string, chatId: string) => {
-    console.log(`${action} action for chat:`, chatId)
-    console.log(`Navigating to: /project/${id}/${chatId}/settings`)
+  const handleChatAction = (action: string, chatActionId: string) => {
+    console.log(`${action} action for chat:`, chatActionId)
     setOpenDropdown(null)
-
-    if (action === 'edit') {
-      router.push(`/project/${id}/${chatId}/settings`)
-    }
-    // Add other action implementations here
+    // Add actual implementation here
   }
 
-  const handleChatClick = (chatId: string) => {
-    router.push(`/project/${id}/${chatId}`)
+  const handleChatClick = (clickedChatId: string) => {
+    router.push(`/project/${id}/${clickedChatId}/settings`)
   }
 
   return (
@@ -227,11 +214,17 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
               {chatTitles.map((chat) => (
                 <div
                   key={chat.id}
-                  className="group px-3 py-3 rounded-lg hover:bg-gray-200 cursor-pointer relative"
+                  className={`group px-3 py-3 rounded-lg cursor-pointer relative ${
+                    chat.id === chatId
+                      ? 'bg-blue-100 border-l-4 border-blue-500'
+                      : 'hover:bg-gray-200'
+                  }`}
                   onClick={() => handleChatClick(chat.id)}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="font-medium text-gray-900 text-base flex-1 mr-2">
+                    <div className={`font-medium text-base flex-1 mr-2 ${
+                      chat.id === chatId ? 'text-blue-900' : 'text-gray-900'
+                    }`}>
                       {chat.title}
                     </div>
 
@@ -251,11 +244,7 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
                       {openDropdown === chat.id && (
                         <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-40">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              e.preventDefault()
-                              handleChatAction('edit', chat.id)
-                            }}
+                            onClick={() => handleChatAction('edit', chat.id)}
                             className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-t-lg"
                           >
                             <Edit3 className="w-4 h-4" />
@@ -286,98 +275,92 @@ export default function ProjectChat({ params }: { params: Promise<{ id: string }
         </div>
       </div>
 
-      {/* Main Chat Content */}
+      {/* Main Content Area - Chat Settings */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="p-4">
-          <button
-            className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-all duration-300 ${
-              isMenuOpen ? "opacity-0 pointer-events-none" : "opacity-100"
-            }`}
-            onClick={() => {
-              setAllowAnimations(true)  // Enable animations for user interaction
-              sidebarStore.setIsOpen(true, false)  // Open but don't save to sessionStorage
-            }}
-          >
-            <Menu className="w-6 h-6 text-gray-600" />
-          </button>
-        </div>
-
-        {/* Chat Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="flex h-full items-center justify-center text-gray-400">
-            Start chatting with your team...
+        {/* Settings Content with fade animation */}
+        <div className="flex-1 flex flex-col animate-in fade-in duration-300">
+          {/* Settings Header */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex items-center gap-4">
+              <button
+                className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-all duration-300 ${
+                  isMenuOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+                }`}
+                onClick={() => {
+                  setAllowAnimations(true)  // Enable animations for user interaction
+                  sidebarStore.setIsOpen(true, false)  // Open but don't save to sessionStorage
+                }}
+              >
+                <Menu className="w-6 h-6 text-gray-600" />
+              </button>
+              <button
+                onClick={() => {
+                  // Navigate back to chat
+                  router.push(`/project/${id}/${chatId}`)
+                }}
+                className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
+              </button>
+              <h1 className="text-xl font-semibold text-gray-900">
+                {currentChat?.title} Settings
+              </h1>
+            </div>
           </div>
-        </div>
 
-        {/* Chat Input Bar - Fixed at bottom */}
-        <div className="p-4">
-          <div className="mx-auto max-w-3xl">
-            <PromptInput
-              value={input}
-              onValueChange={setInput}
-              isLoading={isLoading}
-              onSubmit={handleSubmit}
-              className="w-full"
-            >
-              {files.length > 0 && (
-                <div className="flex flex-wrap gap-2 pb-2">
-                  {files.map((file, index) => (
-                    <div
-                      key={index}
-                      className="bg-blue-50 border border-blue-200 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-blue-900"
-                    >
-                      <Paperclip className="size-4" />
-                      <span className="max-w-[120px] truncate">{file.name}</span>
-                      <button
-                        onClick={() => handleRemoveFile(index)}
-                        className="hover:bg-blue-100 rounded-full p-1 text-blue-700"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </div>
-                  ))}
+          {/* Settings Content */}
+          <div className="flex-1 p-6">
+            <div className="max-w-2xl mx-auto space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-lg font-medium text-gray-900">Chat Settings</h2>
+                <p className="text-sm text-gray-500">Manage settings for this specific chat.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-900 mb-2">Chat Information</h3>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p><span className="font-medium">Chat ID:</span> {chatId}</p>
+                    <p><span className="font-medium">Title:</span> {currentChat?.title}</p>
+                    <p><span className="font-medium">Project:</span> {currentProject.label}</p>
+                    <p><span className="font-medium">Created:</span> January 2024</p>
+                  </div>
                 </div>
-              )}
 
-              <PromptInputTextarea placeholder="Type your message..." />
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-900 mb-2">Chat Configuration</h3>
+                  <div className="space-y-2">
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-200 text-sm text-gray-700">
+                      Rename Chat
+                    </button>
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-200 text-sm text-gray-700">
+                      Chat Permissions
+                    </button>
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-200 text-sm text-gray-700">
+                      Notification Settings
+                    </button>
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-200 text-sm text-gray-700">
+                      Message History
+                    </button>
+                  </div>
+                </div>
 
-              <PromptInputActions className="flex items-center justify-between gap-2 pt-2">
-                <PromptInputAction tooltip="Attach files">
-                  <label
-                    htmlFor="file-upload"
-                    className="hover:bg-gray-100 flex h-8 w-8 cursor-pointer items-center justify-center rounded-2xl transition-colors"
-                  >
-                    <input
-                      ref={uploadInputRef}
-                      type="file"
-                      multiple
-                      onChange={handleFileChange}
-                      className="hidden"
-                      id="file-upload"
-                    />
-                    <Paperclip className="text-gray-600 size-5" />
-                  </label>
-                </PromptInputAction>
-
-                <PromptInputAction
-                  tooltip={isLoading ? "Stop generation" : "Send message"}
-                >
-                  <Button
-                    variant="default"
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
-                    onClick={handleSubmit}
-                  >
-                    {isLoading ? (
-                      <Square className="size-5 fill-current" />
-                    ) : (
-                      <ArrowUp className="size-5" />
-                    )}
-                  </Button>
-                </PromptInputAction>
-              </PromptInputActions>
-            </PromptInput>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-900 mb-2">Advanced Options</h3>
+                  <div className="space-y-2">
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-200 text-sm text-gray-700">
+                      Export Chat History
+                    </button>
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-200 text-sm text-gray-700">
+                      Archive Chat
+                    </button>
+                    <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-red-100 text-sm text-red-600">
+                      Delete Chat
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

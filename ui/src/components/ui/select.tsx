@@ -73,9 +73,18 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
   const onSelect = (value: string) => {
     const item = data?.find((i) => i.value === value)
     setSelected(item as TSelectData)
+
+    // Reset search state immediately
+    setSearchTerm("")
+    setFilteredData(data || [])
+
     setOpen(false)
     onOpenChange?.(false)
-    onChange?.(value)
+
+    // Wait for animation to complete before triggering navigation
+    setTimeout(() => {
+      onChange?.(value)
+    }, 150)
   }
 
   return (
