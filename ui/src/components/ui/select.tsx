@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { AnimatePresence, motion, MotionConfig } from "framer-motion"
-import { ChevronDownIcon, X, Search } from "lucide-react"
+import { ChevronDownIcon, X, Search, Plus } from "lucide-react"
 
 type TSelectData = {
   id: string
@@ -173,11 +173,22 @@ const Head = () => {
         delay: 0.1,
       }}
       layout
-      className="flex items-center justify-center p-4"
+      className="flex items-center justify-between p-4"
     >
       <motion.strong layout className="text-gray-900">
-        Choose Project
+        Projects
       </motion.strong>
+      <motion.button
+        layout
+        className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors"
+        onClick={(e) => {
+          e.stopPropagation()
+          // Add new project functionality here
+          console.log('Add new project clicked')
+        }}
+      >
+        <Plus className="w-4 h-4 text-white" />
+      </motion.button>
     </motion.div>
   )
 }

@@ -148,7 +148,11 @@ export default function ChatSettings({ params }: { params: Promise<{ id: string;
   }
 
   return (
-    <div className="flex h-screen bg-white">
+    <div className="flex h-screen bg-white relative">
+      {/* Backdrop overlay when select is open */}
+      {isSelectOpen && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-all duration-200" />
+      )}
       {/* Sidebar */}
       <div
         className={`${
@@ -184,7 +188,7 @@ export default function ChatSettings({ params }: { params: Promise<{ id: string;
               {/* Dummy placeholder to maintain layout */}
               <div className="h-12 w-full rounded-[30px] border border-gray-300 bg-white shadow-sm opacity-0 pointer-events-none" />
               {/* Actual Select component positioned absolutely */}
-              <div className="absolute top-0 left-0 w-full">
+              <div className="absolute top-0 left-0 w-full z-50">
                 <Select
                   data={projectsData}
                   defaultValue={currentProject.value}

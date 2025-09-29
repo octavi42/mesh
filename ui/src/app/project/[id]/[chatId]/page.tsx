@@ -8,10 +8,11 @@ import {
 } from "@/components/ui/prompt-input"
 import { Button } from "@/components/ui/button"
 import Select from "@/components/ui/select"
-import { ArrowUp, Menu, Paperclip, Square, X, Settings, MoreHorizontal, Edit3, Type, Trash2, Plus } from "lucide-react"
+import { ArrowUp, Menu, Paperclip, Square, X, Settings, MoreHorizontal, Edit3, Type, Trash2, Plus, User, CreditCard } from "lucide-react"
 import { useRef, useState, use, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { sidebarStore } from "@/lib/sidebar-store"
+import { Sheet, SheetStack } from "@silk-hq/components"
 
 export default function ChatPage({ params }: { params: Promise<{ id: string; chatId: string }> }) {
   const { id, chatId } = use(params)
@@ -159,7 +160,12 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
   }
 
   return (
-    <div className="flex h-screen bg-white">
+    <SheetStack.Root>
+      <div className="flex h-screen bg-white relative">
+        {/* Backdrop overlay when select is open */}
+        {isSelectOpen && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-all duration-200" />
+        )}
       {/* Sidebar */}
       <div
         className={`${
@@ -195,7 +201,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
               {/* Dummy placeholder to maintain layout */}
               <div className="h-12 w-full rounded-[30px] border border-gray-300 bg-white shadow-sm opacity-0 pointer-events-none" />
               {/* Actual Select component positioned absolutely */}
-              <div className="absolute top-0 left-0 w-full">
+              <div className="absolute top-0 left-0 w-full z-50">
                 <Select
                   data={projectsData}
                   defaultValue={currentProject.value}
@@ -294,21 +300,302 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center gap-4">
-            <button
-              className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-all duration-300 ${
-                isMenuOpen ? "opacity-0 pointer-events-none" : "opacity-100"
-              }`}
-              onClick={() => {
-                setAllowAnimations(true)  // Enable animations for user interaction
-                sidebarStore.setIsOpen(true, false)  // Open but don't save to sessionStorage
-              }}
-            >
-              <Menu className="w-6 h-6 text-gray-600" />
-            </button>
-            <h1 className="text-xl font-semibold text-gray-900">
-              {currentChat?.title || 'Chat'}
-            </h1>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-4">
+              <button
+                className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-all duration-300 ${
+                  isMenuOpen ? "opacity-0 pointer-events-none" : "opacity-100"
+                }`}
+                onClick={() => {
+                  setAllowAnimations(true)  // Enable animations for user interaction
+                  sidebarStore.setIsOpen(true, false)  // Open but don't save to sessionStorage
+                }}
+              >
+                <Menu className="w-6 h-6 text-gray-600" />
+              </button>
+              <h1 className="text-xl font-semibold text-gray-900">
+                {currentChat?.title || 'Chat'}
+              </h1>
+            </div>
+
+            {/* Avatar for Account Menu */}
+            <Sheet.Root license="commercial" forComponent="closest">
+              <Sheet.Trigger asChild>
+                <button className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 transition-colors">
+                  <User className="w-5 h-5 text-white" />
+                </button>
+              </Sheet.Trigger>
+
+              <Sheet.Portal>
+                <Sheet.View
+                  contentPlacement="right"
+                  nativeEdgeSwipePrevention={true}
+                >
+                  <Sheet.Backdrop travelAnimation={{ opacity: [0, 0.3] }} />
+                  <div className="p-12 h-full flex items-center justify-end">
+                    <Sheet.Content
+                      className="bg-white rounded-2xl shadow-xl max-w-xs w-full"
+                    stackingAnimation={{
+                      translateX: ({ progress }: { progress: number }) =>
+                        progress <= 1
+                          ? progress * -10 + "px"
+                          : "calc(-12.5px + 2.5px *" + progress + ")",
+                      scale: [1, 0.933],
+                      transformOrigin: "0 50%",
+                    }}
+                  >
+                    <div className="p-8">
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-lg font-semibold text-gray-900">Account</h2>
+                        <Sheet.Trigger action="dismiss" asChild>
+                          <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
+                            <X className="w-5 h-5 text-gray-600" />
+                          </button>
+                        </Sheet.Trigger>
+                      </div>
+
+                      {/* User Profile Section */}
+                      <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+                            <User className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <h3 className="font-medium text-gray-900">John Doe</h3>
+                            <p className="text-sm text-gray-500">john.doe@teamz.com</p>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          Member since January 2024
+                        </div>
+                      </div>
+
+                      {/* Account Actions */}
+                      <div className="space-y-2">
+                        <Sheet.Root license="commercial" forComponent="closest">
+                          <Sheet.Trigger asChild>
+                            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors text-left">
+                              <User className="w-5 h-5 text-gray-600" />
+                              <span className="text-gray-900">Profile Settings</span>
+                            </button>
+                          </Sheet.Trigger>
+                          <Sheet.Portal>
+                            <Sheet.View contentPlacement="right" nativeEdgeSwipePrevention={true}>
+                              <Sheet.Backdrop travelAnimation={{ opacity: [0, 0.3] }} />
+                              <div className="p-12 h-full flex items-center justify-end">
+                                <Sheet.Content
+                                  className="bg-white rounded-2xl shadow-xl max-w-xs w-full"
+                                  stackingAnimation={{
+                                    translateX: ({ progress }: { progress: number }) =>
+                                      progress <= 1
+                                        ? progress * -10 + "px"
+                                        : "calc(-12.5px + 2.5px *" + progress + ")",
+                                    scale: [1, 0.933],
+                                    transformOrigin: "0 50%",
+                                  }}
+                                >
+                                  <div className="p-8">
+                                    <div className="flex items-center justify-between mb-6">
+                                      <h2 className="text-lg font-semibold text-gray-900">Profile Settings</h2>
+                                      <Sheet.Trigger action="dismiss" asChild>
+                                        <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
+                                          <X className="w-5 h-5 text-gray-600" />
+                                        </button>
+                                      </Sheet.Trigger>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-900">Display Name</label>
+                                        <input className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="John Doe" />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-900">Email</label>
+                                        <input className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="john.doe@teamz.com" />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <label className="text-sm font-medium text-gray-900">Bio</label>
+                                        <textarea className="w-full px-3 py-2 border border-gray-300 rounded-lg h-20" defaultValue="Product designer and team lead" />
+                                      </div>
+                                      <div className="flex gap-2 pt-4">
+                                        <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">Save Changes</button>
+                                        <Sheet.Trigger action="dismiss" asChild>
+                                          <button className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                                        </Sheet.Trigger>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </Sheet.Content>
+                              </div>
+                            </Sheet.View>
+                          </Sheet.Portal>
+                        </Sheet.Root>
+
+                        <Sheet.Root license="commercial" forComponent="closest">
+                          <Sheet.Trigger asChild>
+                            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors text-left">
+                              <Settings className="w-5 h-5 text-gray-600" />
+                              <span className="text-gray-900">Account Settings</span>
+                            </button>
+                          </Sheet.Trigger>
+                          <Sheet.Portal>
+                            <Sheet.View contentPlacement="right" nativeEdgeSwipePrevention={true}>
+                              <Sheet.Backdrop travelAnimation={{ opacity: [0, 0.3] }} />
+                              <div className="p-12 h-full flex items-center justify-end">
+                                <Sheet.Content
+                                  className="bg-white rounded-2xl shadow-xl max-w-xs w-full"
+                                  stackingAnimation={{
+                                    translateX: ({ progress }: { progress: number }) =>
+                                      progress <= 1
+                                        ? progress * -10 + "px"
+                                        : "calc(-12.5px + 2.5px *" + progress + ")",
+                                    scale: [1, 0.933],
+                                    transformOrigin: "0 50%",
+                                  }}
+                                >
+                                  <div className="p-8">
+                                    <div className="flex items-center justify-between mb-6">
+                                      <h2 className="text-lg font-semibold text-gray-900">Account Settings</h2>
+                                      <Sheet.Trigger action="dismiss" asChild>
+                                        <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
+                                          <X className="w-5 h-5 text-gray-600" />
+                                        </button>
+                                      </Sheet.Trigger>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <h3 className="font-medium text-gray-900">Privacy & Security</h3>
+                                        <div className="space-y-2">
+                                          <label className="flex items-center gap-2">
+                                            <input type="checkbox" className="rounded" defaultChecked />
+                                            <span className="text-sm text-gray-700">Two-factor authentication</span>
+                                          </label>
+                                          <label className="flex items-center gap-2">
+                                            <input type="checkbox" className="rounded" />
+                                            <span className="text-sm text-gray-700">Email notifications</span>
+                                          </label>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <h3 className="font-medium text-gray-900">Preferences</h3>
+                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                          <option>Light Mode</option>
+                                          <option>Dark Mode</option>
+                                          <option>System</option>
+                                        </select>
+                                      </div>
+                                      <div className="flex gap-2 pt-4">
+                                        <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">Save Changes</button>
+                                        <Sheet.Trigger action="dismiss" asChild>
+                                          <button className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                                        </Sheet.Trigger>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </Sheet.Content>
+                              </div>
+                            </Sheet.View>
+                          </Sheet.Portal>
+                        </Sheet.Root>
+
+                        <Sheet.Root license="commercial" forComponent="closest">
+                          <Sheet.Trigger asChild>
+                            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition-colors text-left">
+                              <CreditCard className="w-5 h-5 text-gray-600" />
+                              <span className="text-gray-900">Billing</span>
+                            </button>
+                          </Sheet.Trigger>
+                          <Sheet.Portal>
+                            <Sheet.View contentPlacement="right" nativeEdgeSwipePrevention={true}>
+                              <Sheet.Backdrop travelAnimation={{ opacity: [0, 0.3] }} />
+                              <div className="p-12 h-full flex items-center justify-end">
+                                <Sheet.Content
+                                  className="bg-white rounded-2xl shadow-xl max-w-xs w-full"
+                                  stackingAnimation={{
+                                    translateX: ({ progress }: { progress: number }) =>
+                                      progress <= 1
+                                        ? progress * -10 + "px"
+                                        : "calc(-12.5px + 2.5px *" + progress + ")",
+                                    scale: [1, 0.933],
+                                    transformOrigin: "0 50%",
+                                  }}
+                                >
+                                  <div className="p-8">
+                                    <div className="flex items-center justify-between mb-6">
+                                      <h2 className="text-lg font-semibold text-gray-900">Billing & Usage</h2>
+                                      <Sheet.Trigger action="dismiss" asChild>
+                                        <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
+                                          <X className="w-5 h-5 text-gray-600" />
+                                        </button>
+                                      </Sheet.Trigger>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                      <div className="bg-blue-50 rounded-lg p-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className="text-sm font-medium text-blue-900">Current Plan</span>
+                                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Pro</span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-blue-900">$29/month</div>
+                                        <div className="text-xs text-blue-700">Next billing: Jan 15, 2024</div>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <h3 className="font-medium text-gray-900">Usage this month</h3>
+                                        <div className="space-y-2">
+                                          <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">API Calls</span>
+                                            <span className="text-gray-900">2,450 / 10,000</span>
+                                          </div>
+                                          <div className="w-full bg-gray-200 rounded-full h-2">
+                                            <div className="bg-blue-500 h-2 rounded-full" style={{width: '24.5%'}}></div>
+                                          </div>
+                                          <div className="flex justify-between text-sm">
+                                            <span className="text-gray-600">Storage</span>
+                                            <span className="text-gray-900">1.2 GB / 5 GB</span>
+                                          </div>
+                                          <div className="w-full bg-gray-200 rounded-full h-2">
+                                            <div className="bg-green-500 h-2 rounded-full" style={{width: '24%'}}></div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <h3 className="font-medium text-gray-900">Payment Method</h3>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                          <CreditCard className="w-4 h-4" />
+                                          <span>•••• •••• •••• 4242</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex gap-2 pt-4">
+                                        <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm">Upgrade Plan</button>
+                                        <button className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors text-sm">View History</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </Sheet.Content>
+                              </div>
+                            </Sheet.View>
+                          </Sheet.Portal>
+                        </Sheet.Root>
+
+                        <hr className="my-4 border-gray-300" />
+
+                        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-100 transition-colors text-left">
+                          <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                          <span className="text-red-600">Sign Out</span>
+                        </button>
+                      </div>
+                    </div>
+                    </Sheet.Content>
+                  </div>
+                </Sheet.View>
+              </Sheet.Portal>
+            </Sheet.Root>
           </div>
         </div>
 
@@ -390,6 +677,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </SheetStack.Root>
   )
 }
