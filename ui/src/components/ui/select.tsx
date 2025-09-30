@@ -26,7 +26,7 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
   const [selected, setSelected] = useState<TSelectData | undefined>(undefined)
   const [searchTerm, setSearchTerm] = useState("")
   const [filteredData, setFilteredData] = useState<TSelectData[]>(data || [])
-  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const sheetTriggerRef = React.useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (defaultValue) {
@@ -92,12 +92,10 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
   const handlePlusClick = () => {
     setOpen(false)
     onOpenChange?.(false)
-    setIsSheetOpen(true)
+    setTimeout(() => {
+      sheetTriggerRef.current?.click()
+    }, 100)
   }
-
-  const largeViewport = useClientMediaQuery("(min-width: 650px)")
-  const contentPlacement = largeViewport ? "center" : "bottom"
-  const tracks: SheetViewProps["tracks"] = largeViewport ? ["top", "bottom"] : "bottom"
 
   return (
     <>
@@ -169,12 +167,15 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
       </motion.div>
     </MotionConfig>
 
-    <Sheet.Root license="commercial" open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+    <Sheet.Root license="commercial">
+      <Sheet.Trigger asChild>
+        <button ref={sheetTriggerRef} style={{ display: 'none' }} />
+      </Sheet.Trigger>
       <Sheet.Portal>
         <Sheet.View
           className="z-[100]"
-          contentPlacement={contentPlacement}
-          tracks={tracks}
+          contentPlacement="center"
+          tracks={["top", "bottom"]}
           nativeEdgeSwipePrevention={true}
         >
           <Sheet.Backdrop
@@ -188,12 +189,11 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-semibold text-gray-900">Create New Project</h2>
-                  <button
-                    onClick={() => setIsSheetOpen(false)}
-                    className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    <X className="w-5 h-5 text-gray-600" />
-                  </button>
+                  <Sheet.Trigger action="dismiss" asChild>
+                    <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
+                      <X className="w-5 h-5 text-gray-600" />
+                    </button>
+                  </Sheet.Trigger>
                 </div>
 
                 <div className="space-y-4">
@@ -219,21 +219,21 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
                   </div>
 
                   <div className="flex gap-2 pt-4">
-                    <button
-                      className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                      onClick={() => {
-                        console.log('Creating new project...');
-                        setIsSheetOpen(false)
-                      }}
-                    >
-                      Create Project
-                    </button>
-                    <button
-                      onClick={() => setIsSheetOpen(false)}
-                      className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors"
-                    >
-                      Cancel
-                    </button>
+                    <Sheet.Trigger action="dismiss" asChild>
+                      <button
+                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                        onClick={() => {
+                          console.log('Creating new project...');
+                        }}
+                      >
+                        Create Project
+                      </button>
+                    </Sheet.Trigger>
+                    <Sheet.Trigger action="dismiss" asChild>
+                      <button className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors">
+                        Cancel
+                      </button>
+                    </Sheet.Trigger>
                   </div>
                 </div>
               </div>
@@ -242,7 +242,7 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
         </Sheet.View>
       </Sheet.Portal>
     </Sheet.Root>
-    </>
+</>
   )
 }
 
