@@ -1,7 +1,9 @@
+"use client"
+
 import React, { useEffect, useState } from "react"
 import { AnimatePresence, motion, MotionConfig } from "framer-motion"
 import { ChevronDownIcon, X, Search, Plus } from "lucide-react"
-import { Sheet, useClientMediaQuery, SheetViewProps } from "@silk-hq/components"
+import { ProjectCreationSheet } from "@/components/project/project-creation-sheet"
 
 type TSelectData = {
   id: string
@@ -76,14 +78,12 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
     const item = data?.find((i) => i.value === value)
     setSelected(item as TSelectData)
 
-    // Reset search state immediately
     setSearchTerm("")
     setFilteredData(data || [])
 
     setOpen(false)
     onOpenChange?.(false)
 
-    // Wait for animation to complete before triggering navigation
     setTimeout(() => {
       onChange?.(value)
     }, 150)
@@ -99,6 +99,9 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
 
   return (
     <>
+    {open && (
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-all duration-200" />
+    )}
     <MotionConfig
       transition={{
         type: "spring",
@@ -167,230 +170,8 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
       </motion.div>
     </MotionConfig>
 
-    <Sheet.Root license="commercial">
-      <Sheet.Trigger asChild>
-        <button ref={sheetTriggerRef} style={{ display: 'none' }} />
-      </Sheet.Trigger>
-      <Sheet.Portal>
-        <Sheet.View
-          className="z-[100]"
-          contentPlacement="center"
-          tracks={["top", "bottom"]}
-          nativeEdgeSwipePrevention={true}
-        >
-          <Sheet.Backdrop
-            travelAnimation={{
-              opacity: ({ progress }: { progress: number }) => Math.min(progress * 0.2, 0.2),
-            }}
-            themeColorDimming="auto"
-          />
-          <Sheet.Content className="max-w-[650px] h-auto min-h-[200px] bg-transparent p-[6px]">
-            <div className="h-full rounded-lg bg-white shadow-lg">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Create New Project</h2>
-                  <Sheet.Trigger action="dismiss" asChild>
-                    <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
-                      <X className="w-5 h-5 text-gray-600" />
-                    </button>
-                  </Sheet.Trigger>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-900">Project Name</label>
-                    <input
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter project name"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-900">Description</label>
-                    <textarea
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg h-20 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Brief description of the project"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-900">Project Template</label>
-                    <ProjectTemplateSelect />
-                  </div>
-
-                  <div className="flex gap-2 pt-4">
-                    <Sheet.Trigger action="dismiss" asChild>
-                      <button
-                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                        onClick={() => {
-                          console.log('Creating new project...');
-                        }}
-                      >
-                        Create Project
-                      </button>
-                    </Sheet.Trigger>
-                    <Sheet.Trigger action="dismiss" asChild>
-                      <button className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors">
-                        Cancel
-                      </button>
-                    </Sheet.Trigger>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Sheet.Content>
-        </Sheet.View>
-      </Sheet.Portal>
-    </Sheet.Root>
-</>
-  )
-}
-
-const ProjectTemplateSelect = () => {
-  const [isOpen, setIsOpen] = useState(false)
-  const [selected, setSelected] = useState<TSelectData | undefined>(undefined)
-
-  const templateData: TSelectData[] = [
-    {
-      id: '1',
-      label: 'Dashboard Template',
-      value: 'dashboard',
-      description: 'Analytics and reporting dashboard',
-      icon: '📊',
-    },
-    {
-      id: '2',
-      label: 'Mobile App Template',
-      value: 'mobile_app',
-      description: 'React Native or Flutter mobile app',
-      icon: '📱',
-    },
-    {
-      id: '3',
-      label: 'API Gateway Template',
-      value: 'api_gateway',
-      description: 'REST API backend with authentication',
-      icon: '🔗',
-    },
-    {
-      id: '4',
-      label: 'Marketing Website',
-      value: 'marketing_site',
-      description: 'Landing page with CMS integration',
-      icon: '🌐',
-    },
-    {
-      id: '5',
-      label: 'E-commerce Platform',
-      value: 'ecommerce',
-      description: 'Online store with payment processing',
-      icon: '🛒',
-    },
-    {
-      id: '6',
-      label: 'Blank Project',
-      value: 'blank',
-      description: 'Start from scratch with minimal setup',
-      icon: '📄',
-    },
-  ]
-
-  useEffect(() => {
-    setSelected(templateData[0])
-  }, [])
-
-  const handleSelect = (value: string) => {
-    const item = templateData.find(t => t.value === value)
-    if (item) {
-      setSelected(item)
-      setIsOpen(false)
-    }
-  }
-
-  return (
-    <MotionConfig
-      transition={{
-        type: "spring",
-        stiffness: 300,
-        damping: 25,
-      }}
-    >
-      <div className="relative">
-        <AnimatePresence mode="popLayout">
-          {!isOpen ? (
-            <motion.div
-              whileTap={{ scale: 0.95 }}
-              animate={{
-                borderRadius: 8,
-              }}
-              layout
-              layoutId="template-dropdown"
-              onClick={() => setIsOpen(true)}
-              className="overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm cursor-pointer"
-            >
-              <TemplateSelectItem item={selected} />
-            </motion.div>
-          ) : (
-            <motion.div
-              layout
-              animate={{
-                borderRadius: 12,
-              }}
-              layoutId="template-dropdown"
-              className="overflow-hidden rounded-xl w-full border border-gray-300 bg-white py-2 shadow-lg absolute top-0 left-0 z-50 max-h-60"
-            >
-              <div className="px-4 py-2 border-b border-gray-100">
-                <h3 className="font-medium text-gray-900">Choose Template</h3>
-              </div>
-              <div className="overflow-y-auto max-h-48">
-                {templateData.map((item) => (
-                  <TemplateSelectItem
-                    key={item.id}
-                    item={item}
-                    onClick={() => handleSelect(item.value)}
-                    isOption={true}
-                  />
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {isOpen && (
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
-          />
-        )}
-      </div>
-    </MotionConfig>
-  )
-}
-
-type TemplateSelectItemProps = {
-  item?: TSelectData
-  onClick?: () => void
-  isOption?: boolean
-}
-
-const TemplateSelectItem = ({ item, onClick, isOption = false }: TemplateSelectItemProps) => {
-  if (!item) return null
-
-  return (
-    <div
-      className={`flex items-center gap-3 p-3 ${isOption ? 'hover:bg-gray-50 cursor-pointer' : ''}`}
-      onClick={onClick}
-    >
-      <div className="text-2xl flex-shrink-0">{item.icon}</div>
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-900 truncate">{item.label}</div>
-        {item.description && (
-          <div className="text-sm text-gray-500 truncate">{item.description}</div>
-        )}
-      </div>
-      {!isOption && (
-        <ChevronDownIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-      )}
-    </div>
+    <ProjectCreationSheet triggerRef={sheetTriggerRef} />
+    </>
   )
 }
 
