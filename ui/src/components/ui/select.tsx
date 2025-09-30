@@ -26,6 +26,7 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
   const [selected, setSelected] = useState<TSelectData | undefined>(undefined)
   const [searchTerm, setSearchTerm] = useState("")
   const [filteredData, setFilteredData] = useState<TSelectData[]>(data || [])
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   useEffect(() => {
     if (defaultValue) {
@@ -88,7 +89,18 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
     }, 150)
   }
 
+  const handlePlusClick = () => {
+    setOpen(false)
+    onOpenChange?.(false)
+    setIsSheetOpen(true)
+  }
+
+  const largeViewport = useClientMediaQuery("(min-width: 650px)")
+  const contentPlacement = largeViewport ? "center" : "bottom"
+  const tracks: SheetViewProps["tracks"] = largeViewport ? ["top", "bottom"] : "bottom"
+
   return (
+    <>
     <MotionConfig
       transition={{
         type: "spring",
@@ -126,7 +138,7 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
               <Head onCloseDropdown={() => {
                 setOpen(false)
                 onOpenChange?.(false)
-              }} />
+              }} onPlusClick={handlePlusClick} />
               <div className="px-4 pb-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -156,6 +168,81 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
         </AnimatePresence>
       </motion.div>
     </MotionConfig>
+
+    <Sheet.Root license="commercial" open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+      <Sheet.Portal>
+        <Sheet.View
+          className="z-[100]"
+          contentPlacement={contentPlacement}
+          tracks={tracks}
+          nativeEdgeSwipePrevention={true}
+        >
+          <Sheet.Backdrop
+            travelAnimation={{
+              opacity: ({ progress }: { progress: number }) => Math.min(progress * 0.2, 0.2),
+            }}
+            themeColorDimming="auto"
+          />
+          <Sheet.Content className="max-w-[650px] h-auto min-h-[200px] bg-transparent p-[6px]">
+            <div className="h-full rounded-lg bg-white shadow-lg">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold text-gray-900">Create New Project</h2>
+                  <button
+                    onClick={() => setIsSheetOpen(false)}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-600" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-900">Project Name</label>
+                    <input
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter project name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-900">Description</label>
+                    <textarea
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg h-20 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Brief description of the project"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-900">Project Template</label>
+                    <ProjectTemplateSelect />
+                  </div>
+
+                  <div className="flex gap-2 pt-4">
+                    <button
+                      className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      onClick={() => {
+                        console.log('Creating new project...');
+                        setIsSheetOpen(false)
+                      }}
+                    >
+                      Create Project
+                    </button>
+                    <button
+                      onClick={() => setIsSheetOpen(false)}
+                      className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Sheet.Content>
+        </Sheet.View>
+      </Sheet.Portal>
+    </Sheet.Root>
+    </>
   )
 }
 
@@ -309,31 +396,7 @@ const TemplateSelectItem = ({ item, onClick, isOption = false }: TemplateSelectI
 
 export default Select
 
-const Head = ({ onCloseDropdown }: { onCloseDropdown: () => void }) => {
-  const largeViewport = useClientMediaQuery("(min-width: 650px)")
-  const contentPlacement = largeViewport ? "center" : "bottom"
-  const tracks: SheetViewProps["tracks"] = largeViewport ? ["top", "bottom"] : "bottom"
-  const [shouldTriggerSheet, setShouldTriggerSheet] = useState(false)
-  const triggerRef = React.useRef<HTMLButtonElement>(null)
-
-  const handlePlusClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    // First close the dropdown
-    onCloseDropdown()
-    // Then after animation, trigger the sheet
-    setTimeout(() => {
-      setShouldTriggerSheet(true)
-    }, 200)
-  }
-
-  // Programmatically trigger the sheet
-  React.useEffect(() => {
-    if (shouldTriggerSheet && triggerRef.current) {
-      triggerRef.current.click()
-      setShouldTriggerSheet(false)
-    }
-  }, [shouldTriggerSheet])
-
+const Head = ({ onCloseDropdown, onPlusClick }: { onCloseDropdown: () => void; onPlusClick: () => void }) => {
   return (
     <motion.div
       initial={{
@@ -355,90 +418,13 @@ const Head = ({ onCloseDropdown }: { onCloseDropdown: () => void }) => {
         Projects
       </motion.strong>
 
-      <Sheet.Root license="commercial">
-        <Sheet.Trigger asChild>
-          <motion.button
-            ref={triggerRef}
-            layout
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors"
-            onClick={handlePlusClick}
-          >
-            <Plus className="w-4 h-4 text-white" />
-          </motion.button>
-        </Sheet.Trigger>
-
-        <Sheet.Portal>
-          <Sheet.View
-            className="z-[100]"
-            contentPlacement={contentPlacement}
-            tracks={tracks}
-            nativeEdgeSwipePrevention={true}
-          >
-            <Sheet.Backdrop
-              travelAnimation={{
-                opacity: ({ progress }: { progress: number }) => Math.min(progress * 0.2, 0.2),
-              }}
-              themeColorDimming="auto"
-            />
-            <Sheet.Content className="max-w-[650px] h-auto min-h-[200px] bg-transparent p-[6px]">
-              <div className="h-full rounded-lg bg-white shadow-lg">
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-semibold text-gray-900">Create New Project</h2>
-                    <Sheet.Trigger action="dismiss" asChild>
-                      <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
-                        <X className="w-5 h-5 text-gray-600" />
-                      </button>
-                    </Sheet.Trigger>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-900">Project Name</label>
-                      <input
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter project name"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-900">Description</label>
-                      <textarea
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg h-20 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Brief description of the project"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-900">Project Template</label>
-                      <ProjectTemplateSelect />
-                    </div>
-
-                    <div className="flex gap-2 pt-4">
-                      <Sheet.Trigger action="dismiss" asChild>
-                        <button
-                          className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                          onClick={() => {
-                            // Project creation logic here
-                            console.log('Creating new project...');
-                          }}
-                        >
-                          Create Project
-                        </button>
-                      </Sheet.Trigger>
-                      <Sheet.Trigger action="dismiss" asChild>
-                        <button className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 transition-colors">
-                          Cancel
-                        </button>
-                      </Sheet.Trigger>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Sheet.Content>
-          </Sheet.View>
-        </Sheet.Portal>
-      </Sheet.Root>
+      <motion.button
+        layout
+        className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors"
+        onClick={onPlusClick}
+      >
+        <Plus className="w-4 h-4 text-white" />
+      </motion.button>
     </motion.div>
   )
 }
