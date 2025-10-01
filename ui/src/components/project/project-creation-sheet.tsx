@@ -1,17 +1,17 @@
 "use client"
 
 import { Sheet } from "@silk-hq/components"
-import { X } from "lucide-react"
 import { ProjectTemplateSelect } from "./project-template-select"
 import { SHEET_ANIMATIONS } from "@/lib/constants/sheet-animations"
-import { useState } from "react"
+import { Component as Tabs, TabsList, TabsTrigger, TabsContent, TabsContents } from "@/components/ui/animated-tabs"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 
 type ProjectCreationSheetProps = {
   triggerRef: React.RefObject<HTMLButtonElement>
 }
 
 export function ProjectCreationSheet({ triggerRef }: ProjectCreationSheetProps) {
-  const [activeTab, setActiveTab] = useState<"enter" | "create">("enter")
 
   return (
     <Sheet.Root license="commercial">
@@ -26,84 +26,72 @@ export function ProjectCreationSheet({ triggerRef }: ProjectCreationSheetProps) 
           nativeEdgeSwipePrevention={true}
         >
           <Sheet.Backdrop className="backdrop-blur-backdrop" />
-          <Sheet.Content className="bg-transparent p-6 relative" style={{ maxWidth: '650px', width: '100%' }}>
-            <div className="flex flex-col gap-4 relative">
-              <div className="rounded-2xl bg-white shadow-lg p-1">
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setActiveTab("enter")}
-                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-xl transition-colors ${
-                      activeTab === "enter"
-                        ? "bg-blue-500 text-white"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    Enter a Project
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("create")}
-                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-xl transition-colors ${
-                      activeTab === "create"
-                        ? "bg-blue-500 text-white"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    Create a Project
-                  </button>
-                </div>
-              </div>
+          <Sheet.Content className="bg-transparent relative" style={{ maxWidth: '650px', width: '100%', height: 'auto' }}>
+            <Tabs defaultValue="enter" className="flex flex-col gap-5">
+              <TabsList className="bg-card/95 backdrop-blur-sm rounded-2xl shadow-xl border border-border/50 w-full grid grid-cols-2 h-auto p-1.5">
+                <TabsTrigger value="enter">
+                  Enter a Project
+                </TabsTrigger>
+                <TabsTrigger value="create">
+                  Create a Project
+                </TabsTrigger>
+              </TabsList>
 
-              <div className="rounded-2xl bg-white shadow-lg p-6 min-h-[300px]">
-                {activeTab === "enter" ? (
-                  <div className="flex flex-col gap-4 h-full">
-                    <div className="flex-1">
-                      <input
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <div className="rounded-2xl bg-card/95 backdrop-blur-sm shadow-xl border border-border/50">
+                <TabsContents className="min-h-[320px]">
+                  <TabsContent value="enter" className="flex flex-col gap-6 p-8">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Project Code</label>
+                      <Input
                         placeholder="Enter project ID or code"
+                        className="h-11 bg-secondary/50"
                       />
+                      <p className="text-xs text-muted-foreground">Enter the unique code provided by your team lead</p>
                     </div>
 
-                    <div className="flex gap-2">
-                      <button
-                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    <div className="flex gap-3 mt-auto">
+                      <Button
+                        className="flex-1 h-11 text-base font-medium shadow-md hover:shadow-lg transition-shadow"
                         onClick={() => {
                           console.log('Requesting project...');
                         }}
                       >
-                        Request
-                      </button>
+                        Request Access
+                      </Button>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-4 h-full">
-                    <div>
-                      <input
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Project name"
+                  </TabsContent>
+
+                  <TabsContent value="create" className="flex flex-col gap-5 p-8">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Project Name</label>
+                      <Input
+                        placeholder="Enter a descriptive name"
+                        className="h-11 bg-secondary/50"
                       />
                     </div>
 
-                    <div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Description</label>
                       <textarea
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg h-32 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                        placeholder="Description"
+                        className="w-full px-4 py-3 border border-input bg-secondary/50 rounded-xl h-32 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent resize-none text-sm transition-all"
+                        placeholder="Briefly describe the project goals and scope"
                       />
                     </div>
 
-                    <div className="flex gap-2 mt-auto">
-                      <button
-                        className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    <div className="flex gap-3 mt-auto">
+                      <Button
+                        className="flex-1 h-11 text-base font-medium shadow-md hover:shadow-lg transition-shadow"
                         onClick={() => {
                           console.log('Creating new project...');
                         }}
                       >
-                        Next
-                      </button>
+                        Continue
+                      </Button>
                     </div>
-                  </div>
-                )}
+                  </TabsContent>
+                </TabsContents>
               </div>
-            </div>
+            </Tabs>
           </Sheet.Content>
         </Sheet.View>
       </Sheet.Portal>
