@@ -4,10 +4,9 @@ import { ReactNode, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { SheetStack } from "@silk-hq/components"
 import { sidebarStore } from "@/lib/sidebar-store"
-import { ProjectSidebar, type Project } from "@/components/sidebar/project-sidebar"
+import { ProjectSidebar } from "@/components/sidebar/project-sidebar"
 import { ProjectHeader } from "./project-header"
-import { projectsData } from "@/lib/data/projects"
-import { chatTitles } from "@/lib/data/chats"
+import { useSidebarData } from "@/lib/contexts/sidebar-context"
 
 type ProjectLayoutProps = {
   projectId: string
@@ -18,10 +17,11 @@ type ProjectLayoutProps = {
 
 export function ProjectLayout({ projectId, currentChatId, headerTitle, children }: ProjectLayoutProps) {
   const router = useRouter()
+  const { projects, chats } = useSidebarData()
   const [isMenuOpen, setIsMenuOpen] = useState(() => sidebarStore.getIsOpen())
   const [allowAnimations, setAllowAnimations] = useState(false)
 
-  const currentProject = projectsData.find(p => p.value === projectId) || projectsData[0]
+  const currentProject = projects.find(p => p.value === projectId) || projects[0]
 
   useEffect(() => {
     const unsubscribe = sidebarStore.subscribe((isOpen) => {
@@ -65,8 +65,8 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, children 
               sidebarStore.setIsOpenExplicit(false)
             }}
             currentProject={currentProject}
-            projects={projectsData}
-            chats={chatTitles}
+            projects={projects}
+            chats={chats}
             currentChatId={currentChatId}
             onProjectChange={handleProjectSelect}
             onChatClick={handleChatClick}

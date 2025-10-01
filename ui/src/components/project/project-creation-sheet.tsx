@@ -99,7 +99,13 @@ export function ProjectCreationSheet({ triggerRef }: ProjectCreationSheetProps) 
           tracks={["top", "bottom"]}
           nativeEdgeSwipePrevention={true}
         >
-          <Sheet.Backdrop className="backdrop-blur-backdrop" />
+          <Sheet.Backdrop
+            travelAnimation={{
+              opacity: "1",
+              backgroundColor: ({ progress }) => `rgba(0, 0, 0, ${Math.min(progress * 0.33, 0.33)})`,
+              backdropFilter: ({ progress }) => `blur(${progress * 20}px)`,
+            }}
+          />
           <Sheet.Content className="bg-transparent relative" style={{ maxWidth: '650px', width: '100%', height: 'auto' }}>
             <Tabs defaultValue="enter" className="flex flex-col gap-5">
               <TabsList className="bg-card/95 backdrop-blur-sm rounded-2xl shadow-xl border border-border/50 w-full grid grid-cols-2 h-auto p-1.5">

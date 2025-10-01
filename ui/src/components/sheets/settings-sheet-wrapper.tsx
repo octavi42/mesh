@@ -27,7 +27,6 @@ export function SettingsSheetWrapper({ trigger, title, children }: SettingsSheet
       </Sheet.Trigger>
       <Sheet.Portal>
         <Sheet.View contentPlacement="right" nativeEdgeSwipePrevention={true}>
-          <Sheet.Backdrop className="backdrop-blur-backdrop" />
           <Sheet.Content
             className="bg-white rounded-2xl shadow-xl w-full flex flex-col overflow-hidden"
             stackingAnimation={SHEET_ANIMATIONS.rightPanel.stackingAnimation}

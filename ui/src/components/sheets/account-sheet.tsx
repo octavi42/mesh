@@ -16,7 +16,13 @@ export function AccountSheet() {
 
       <Sheet.Portal>
         <Sheet.View contentPlacement="right" nativeEdgeSwipePrevention={true}>
-          <Sheet.Backdrop className="backdrop-blur-backdrop" />
+          <Sheet.Backdrop
+            travelAnimation={{
+              opacity: "1",
+              backgroundColor: ({ progress }) => `rgba(0, 0, 0, ${Math.min(progress * 0.33, 0.33)})`,
+              backdropFilter: ({ progress }) => `blur(${progress * 10}px)`,
+            }}
+          />
           <Sheet.Content
             className="bg-white rounded-2xl shadow-xl w-full"
             stackingAnimation={SHEET_ANIMATIONS.rightPanel.stackingAnimation}
