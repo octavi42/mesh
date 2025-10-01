@@ -32,6 +32,13 @@
   }
 }
 
+.backdrop-blur-backdrop[data-silk~=a2],
+[data-silk~=a2].backdrop-blur-backdrop {
+  background-color: rgba(0, 0, 0, 1) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

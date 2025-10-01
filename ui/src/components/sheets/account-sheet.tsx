@@ -16,12 +16,12 @@ export function AccountSheet() {
 
       <Sheet.Portal>
         <Sheet.View contentPlacement="right" nativeEdgeSwipePrevention={true}>
-          <div className="p-12 h-full flex items-center justify-end">
-            <Sheet.Backdrop travelAnimation={SHEET_ANIMATIONS.backdrop} className="z-[10000]" />
-            <Sheet.Content
-              className="bg-white rounded-2xl shadow-xl max-w-xs w-full"
-              stackingAnimation={SHEET_ANIMATIONS.rightPanel.stackingAnimation}
-            >
+          <Sheet.Backdrop className="backdrop-blur-backdrop" />
+          <Sheet.Content
+            className="bg-white rounded-2xl shadow-xl w-full"
+            stackingAnimation={SHEET_ANIMATIONS.rightPanel.stackingAnimation}
+            style={{ maxWidth: '320px', marginRight: '48px', marginTop: '48px', marginBottom: '48px' }}
+          >
               <div className="p-8">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-semibold text-gray-900">Account</h2>
@@ -169,7 +169,6 @@ export function AccountSheet() {
                 </div>
               </div>
             </Sheet.Content>
-          </div>
         </Sheet.View>
       </Sheet.Portal>
     </Sheet.Root>

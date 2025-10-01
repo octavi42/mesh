@@ -27,7 +27,7 @@ export function SettingsSheetWrapper({ trigger, title, children }: SettingsSheet
       </Sheet.Trigger>
       <Sheet.Portal>
         <Sheet.View contentPlacement="right" nativeEdgeSwipePrevention={true}>
-          <Sheet.Backdrop travelAnimation={SHEET_ANIMATIONS.backdrop} />
+          <Sheet.Backdrop className="backdrop-blur-backdrop" />
           <div className="p-12 h-full flex items-center justify-end">
             <Sheet.Content
               className="bg-white rounded-2xl shadow-xl max-w-xs w-full"

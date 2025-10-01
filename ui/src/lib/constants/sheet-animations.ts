@@ -1,6 +1,7 @@
 export const SHEET_ANIMATIONS = {
   backdrop: {
-    opacity: [0, 0.3] as [number, number],
+    opacity: ({progress}: {progress: number}) => progress * 0.15,
+    backdropFilter: ({progress}: {progress: number}) => `blur(${progress * 24}px)`,
   },
   rightPanel: {
     stackingAnimation: {
@@ -12,7 +13,8 @@ export const SHEET_ANIMATIONS = {
   },
   centerPanel: {
     travelAnimation: {
-      opacity: ({ progress }: { progress: number }) => Math.min(progress * 0.2, 0.2),
+      opacity: ({ progress }: { progress: number }) => Math.min(progress * 0.15, 0.15),
+      backdropFilter: ({progress}: {progress: number}) => `blur(${progress * 24}px)`,
     },
   },
 } as const
