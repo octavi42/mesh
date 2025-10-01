@@ -2,62 +2,8 @@
 
 import { Sheet } from "@silk-hq/components"
 import { X } from "lucide-react"
-import { useState, useEffect } from "react"
 import { ProjectTemplateSelect } from "./project-template-select"
-
-type TSelectData = {
-  id: string
-  label: string
-  value: string
-  description?: string
-  icon?: string
-  disabled?: boolean
-}
-
-export const templateData: TSelectData[] = [
-  {
-    id: '1',
-    label: 'Dashboard Template',
-    value: 'dashboard',
-    description: 'Analytics and reporting dashboard',
-    icon: '📊',
-  },
-  {
-    id: '2',
-    label: 'Mobile App Template',
-    value: 'mobile_app',
-    description: 'React Native or Flutter mobile app',
-    icon: '📱',
-  },
-  {
-    id: '3',
-    label: 'API Gateway Template',
-    value: 'api_gateway',
-    description: 'REST API backend with authentication',
-    icon: '🔗',
-  },
-  {
-    id: '4',
-    label: 'Marketing Website',
-    value: 'marketing_site',
-    description: 'Landing page with CMS integration',
-    icon: '🌐',
-  },
-  {
-    id: '5',
-    label: 'E-commerce Platform',
-    value: 'ecommerce',
-    description: 'Online store with payment processing',
-    icon: '🛒',
-  },
-  {
-    id: '6',
-    label: 'Blank Project',
-    value: 'blank',
-    description: 'Start from scratch with minimal setup',
-    icon: '📄',
-  },
-]
+import { SHEET_ANIMATIONS } from "@/lib/constants/sheet-animations"
 
 type ProjectCreationSheetProps = {
   triggerRef: React.RefObject<HTMLButtonElement>
@@ -76,12 +22,7 @@ export function ProjectCreationSheet({ triggerRef }: ProjectCreationSheetProps) 
           tracks={["top", "bottom"]}
           nativeEdgeSwipePrevention={true}
         >
-          <Sheet.Backdrop
-            travelAnimation={{
-              opacity: ({ progress }: { progress: number }) => Math.min(progress * 0.2, 0.2),
-            }}
-            themeColorDimming="auto"
-          />
+          <Sheet.Backdrop travelAnimation={SHEET_ANIMATIONS.centerPanel.travelAnimation} themeColorDimming="auto" />
           <Sheet.Content className="max-w-[650px] h-auto min-h-[200px] bg-transparent p-[6px]">
             <div className="h-full rounded-lg bg-white shadow-lg">
               <div className="p-6">

@@ -3,21 +3,12 @@
 import React, { useState, useEffect } from "react"
 import { AnimatePresence, motion, MotionConfig } from "framer-motion"
 import { ChevronDownIcon } from "lucide-react"
-import { templateData } from "./project-creation-sheet"
-
-type TSelectData = {
-  id: string
-  label: string
-  value: string
-  description?: string
-  icon?: string
-  disabled?: boolean
-  custom?: React.ReactNode
-}
+import { templateData } from "@/lib/data/templates"
+import { type SelectData } from "@/lib/types"
 
 export function ProjectTemplateSelect() {
   const [isOpen, setIsOpen] = useState(false)
-  const [selected, setSelected] = useState<TSelectData | undefined>(undefined)
+  const [selected, setSelected] = useState<SelectData | undefined>(undefined)
 
   useEffect(() => {
     setSelected(templateData[0])
@@ -91,7 +82,7 @@ export function ProjectTemplateSelect() {
 }
 
 type TemplateSelectItemProps = {
-  item?: TSelectData
+  item?: SelectData
   onClick?: () => void
   isOption?: boolean
 }

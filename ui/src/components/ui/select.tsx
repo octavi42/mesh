@@ -4,19 +4,10 @@ import React, { useEffect, useState } from "react"
 import { AnimatePresence, motion, MotionConfig } from "framer-motion"
 import { ChevronDownIcon, X, Search, Plus } from "lucide-react"
 import { ProjectCreationSheet } from "@/components/project/project-creation-sheet"
-
-type TSelectData = {
-  id: string
-  label: string
-  value: string
-  description?: string
-  icon?: string
-  disabled?: boolean
-  custom?: React.ReactNode
-}
+import { type SelectData } from "@/lib/types"
 
 type SelectProps = {
-  data?: TSelectData[]
+  data?: SelectData[]
   onChange?: (value: string) => void
   defaultValue?: string
   onOpenChange?: (open: boolean) => void
@@ -25,9 +16,9 @@ type SelectProps = {
 const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => {
   const [open, setOpen] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
-  const [selected, setSelected] = useState<TSelectData | undefined>(undefined)
+  const [selected, setSelected] = useState<SelectData | undefined>(undefined)
   const [searchTerm, setSearchTerm] = useState("")
-  const [filteredData, setFilteredData] = useState<TSelectData[]>(data || [])
+  const [filteredData, setFilteredData] = useState<SelectData[]>(data || [])
   const sheetTriggerRef = React.useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -76,7 +67,7 @@ const Select = ({ data, defaultValue, onOpenChange, onChange }: SelectProps) => 
 
   const onSelect = (value: string) => {
     const item = data?.find((i) => i.value === value)
-    setSelected(item as TSelectData)
+    setSelected(item as SelectData)
 
     setSearchTerm("")
     setFilteredData(data || [])
@@ -211,7 +202,7 @@ const Head = ({ onCloseDropdown, onPlusClick }: { onCloseDropdown: () => void; o
 }
 
 type SelectItemProps = {
-  item?: TSelectData
+  item?: SelectData
   noDescription?: boolean
   order?: string
   onChange?: (index: string) => void
