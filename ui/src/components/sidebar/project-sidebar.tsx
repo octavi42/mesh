@@ -32,7 +32,7 @@ export function ProjectSidebar({
   onSettingsClick,
 }: ProjectSidebarProps) {
   return (
-    <div className="w-[28em] h-full bg-gray-50 rounded-2xl p-6 shadow-lg flex-shrink-0">
+    <div className="w-[24em] h-full bg-gray-100 rounded-2xl p-6 shadow-lg flex-shrink-0 flex flex-col">
       <SidebarHeader onClose={onClose} onSettingsClick={onSettingsClick} />
 
       <div className="mb-6">
@@ -58,11 +58,15 @@ export function ProjectSidebar({
         </button>
       </div>
 
-      <ChatList
-        chats={chats}
-        currentChatId={currentChatId}
-        onChatClick={onChatClick}
-      />
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto">
+          <ChatList
+            chats={chats}
+            currentChatId={currentChatId}
+            onChatClick={onChatClick}
+          />
+        </div>
+      </div>
     </div>
   )
 }
