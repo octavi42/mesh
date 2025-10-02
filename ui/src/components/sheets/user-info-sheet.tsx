@@ -4,6 +4,7 @@ import { ReactNode, useState } from "react"
 import { Sheet } from "@silk-hq/components"
 import { X, Mail, Shield, ChevronDown, ChevronUp } from "lucide-react"
 import { SHEET_ANIMATIONS } from "@/lib/constants/sheet-animations"
+import "./user-info-sheet.css"
 
 type Integration = {
   id: string
@@ -50,10 +51,10 @@ export function UserInfoSheet({ user, trigger }: UserInfoSheetProps) {
             }}
           />
           <Sheet.Content
-            className="bg-white rounded-2xl shadow-xl w-full flex flex-col overflow-hidden"
+            className="UserInfoSheet-content"
             stackingAnimation={SHEET_ANIMATIONS.rightPanel.stackingAnimation}
-            style={{ maxWidth: '320px', marginRight: '48px', marginTop: '48px', marginBottom: '48px', maxHeight: 'calc(100vh - 96px)' }}
           >
+            <div className="UserInfoSheet-innerContent">
             <div className="p-8 pb-4 flex-shrink-0">
               <div className="flex items-center justify-end mb-6">
                 <Sheet.Trigger action="dismiss" asChild>
@@ -151,6 +152,7 @@ export function UserInfoSheet({ user, trigger }: UserInfoSheetProps) {
                   </button>
                 )}
               </div>
+            </div>
             </div>
           </Sheet.Content>
         </Sheet.View>

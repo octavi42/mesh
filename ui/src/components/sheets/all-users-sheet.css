@@ -1,0 +1,33 @@
+.AllUsersSheet-content {
+  /* SELF-LAYOUT */
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  max-width: calc(320px + 30px);
+
+  /* APPEARANCE */
+  background-color: transparent;
+
+  /* INNER-LAYOUT */
+  padding-right: 20px;
+  padding-top: 48px;
+  padding-bottom: 48px;
+  display: grid;
+}
+
+.AllUsersSheet-innerContent {
+  /* SELF-LAYOUT */
+  height: 100%;
+  min-height: 0;
+
+  /* APPEARANCE */
+  border-radius: 1rem;
+  background-color: white;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  overflow: hidden;
+  overflow: clip;
+
+  /* INNER-LAYOUT */
+  display: flex;
+  flex-direction: column;
+}

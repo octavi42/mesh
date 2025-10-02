@@ -4,6 +4,7 @@ import { Sheet } from "@silk-hq/components"
 import { X, User, Settings, CreditCard } from "lucide-react"
 import { SettingsSheetWrapper } from "./settings-sheet-wrapper"
 import { SHEET_ANIMATIONS } from "@/lib/constants/sheet-animations"
+import "./account-sheet.css"
 
 export function AccountSheet() {
   return (
@@ -24,10 +25,10 @@ export function AccountSheet() {
             }}
           />
           <Sheet.Content
-            className="bg-white rounded-2xl shadow-xl w-full"
+            className="AccountSheet-content"
             stackingAnimation={SHEET_ANIMATIONS.rightPanel.stackingAnimation}
-            style={{ maxWidth: '320px', marginRight: '48px', marginTop: '48px', marginBottom: '48px' }}
           >
+            <div className="AccountSheet-innerContent">
               <div className="p-8">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-semibold text-gray-900">Account</h2>
@@ -174,7 +175,8 @@ export function AccountSheet() {
                   </button>
                 </div>
               </div>
-            </Sheet.Content>
+            </div>
+          </Sheet.Content>
         </Sheet.View>
       </Sheet.Portal>
     </Sheet.Root>
