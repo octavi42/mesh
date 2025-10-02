@@ -9,6 +9,7 @@ interface User {
   name?: string;
   image: string;
   isAccepted?: boolean;
+  integrations?: any[];
 }
 
 interface UserAvatarsProps {

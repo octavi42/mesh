@@ -13,6 +13,7 @@ type User = {
   image: string
   isAccepted?: boolean
   isInvited?: boolean
+  integrations?: any[]
 }
 
 type AllUsersSheetProps = {
