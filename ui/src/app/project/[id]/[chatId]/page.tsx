@@ -38,35 +38,52 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
   const currentUserId = "current-user"
   const currentChat = chatTitles.find(c => c.id === chatId)
 
-  const handleSubmit = () => {
-    if (input.trim() || files.length > 0) {
+  const handleSubmit = async () => {
+    if (!input.trim() && files.length === 0) return
+
+    const messageText = input
+    const messageFiles = [...files]
+
+    setInput("")
+    setFiles([])
+
+    const now = new Date()
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text: messageText,
+      userId: currentUserId,
+      userName: "You",
+      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
+      timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: now,
+      user: {
+        id: currentUserId,
+        name: "You",
+        image: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
+        isAccepted: true,
+        integrations: []
+      }
+    }
+
+    setMessages(prev => [...prev, newMessage])
+
+    try {
       setIsLoading(true)
 
-      const now = new Date()
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        text: input,
-        userId: currentUserId,
-        userName: "You",
-        avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
-        timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        createdAt: now,
-        user: {
-          id: currentUserId,
-          name: "You",
-          image: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
-          isAccepted: true,
-          integrations: []
-        }
-      }
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(true)
+        }, 500)
+      })
 
-      setMessages(prev => [...prev, newMessage])
+      setIsLoading(false)
+    } catch (error) {
+      setIsLoading(false)
+      setMessages(prev => prev.filter(msg => msg.id !== newMessage.id))
+      setInput(messageText)
+      setFiles(messageFiles)
 
-      setTimeout(() => {
-        setIsLoading(false)
-        setInput("")
-        setFiles([])
-      }, 500)
+      console.error("Failed to send message:", error)
     }
   }
 
