@@ -33,20 +33,13 @@ export function ProjectSidebar({
 }: ProjectSidebarProps) {
   return (
     <div className="w-[24em] h-full bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-slate-200/50 flex-shrink-0 flex flex-col">
-      <SidebarHeader onClose={onClose} onSettingsClick={onSettingsClick} />
-
-      <div className="mb-6">
-        <div className="relative">
-          <div className="h-12 w-full rounded-[30px] border border-slate-200 bg-white shadow-sm opacity-0 pointer-events-none" />
-          <div className="absolute top-0 left-0 w-full">
-            <Select
-              data={projects}
-              defaultValue={currentProject.value}
-              onChange={onProjectChange}
-            />
-          </div>
-        </div>
-      </div>
+      <SidebarHeader
+        onClose={onClose}
+        onSettingsClick={onSettingsClick}
+        currentProject={currentProject}
+        projects={projects}
+        onProjectChange={onProjectChange}
+      />
 
       <div className="mb-6">
         <button
