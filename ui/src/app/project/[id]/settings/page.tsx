@@ -10,7 +10,7 @@ export default function ProjectSettings({ params }: { params: Promise<{ id: stri
   const router = useRouter()
 
   return (
-    <ProjectLayout projectId={id} headerTitle="Settings">
+    <ProjectLayout projectId={id} headerTitle="Settings" hideUserAvatars={true}>
       <div className="flex-1 flex flex-col animate-in fade-in duration-300 min-h-0">
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-2xl mx-auto space-y-6">

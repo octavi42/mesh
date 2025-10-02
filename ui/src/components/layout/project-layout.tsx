@@ -12,10 +12,11 @@ type ProjectLayoutProps = {
   projectId: string
   currentChatId?: string
   headerTitle?: string
+  hideUserAvatars?: boolean
   children: ReactNode
 }
 
-export function ProjectLayout({ projectId, currentChatId, headerTitle, children }: ProjectLayoutProps) {
+export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserAvatars, children }: ProjectLayoutProps) {
   const router = useRouter()
   const { projects, chats } = useSidebarData()
   const [isMenuOpen, setIsMenuOpen] = useState(() => sidebarStore.getIsOpen())
@@ -83,6 +84,8 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, children 
               sidebarStore.setIsOpen(true, false)
             }}
             title={headerTitle}
+            hideUserAvatars={hideUserAvatars}
+            currentChatId={currentChatId}
           />
 
           {children}

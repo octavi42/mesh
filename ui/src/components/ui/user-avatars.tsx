@@ -8,6 +8,7 @@ interface User {
   id: string | number;
   name?: string;
   image: string;
+  isAccepted?: boolean;
 }
 
 interface UserAvatarsProps {
@@ -35,11 +36,15 @@ export const UserAvatars = ({
 }: UserAvatarsProps) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const slicedUsers = users.slice(
-    0,
-    Math.min(maxVisible + 1, users.length + 1)
-  );
-  const exceedMaxLength = users.length > maxVisible;
+  const acceptedUsers = users.filter(user => user.isAccepted === true);
+  const remainingCount = users.length - acceptedUsers.length;
+
+  const shouldShowPlusBubble = remainingCount > 0 || acceptedUsers.length > maxVisible;
+  const displayLimit = shouldShowPlusBubble ? maxVisible : acceptedUsers.length;
+
+  const slicedUsers = acceptedUsers.slice(0, displayLimit);
+  const visibleAcceptedCount = slicedUsers.length;
+  const hiddenAcceptedCount = acceptedUsers.length - visibleAcceptedCount;
 
   const handleKeyEnter = (e: KeyboardEvent<HTMLDivElement>, index: number) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -47,23 +52,25 @@ export const UserAvatars = ({
     }
   };
 
+  const allUsersToRender = shouldShowPlusBubble
+    ? [...slicedUsers, { id: 'plus-bubble', name: undefined, image: '', isAccepted: true }]
+    : slicedUsers;
+
   return (
     <div className={cn("flex items-center relative", className)}>
-      {slicedUsers.map((user, index) => {
+      {allUsersToRender.map((user, index) => {
         const isHoveredOne = hoveredIndex === index;
-        const isLengthBubble = exceedMaxLength && maxVisible === index;
+        const isLengthBubble = user.id === 'plus-bubble';
 
         const diff = 1 - overlap / 100;
         const zIndex =
           isHoveredOne && isOverlapOnly
-            ? slicedUsers.length
+            ? allUsersToRender.length
             : isRightToLeft
-            ? slicedUsers.length - index
+            ? allUsersToRender.length - index
             : index;
 
-        const shouldScale =
-          isHoveredOne &&
-          (!exceedMaxLength || slicedUsers.length - 1 !== index);
+        const shouldScale = isHoveredOne;
 
         const shouldShift =
           hoveredIndex !== null &&
@@ -101,7 +108,7 @@ export const UserAvatars = ({
             <div className="w-full h-full rounded-full overflow-hidden border border-white shadow-md">
               {isLengthBubble ? (
                 <div className="flex h-full w-full items-center justify-center bg-background text-xs font-medium">
-                  +{users.length - maxVisible}
+                  +{hiddenAcceptedCount + remainingCount > 0 ? hiddenAcceptedCount + remainingCount : ''}
                 </div>
               ) : (
                 <img

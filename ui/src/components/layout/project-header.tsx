@@ -3,24 +3,18 @@
 import { Menu } from "lucide-react"
 import { AccountSheet } from "@/components/sheets/account-sheet"
 import { UserAvatars } from "@/components/ui/user-avatars"
+import { getChatUsers } from "@/lib/data/users"
 
 type ProjectHeaderProps = {
   isMenuOpen: boolean
   onMenuToggle: () => void
   title?: string
+  hideUserAvatars?: boolean
+  currentChatId?: string
 }
 
-export function ProjectHeader({ isMenuOpen, onMenuToggle, title }: ProjectHeaderProps) {
-  const chatUsers = [
-    { id: 1, name: "Alice", image: "https://i.pravatar.cc/150?img=1" },
-    { id: 2, name: "Bob", image: "https://i.pravatar.cc/150?img=2" },
-    { id: 3, name: "Charlie", image: "https://i.pravatar.cc/150?img=3" },
-    { id: 4, name: "Diana", image: "https://i.pravatar.cc/150?img=4" },
-    { id: 5, name: "Eve", image: "https://i.pravatar.cc/150?img=5" },
-    { id: 6, name: "Frank", image: "https://i.pravatar.cc/150?img=6" },
-    { id: 7, name: "Grace", image: "https://i.pravatar.cc/150?img=7" },
-    { id: 8, name: "Hank", image: "https://i.pravatar.cc/150?img=8" },
-  ]
+export function ProjectHeader({ isMenuOpen, onMenuToggle, title, hideUserAvatars = false, currentChatId }: ProjectHeaderProps) {
+  const chatUsers = currentChatId ? getChatUsers(currentChatId) : []
 
   return (
     <div className={`p-6 ${title ? 'border-b border-slate-200/50' : ''}`}>
@@ -42,7 +36,9 @@ export function ProjectHeader({ isMenuOpen, onMenuToggle, title }: ProjectHeader
         </div>
 
         <div className="flex items-center gap-4 relative z-0">
-          <UserAvatars users={chatUsers} size={40} maxVisible={5} isRightToLeft={true} />
+          {!hideUserAvatars && (
+            <UserAvatars users={chatUsers} size={40} maxVisible={5} isRightToLeft={true} />
+          )}
           <div className="relative z-50">
             <AccountSheet />
           </div>
