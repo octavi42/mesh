@@ -4,6 +4,7 @@ import { useState, use } from "react"
 import { ProjectLayout } from "@/components/layout/project-layout"
 import { ChatInput } from "@/components/chat/chat-input"
 import { MessageBubble } from "@/components/chat/message-bubble"
+import { LlmMessageBubble } from "@/components/chat/llm-message-bubble"
 import { chatTitles } from "@/lib/data/chats"
 
 interface Message {
@@ -14,6 +15,16 @@ interface Message {
   avatarUrl: string
   timestamp: string
   createdAt: Date
+  isLlm?: boolean
+  isStreaming?: boolean
+  user?: {
+    id: string | number
+    name?: string
+    image: string
+    isAccepted?: boolean
+    isInvited?: boolean
+    integrations?: any[]
+  }
 }
 
 export default function ChatPage({ params }: { params: Promise<{ id: string; chatId: string }> }) {
@@ -30,25 +41,57 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
       userName: "Sarah Johnson",
       avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
       timestamp: "10:30 AM",
-      createdAt: new Date(Date.now() - 1000 * 60 * 30)
+      createdAt: new Date(Date.now() - 1000 * 60 * 30),
+      user: {
+        id: "user-2",
+        name: "Sarah Johnson",
+        image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
+        isAccepted: true,
+        integrations: []
+      }
     },
     {
       id: "2",
+      text: "The project is progressing well! We've completed the user authentication system and are now working on the chat feature. The team has been very collaborative.",
+      userId: "ai-assistant",
+      userName: "AI Assistant",
+      avatarUrl: "https://api.dicebear.com/7.x/bottts/svg?seed=AI",
+      timestamp: "10:31 AM",
+      createdAt: new Date(Date.now() - 1000 * 60 * 29),
+      isLlm: true,
+      isStreaming: false
+    },
+    {
+      id: "3",
       text: "Going great! Just finished the new feature.",
       userId: "current-user",
       userName: "You",
       avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
       timestamp: "10:32 AM",
-      createdAt: new Date(Date.now() - 1000 * 60 * 28)
+      createdAt: new Date(Date.now() - 1000 * 60 * 28),
+      user: {
+        id: "current-user",
+        name: "You",
+        image: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
+        isAccepted: true,
+        integrations: []
+      }
     },
     {
-      id: "3",
+      id: "4",
       text: "That's awesome! Can't wait to see it in action.",
       userId: "user-3",
       userName: "Mike Chen",
       avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike",
       timestamp: "10:33 AM",
-      createdAt: new Date(Date.now() - 1000 * 60 * 27)
+      createdAt: new Date(Date.now() - 1000 * 60 * 27),
+      user: {
+        id: "user-3",
+        name: "Mike Chen",
+        image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike",
+        isAccepted: true,
+        integrations: []
+      }
     }
   ])
 
@@ -67,7 +110,14 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
         userName: "You",
         avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
         timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        createdAt: now
+        createdAt: now,
+        user: {
+          id: currentUserId,
+          name: "You",
+          image: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
+          isAccepted: true,
+          integrations: []
+        }
       }
 
       setMessages(prev => [...prev, newMessage])
@@ -96,6 +146,18 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mx-auto max-w-3xl">
           {messages.map((message, index) => {
+            if (message.isLlm) {
+              return (
+                <LlmMessageBubble
+                  key={message.id}
+                  message={message.text}
+                  isStreaming={message.isStreaming}
+                  avatarUrl={message.avatarUrl}
+                  userName={message.userName}
+                />
+              )
+            }
+
             const prevMessage = index > 0 ? messages[index - 1] : null
             const nextMessage = index < messages.length - 1 ? messages[index + 1] : null
 
@@ -145,6 +207,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
                 isLastInGroup={isLastInGroup}
                 onHoverChange={(isHovered) => setHoveredGroupId(isHovered ? groupId : null)}
                 showTimestamp={hoveredGroupId === groupId}
+                user={message.user}
               />
             )
           })}

@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import { UserInfoSheet } from "@/components/sheets/user-info-sheet"
 
 interface MessageBubbleProps {
   message: string
@@ -14,6 +14,14 @@ interface MessageBubbleProps {
   isLastInGroup?: boolean
   onHoverChange?: (isHovered: boolean) => void
   showTimestamp?: boolean
+  user?: {
+    id: string | number
+    name?: string
+    image: string
+    isAccepted?: boolean
+    isInvited?: boolean
+    integrations?: any[]
+  }
 }
 
 export function MessageBubble({
@@ -27,6 +35,7 @@ export function MessageBubble({
   isLastInGroup = true,
   onHoverChange,
   showTimestamp = false,
+  user,
 }: MessageBubbleProps) {
   const getBubbleRounding = () => {
     if (isCurrentUser) {
@@ -65,7 +74,18 @@ export function MessageBubble({
       onMouseLeave={() => onHoverChange?.(false)}
     >
       <div className="flex-shrink-0 w-10">
-        {showAvatar ? (
+        {showAvatar && user && !isCurrentUser ? (
+          <UserInfoSheet
+            user={user}
+            trigger={
+              <img
+                src={avatarUrl}
+                alt={userName}
+                className="w-10 h-10 rounded-full object-cover border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+              />
+            }
+          />
+        ) : showAvatar ? (
           <img
             src={avatarUrl}
             alt={userName}
