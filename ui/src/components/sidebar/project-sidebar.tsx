@@ -32,12 +32,12 @@ export function ProjectSidebar({
   onSettingsClick,
 }: ProjectSidebarProps) {
   return (
-    <div className="w-[24em] h-full bg-gray-100 rounded-2xl p-6 shadow-lg flex-shrink-0 flex flex-col">
+    <div className="w-[24em] h-full bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-sm border border-slate-200/50 flex-shrink-0 flex flex-col">
       <SidebarHeader onClose={onClose} onSettingsClick={onSettingsClick} />
 
       <div className="mb-6">
         <div className="relative">
-          <div className="h-12 w-full rounded-[30px] border border-gray-300 bg-white shadow-sm opacity-0 pointer-events-none" />
+          <div className="h-12 w-full rounded-[30px] border border-slate-200 bg-white shadow-sm opacity-0 pointer-events-none" />
           <div className="absolute top-0 left-0 w-full">
             <Select
               data={projects}
@@ -51,7 +51,7 @@ export function ProjectSidebar({
       <div className="mb-6">
         <button
           onClick={onNewChat}
-          className="w-full flex items-center gap-3 px-3 py-3 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors text-white font-medium"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 transition-colors text-white font-normal shadow-sm"
         >
           <Plus className="w-5 h-5" />
           <span>New Chat</span>

@@ -52,7 +52,7 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, children 
 
   return (
     <SheetStack.Root>
-      <div className="flex h-screen bg-white relative">
+      <div className="flex h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 relative">
         <div
           className={`${
             isMenuOpen ? "w-[28em]" : "w-0"

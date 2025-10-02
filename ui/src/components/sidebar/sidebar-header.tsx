@@ -13,15 +13,15 @@ export function SidebarHeader({ onClose, onSettingsClick }: SidebarHeaderProps) 
       <div className="flex items-center gap-2">
         <button
           onClick={onSettingsClick}
-          className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors"
+          className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors"
         >
-          <Settings className="w-5 h-5 text-gray-600" />
+          <Settings className="w-5 h-5 text-slate-500" />
         </button>
         <button
           onClick={onClose}
-          className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors"
+          className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors"
         >
-          <X className="w-5 h-5 text-gray-600" />
+          <X className="w-5 h-5 text-slate-500" />
         </button>
       </div>
     </div>
