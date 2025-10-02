@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react"
 import { Sheet } from "@silk-hq/components"
-import { X, Mail, Calendar, Shield } from "lucide-react"
+import { X, Mail, Shield } from "lucide-react"
 import { SHEET_ANIMATIONS } from "@/lib/constants/sheet-animations"
 
 type UserInfoSheetProps = {
@@ -10,11 +10,17 @@ type UserInfoSheetProps = {
     id: string | number
     name?: string
     image: string
+    isAccepted?: boolean
+    isInvited?: boolean
   }
   trigger: ReactNode
 }
 
 export function UserInfoSheet({ user, trigger }: UserInfoSheetProps) {
+  const isAccepted = user.isAccepted === true
+  const isPending = user.isInvited && !user.isAccepted
+  const isNotInvited = !user.isInvited
+
   return (
     <Sheet.Root license="commercial" forComponent="closest">
       <Sheet.Trigger asChild>
@@ -35,8 +41,7 @@ export function UserInfoSheet({ user, trigger }: UserInfoSheetProps) {
             style={{ maxWidth: '320px', marginRight: '48px', marginTop: '48px', marginBottom: '48px', maxHeight: 'calc(100vh - 96px)' }}
           >
             <div className="p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-gray-900">User Info</h2>
+              <div className="flex items-center justify-end mb-6">
                 <Sheet.Trigger action="dismiss" asChild>
                   <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
                     <X className="w-5 h-5 text-gray-600" />
@@ -44,7 +49,7 @@ export function UserInfoSheet({ user, trigger }: UserInfoSheetProps) {
                 </Sheet.Trigger>
               </div>
 
-              <div className="mb-6 flex flex-col items-center">
+              <div className="mb-6 flex flex-col items-center -mt-6">
                 <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 mb-4">
                   <img
                     src={user.image}
@@ -72,22 +77,52 @@ export function UserInfoSheet({ user, trigger }: UserInfoSheetProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Calendar className="w-5 h-5 text-gray-600" />
-                  <div>
-                    <p className="text-xs text-gray-500">Joined</p>
-                    <p className="text-sm text-gray-900">January 2024</p>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex flex-col gap-3">
+                    <span className="text-xs text-gray-500">Integrations</span>
+                    <div className="flex items-center justify-center gap-4">
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center relative flex-shrink-0">
+                          <span className="text-white text-xs font-bold">SL</span>
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                        </div>
+                        <span className="text-[10px] text-gray-600">Slack</span>
+                      </div>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center relative flex-shrink-0">
+                          <span className="text-white text-xs font-bold">GH</span>
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                        </div>
+                        <span className="text-[10px] text-gray-600">GitHub</span>
+                      </div>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center relative flex-shrink-0">
+                          <span className="text-white text-xs font-bold">JR</span>
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></div>
+                        </div>
+                        <span className="text-[10px] text-gray-600">Jira</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="mt-6 space-y-2">
-                <button className="w-full px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                  Send Message
-                </button>
-                <button className="w-full px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
-                  Remove from Chat
-                </button>
+                {isAccepted && (
+                  <button className="w-full px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                    Kick from Chat
+                  </button>
+                )}
+                {isPending && (
+                  <button className="w-full px-4 py-3 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors cursor-not-allowed" disabled>
+                    Pending...
+                  </button>
+                )}
+                {isNotInvited && (
+                  <button className="w-full px-4 py-3 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors">
+                    Add to Chat
+                  </button>
+                )}
               </div>
             </div>
           </Sheet.Content>
