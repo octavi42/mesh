@@ -5,7 +5,7 @@ import { ProjectLayout } from "@/components/layout/project-layout"
 import { ChatInput } from "@/components/chat/chat-input"
 import { MessageBubble } from "@/components/chat/message-bubble"
 import { LlmMessageBubble } from "@/components/chat/llm-message-bubble"
-import { chatTitles } from "@/lib/data/chats"
+import { chatTitles, chatMessages } from "@/lib/data/chats"
 
 interface Message {
   id: string
@@ -33,67 +33,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
   const [isLoading, setIsLoading] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null)
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      text: "Hey everyone! How's the project going?",
-      userId: "user-2",
-      userName: "Sarah Johnson",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
-      timestamp: "10:30 AM",
-      createdAt: new Date(Date.now() - 1000 * 60 * 30),
-      user: {
-        id: "user-2",
-        name: "Sarah Johnson",
-        image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
-        isAccepted: true,
-        integrations: []
-      }
-    },
-    {
-      id: "2",
-      text: "The project is progressing well! We've completed the user authentication system and are now working on the chat feature. The team has been very collaborative.",
-      userId: "ai-assistant",
-      userName: "AI Assistant",
-      avatarUrl: "https://api.dicebear.com/7.x/bottts/svg?seed=AI",
-      timestamp: "10:31 AM",
-      createdAt: new Date(Date.now() - 1000 * 60 * 29),
-      isLlm: true,
-      isStreaming: false
-    },
-    {
-      id: "3",
-      text: "Going great! Just finished the new feature.",
-      userId: "current-user",
-      userName: "You",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
-      timestamp: "10:32 AM",
-      createdAt: new Date(Date.now() - 1000 * 60 * 28),
-      user: {
-        id: "current-user",
-        name: "You",
-        image: "https://api.dicebear.com/7.x/avataaars/svg?seed=You",
-        isAccepted: true,
-        integrations: []
-      }
-    },
-    {
-      id: "4",
-      text: "That's awesome! Can't wait to see it in action.",
-      userId: "user-3",
-      userName: "Mike Chen",
-      avatarUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike",
-      timestamp: "10:33 AM",
-      createdAt: new Date(Date.now() - 1000 * 60 * 27),
-      user: {
-        id: "user-3",
-        name: "Mike Chen",
-        image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike",
-        isAccepted: true,
-        integrations: []
-      }
-    }
-  ])
+  const [messages, setMessages] = useState<Message[]>(chatMessages[chatId] || [])
 
   const currentUserId = "current-user"
   const currentChat = chatTitles.find(c => c.id === chatId)
