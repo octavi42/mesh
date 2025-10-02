@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useState, KeyboardEvent } from "react";
+import { UserInfoSheet } from "@/components/sheets/user-info-sheet";
+import { AllUsersSheet } from "@/components/sheets/all-users-sheet";
 
 interface User {
   id: string | number;
@@ -72,7 +74,7 @@ export const UserAvatars = ({
         const neededGap = (Number(size) * (1 + focusScale)) / 2;
         const shift = Math.max(0, neededGap - baseGap);
 
-        return (
+        const avatarContent = (
           <motion.div
             key={user.id}
             role="img"
@@ -125,7 +127,7 @@ export const UserAvatars = ({
                   }}
                   transition={{ duration: 0.18 }}
                   className={cn(
-                    "absolute left-1/2 z-50",
+                    "absolute left-1/2 z-10",
                     tooltipPlacement === "bottom"
                       ? "top-full mt-2"
                       : "bottom-full mb-2"
@@ -138,6 +140,16 @@ export const UserAvatars = ({
               )}
             </AnimatePresence>
           </motion.div>
+        );
+
+        if (isLengthBubble) {
+          return (
+            <AllUsersSheet key={user.id} users={users} trigger={avatarContent} />
+          );
+        }
+
+        return (
+          <UserInfoSheet key={user.id} user={user} trigger={avatarContent} />
         );
       })}
     </div>

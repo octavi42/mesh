@@ -41,9 +41,11 @@ export function ProjectHeader({ isMenuOpen, onMenuToggle, title }: ProjectHeader
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 relative z-0">
           <UserAvatars users={chatUsers} size={40} maxVisible={5} isRightToLeft={true} />
-          <AccountSheet />
+          <div className="relative z-50">
+            <AccountSheet />
+          </div>
         </div>
       </div>
     </div>
