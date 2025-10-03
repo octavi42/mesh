@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./silk.css";
 import { SidebarProvider } from "@/lib/contexts/sidebar-context";
+import { getProjects } from "@/lib/db/projects";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,17 +20,19 @@ export const metadata: Metadata = {
   description: "Collaborative project management platform",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const projects = await getProjects()
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SidebarProvider>
+        <SidebarProvider initialProjects={projects}>
           {children}
         </SidebarProvider>
       </body>
