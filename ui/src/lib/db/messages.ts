@@ -4,7 +4,7 @@ export type Message = {
   id: string
   chatId: string
   userId: string | null
-  text: string
+  content: string
   isLlm: boolean
   isStreaming: boolean
   createdAt: string
@@ -30,8 +30,8 @@ export async function getMessagesByChatId(chatId: string) {
       *,
       user:users (
         id,
-        name,
-        image
+        display_name,
+        avatar_url
       )
     `)
     .eq('chat_id', chatId)
@@ -43,22 +43,22 @@ export async function getMessagesByChatId(chatId: string) {
     id: message.id,
     chatId: message.chat_id,
     userId: message.user_id,
-    text: message.text,
-    isLlm: message.is_llm,
-    isStreaming: message.is_streaming,
+    content: message.content,
+    isLlm: message.is_llm_message,
+    isStreaming: false,
     createdAt: message.created_at,
-    userName: message.is_llm ? 'AI Assistant' : message.user?.name || 'Unknown',
-    avatarUrl: message.is_llm
+    userName: message.is_llm_message ? 'AI Assistant' : message.user?.display_name || 'Unknown',
+    avatarUrl: message.is_llm_message
       ? 'https://api.dicebear.com/7.x/bottts/svg?seed=AI'
-      : message.user?.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${message.user?.name}`,
+      : message.user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${message.user?.display_name}`,
     timestamp: new Date(message.created_at).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit'
     }),
     user: message.user ? {
       id: message.user.id,
-      name: message.user.name,
-      image: message.user.image || '',
+      name: message.user.display_name || '',
+      image: message.user.avatar_url || '',
       isAccepted: true,
       integrations: []
     } : undefined
@@ -69,9 +69,8 @@ export async function getMessagesByChatId(chatId: string) {
 export async function createMessage(data: {
   chatId: string
   userId: string | null
-  text: string
+  content: string
   isLlm?: boolean
-  isStreaming?: boolean
 }) {
   const supabase = await createClient()
 
@@ -80,9 +79,8 @@ export async function createMessage(data: {
     .insert({
       chat_id: data.chatId,
       user_id: data.userId,
-      text: data.text,
-      is_llm: data.isLlm || false,
-      is_streaming: data.isStreaming || false,
+      content: data.content,
+      is_llm_message: data.isLlm || false,
     })
     .select()
     .single()

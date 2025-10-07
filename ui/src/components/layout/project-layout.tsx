@@ -7,6 +7,8 @@ import { sidebarStore } from "@/lib/sidebar-store"
 import { ProjectSidebar } from "@/components/sidebar/project-sidebar"
 import { ProjectHeader } from "./project-header"
 import { useSidebarData } from "@/lib/contexts/sidebar-context"
+import { createClient } from "@/lib/supabase/client"
+import type { Chat } from "@/lib/types"
 
 type ProjectLayoutProps = {
   projectId: string
@@ -18,11 +20,12 @@ type ProjectLayoutProps = {
 
 export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserAvatars, children }: ProjectLayoutProps) {
   const router = useRouter()
-  const { projects, chats } = useSidebarData()
+  const { projects } = useSidebarData()
   const [isMenuOpen, setIsMenuOpen] = useState(() => sidebarStore.getIsOpen())
   const [allowAnimations, setAllowAnimations] = useState(false)
+  const [chats, setChats] = useState<Chat[]>([])
 
-  const currentProject = projects.find(p => p.value === projectId) || projects[0]
+  const currentProject = projects.find(p => p.value === projectId) || projects[0] || { id: '', label: '', value: '', description: '', icon: '' }
 
   useEffect(() => {
     const unsubscribe = sidebarStore.subscribe((isOpen) => {
@@ -39,9 +42,42 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
     return unsubscribe
   }, [isMenuOpen])
 
-  const handleProjectSelect = (projectValue: string) => {
-    if (currentChatId) {
-      router.push(`/project/${projectValue}/${currentChatId}`)
+  useEffect(() => {
+    async function loadChats() {
+      if (!currentProject?.id) return
+
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('project_id', currentProject.id)
+        .order('created_at', { ascending: true })
+
+      if (!error && data) {
+        setChats(data.map(chat => ({
+          id: chat.id,
+          title: chat.name
+        })))
+      }
+    }
+
+    loadChats()
+  }, [currentProject?.id])
+
+  const handleProjectSelect = async (projectValue: string) => {
+    const newProject = projects.find(p => p.value === projectValue)
+    if (!newProject?.id) return
+
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('chats')
+      .select('id')
+      .eq('project_id', newProject.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+
+    if (data && data.length > 0) {
+      router.push(`/project/${projectValue}/${data[0].id}`)
     } else {
       router.push(`/project/${projectValue}`)
     }

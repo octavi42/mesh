@@ -2,8 +2,10 @@
 
 import { ReactNode, useState } from "react"
 import { Sheet } from "@silk-hq/components"
-import { X, Mail, Shield, ChevronDown, ChevronUp } from "lucide-react"
+import { X, Mail, Shield, ChevronDown, ChevronUp, LogOut } from "lucide-react"
 import { SHEET_ANIMATIONS } from "@/lib/constants/sheet-animations"
+import { authClient } from "@/lib/auth-client"
+import { useSession } from "@/lib/hooks/use-session"
 import "./user-info-sheet.css"
 
 type Integration = {
@@ -31,10 +33,18 @@ export function UserInfoSheet({ user, trigger }: UserInfoSheetProps) {
   const isPending = user.isInvited && !user.isAccepted
   const isNotInvited = !user.isInvited
   const [isIntegrationsExpanded, setIsIntegrationsExpanded] = useState(false)
+  const { data: session } = useSession()
 
   const integrations = user.integrations || []
   const hasMoreThan4 = integrations.length > 4
   const displayedIntegrations = hasMoreThan4 && !isIntegrationsExpanded ? integrations.slice(0, 3) : integrations
+
+  const isCurrentUser = session?.user?.id === user.id
+
+  const handleSignOut = async () => {
+    await authClient.signOut()
+    window.location.href = "/"
+  }
 
   return (
     <Sheet.Root license="commercial" forComponent="closest">
@@ -136,20 +146,32 @@ export function UserInfoSheet({ user, trigger }: UserInfoSheetProps) {
 
             <div className="p-8 pt-4 flex-shrink-0">
               <div className="space-y-2">
-                {isAccepted && (
-                  <button className="w-full px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
-                    Kick from Chat
+                {isCurrentUser ? (
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
                   </button>
-                )}
-                {isPending && (
-                  <button className="w-full px-4 py-3 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors cursor-not-allowed" disabled>
-                    Pending...
-                  </button>
-                )}
-                {isNotInvited && (
-                  <button className="w-full px-4 py-3 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors">
-                    Add to Chat
-                  </button>
+                ) : (
+                  <>
+                    {isAccepted && (
+                      <button className="w-full px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
+                        Kick from Chat
+                      </button>
+                    )}
+                    {isPending && (
+                      <button className="w-full px-4 py-3 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors cursor-not-allowed" disabled>
+                        Pending...
+                      </button>
+                    )}
+                    {isNotInvited && (
+                      <button className="w-full px-4 py-3 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors">
+                        Add to Chat
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

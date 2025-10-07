@@ -1,14 +1,7 @@
--- Disable RLS temporarily for seeding
-ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.projects DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.members DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.chats DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages DISABLE ROW LEVEL SECURITY;
+-- Seed production database with initial data
 
--- Temporarily drop the foreign key constraint on users table
-ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
-
--- Insert users
+-- Insert test users (these will be in public.users, not auth.users)
+-- Note: For real users, they need to sign up through the app
 INSERT INTO public.users (id, email, display_name, avatar_url) VALUES
   ('00000000-0000-0000-0000-000000000001', 'alice@teamz.com', 'Alice', 'https://i.pravatar.cc/150?img=1'),
   ('00000000-0000-0000-0000-000000000002', 'bob@teamz.com', 'Bob', 'https://i.pravatar.cc/150?img=2'),
@@ -23,7 +16,7 @@ INSERT INTO public.projects (id, name, created_by) VALUES
   ('10000000-0000-0000-0000-000000000004', 'Marketing Site', '00000000-0000-0000-0000-000000000003')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert chats for TeamZ Dashboard
+-- Insert chats for TeamZ Dashboard project
 INSERT INTO public.chats (id, project_id, name, created_by) VALUES
   ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Project Planning Discussion', '00000000-0000-0000-0000-000000000001'),
   ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'UI/UX Review', '00000000-0000-0000-0000-000000000001'),
@@ -37,7 +30,7 @@ INSERT INTO public.chats (id, project_id, name, created_by) VALUES
   ('20000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'Deployment Pipeline', '00000000-0000-0000-0000-000000000001')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert chats for Mobile App
+-- Insert chats for Mobile App project
 INSERT INTO public.chats (id, project_id, name, created_by) VALUES
   ('20000000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000002', 'iOS Development', '00000000-0000-0000-0000-000000000001'),
   ('20000000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000002', 'Android Development', '00000000-0000-0000-0000-000000000001'),
@@ -45,7 +38,7 @@ INSERT INTO public.chats (id, project_id, name, created_by) VALUES
   ('20000000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000002', 'App Store Deployment', '00000000-0000-0000-0000-000000000001')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert chats for API Gateway
+-- Insert chats for API Gateway project
 INSERT INTO public.chats (id, project_id, name, created_by) VALUES
   ('20000000-0000-0000-0000-000000000021', '10000000-0000-0000-0000-000000000003', 'API Design', '00000000-0000-0000-0000-000000000002'),
   ('20000000-0000-0000-0000-000000000022', '10000000-0000-0000-0000-000000000003', 'Authentication', '00000000-0000-0000-0000-000000000002'),
@@ -53,7 +46,7 @@ INSERT INTO public.chats (id, project_id, name, created_by) VALUES
   ('20000000-0000-0000-0000-000000000024', '10000000-0000-0000-0000-000000000003', 'Load Testing', '00000000-0000-0000-0000-000000000002')
 ON CONFLICT (id) DO NOTHING;
 
--- Insert chats for Marketing Site
+-- Insert chats for Marketing Site project
 INSERT INTO public.chats (id, project_id, name, created_by) VALUES
   ('20000000-0000-0000-0000-000000000031', '10000000-0000-0000-0000-000000000004', 'Content Strategy', '00000000-0000-0000-0000-000000000003'),
   ('20000000-0000-0000-0000-000000000032', '10000000-0000-0000-0000-000000000004', 'SEO Optimization', '00000000-0000-0000-0000-000000000003'),
@@ -65,17 +58,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.messages (id, chat_id, user_id, content, is_llm_message, created_at) VALUES
   ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Hey team! Ready to discuss the Q1 roadmap?', false, now() - interval '10 minutes'),
   ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', null, 'Absolutely! I can help organize the discussion. What are the key priorities for Q1?', true, now() - interval '9 minutes'),
-  ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'We need to focus on messaging and user profiles', false, now() - interval '8 minutes'),
-  ('30000000-0000-0000-0000-000000000010', '20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'The new UI mockups look great!', false, now() - interval '30 minutes'),
-  ('30000000-0000-0000-0000-000000000011', '20000000-0000-0000-0000-000000000002', null, 'Thank you! What specific aspects would you like to discuss?', true, now() - interval '29 minutes')
+  ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'We need to focus on the messaging feature and user profiles', false, now() - interval '8 minutes')
 ON CONFLICT (id) DO NOTHING;
 
--- Re-add the foreign key constraint (if needed for production, but optional for now)
--- ALTER TABLE public.users ADD CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
--- Re-enable RLS
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+SELECT 'Seed data inserted successfully!';

@@ -4,15 +4,34 @@ import { Sheet } from "@silk-hq/components"
 import { X, User, Settings, CreditCard } from "lucide-react"
 import { SettingsSheetWrapper } from "./settings-sheet-wrapper"
 import { SHEET_ANIMATIONS } from "@/lib/constants/sheet-animations"
+import { useSession } from "@/lib/hooks/use-session"
+import { authClient } from "@/lib/auth-client"
 import "./account-sheet.css"
 
 export function AccountSheet() {
+  const { data: session } = useSession()
+
+  const displayName = session?.user?.name || session?.user?.email || "User"
+  const email = session?.user?.email || ""
+  const avatarUrl = session?.user?.image
+
+  const handleSignOut = async () => {
+    await authClient.signOut()
+    window.location.href = '/'
+  }
+
   return (
     <Sheet.Root license="commercial" forComponent="closest">
       <Sheet.Trigger asChild>
-        <button className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 transition-colors">
-          <User className="w-5 h-5 text-white" />
-        </button>
+        {avatarUrl ? (
+          <button className="flex items-center justify-center w-10 h-10 rounded-full overflow-hidden border-2 border-blue-500 hover:border-blue-600 transition-colors">
+            <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+          </button>
+        ) : (
+          <button className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500 hover:bg-blue-600 transition-colors">
+            <User className="w-5 h-5 text-white" />
+          </button>
+        )}
       </Sheet.Trigger>
 
       <Sheet.Portal>
@@ -41,16 +60,24 @@ export function AccountSheet() {
 
                 <div className="mb-6 p-4 bg-gray-50 rounded-xl">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
-                      <User className="w-6 h-6 text-white" />
-                    </div>
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={displayName}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+                        <User className="w-6 h-6 text-white" />
+                      </div>
+                    )}
                     <div>
-                      <h3 className="font-medium text-gray-900">John Doe</h3>
-                      <p className="text-sm text-gray-500">john.doe@teamz.com</p>
+                      <h3 className="font-medium text-gray-900">{displayName}</h3>
+                      <p className="text-sm text-gray-500">{email}</p>
                     </div>
                   </div>
                   <div className="text-xs text-gray-400">
-                    Member since January 2024
+                    {session?.user?.createdAt ? `Member since ${new Date(session.user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : 'New member'}
                   </div>
                 </div>
 
@@ -62,15 +89,15 @@ export function AccountSheet() {
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900">Display Name</label>
-                        <input className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="John Doe" />
+                        <input className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue={displayName} />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900">Email</label>
-                        <input className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="john.doe@teamz.com" />
+                        <input className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue={email} disabled />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-900">Bio</label>
-                        <textarea className="w-full px-3 py-2 border border-gray-300 rounded-lg h-20" defaultValue="Product designer and team lead" />
+                        <textarea className="w-full px-3 py-2 border border-gray-300 rounded-lg h-20" placeholder="Add a bio..." />
                       </div>
                       <div className="flex gap-2 pt-4">
                         <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">Save Changes</button>
@@ -167,7 +194,10 @@ export function AccountSheet() {
 
                   <hr className="my-4 border-gray-300" />
 
-                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-100 transition-colors text-left">
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-100 transition-colors text-left"
+                  >
                     <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>

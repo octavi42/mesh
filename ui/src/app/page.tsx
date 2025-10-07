@@ -3,8 +3,21 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AuthSheet } from "@/components/sheets/auth-sheet";
+import { useSession } from "@/lib/hooks/use-session";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const { data: session } = useSession();
+  const router = useRouter();
+
+  const handleSignInClick = () => {
+    if (session) {
+      router.push("/dashboard");
+      return true;
+    }
+    return false;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50">
       <header className="absolute top-0 left-0 right-0 z-10">
@@ -13,7 +26,7 @@ export default function Home() {
             <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-sm"></div>
             <span className="font-medium text-slate-900">teamz</span>
           </div>
-          <AuthSheet />
+          <AuthSheet onBeforeOpen={handleSignInClick} />
         </div>
       </header>
 

@@ -1,9 +1,9 @@
 "use client"
 
 import { createContext, useContext, ReactNode } from "react"
-import { chatTitles } from "@/lib/data/chats"
 import type { Project as UIProject, Chat } from "@/lib/types"
 import type { Project as DBProject } from "@/lib/db/projects"
+import type { Chat as DBChat } from "@/lib/db/chats"
 
 type SidebarContextType = {
   projects: UIProject[]
@@ -14,24 +14,31 @@ const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
 
 export function SidebarProvider({
   children,
-  initialProjects = []
+  initialProjects = [],
+  initialChats = []
 }: {
   children: ReactNode
   initialProjects?: DBProject[]
+  initialChats?: DBChat[]
 }) {
   const projects: UIProject[] = initialProjects.map(p => ({
     id: p.id,
     label: p.name,
-    value: p.name.toLowerCase().replace(/\s+/g, '_'),
+    value: p.id,
     description: p.name,
     icon: '📊'
+  }))
+
+  const chats: Chat[] = initialChats.map(c => ({
+    id: c.id,
+    title: c.title
   }))
 
   return (
     <SidebarContext.Provider
       value={{
         projects,
-        chats: chatTitles,
+        chats,
       }}
     >
       {children}

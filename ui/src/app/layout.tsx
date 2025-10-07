@@ -4,6 +4,8 @@ import "./globals.css";
 import "./silk.css";
 import { SidebarProvider } from "@/lib/contexts/sidebar-context";
 import { getProjects } from "@/lib/db/projects";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,7 +27,16 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const projects = await getProjects()
+  const session = await auth.api.getSession({ headers: await headers() })
+  let projects = []
+
+  if (session?.user) {
+    try {
+      projects = await getProjects()
+    } catch (error) {
+      console.error("Failed to fetch projects:", error)
+    }
+  }
 
   return (
     <html lang="en">

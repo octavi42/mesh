@@ -12,142 +12,102 @@ export interface Database {
       users: {
         Row: {
           id: string
-          name: string
           email: string
-          image: string | null
+          display_name: string | null
+          avatar_url: string | null
           created_at: string
-          updated_at: string
+          password_hash: string | null
+          email_verified: boolean | null
+          updated_at: string | null
         }
         Insert: {
-          id?: string
-          name: string
+          id: string
           email: string
-          image?: string | null
+          display_name?: string | null
+          avatar_url?: string | null
           created_at?: string
-          updated_at?: string
+          password_hash?: string | null
+          email_verified?: boolean | null
+          updated_at?: string | null
         }
         Update: {
           id?: string
-          name?: string
           email?: string
-          image?: string | null
+          display_name?: string | null
+          avatar_url?: string | null
           created_at?: string
-          updated_at?: string
-        }
-      }
-      integrations: {
-        Row: {
-          id: string
-          name: string
-          short_name: string
-          color: string
-          created_at: string
-        }
-        Insert: {
-          id: string
-          name: string
-          short_name: string
-          color: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          short_name?: string
-          color?: string
-          created_at?: string
-        }
-      }
-      user_integrations: {
-        Row: {
-          user_id: string
-          integration_id: string
-          is_connected: boolean
-          created_at: string
-        }
-        Insert: {
-          user_id: string
-          integration_id: string
-          is_connected?: boolean
-          created_at?: string
-        }
-        Update: {
-          user_id?: string
-          integration_id?: string
-          is_connected?: boolean
-          created_at?: string
+          password_hash?: string | null
+          email_verified?: boolean | null
+          updated_at?: string | null
         }
       }
       projects: {
         Row: {
           id: string
-          label: string
-          value: string
-          description: string | null
-          icon: string | null
+          name: string
+          created_by: string
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
-          label: string
-          value: string
-          description?: string | null
-          icon?: string | null
+          name: string
+          created_by: string
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
-          label?: string
-          value?: string
-          description?: string | null
-          icon?: string | null
+          name?: string
+          created_by?: string
           created_at?: string
-          updated_at?: string
+        }
+      }
+      members: {
+        Row: {
+          id: string
+          user_id: string
+          project_id: string
+          role: 'admin' | 'member'
+          joined_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          project_id: string
+          role?: 'admin' | 'member'
+          joined_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          project_id?: string
+          role?: 'admin' | 'member'
+          joined_at?: string
         }
       }
       chats: {
         Row: {
           id: string
           project_id: string
-          title: string
+          name: string
+          is_private: boolean | null
+          created_by: string
           created_at: string
-          updated_at: string
         }
         Insert: {
           id?: string
           project_id: string
-          title: string
+          name: string
+          is_private?: boolean | null
+          created_by: string
           created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
           project_id?: string
-          title?: string
+          name?: string
+          is_private?: boolean | null
+          created_by?: string
           created_at?: string
-          updated_at?: string
-        }
-      }
-      chat_memberships: {
-        Row: {
-          chat_id: string
-          user_id: string
-          is_accepted: boolean
-          joined_at: string
-        }
-        Insert: {
-          chat_id: string
-          user_id: string
-          is_accepted?: boolean
-          joined_at?: string
-        }
-        Update: {
-          chat_id?: string
-          user_id?: string
-          is_accepted?: boolean
-          joined_at?: string
         }
       }
       messages: {
@@ -155,39 +115,39 @@ export interface Database {
           id: string
           chat_id: string
           user_id: string | null
-          text: string
-          is_llm: boolean
-          is_streaming: boolean
+          content: string
+          parent_message_id: string | null
+          is_llm_message: boolean | null
           created_at: string
+          updated_at: string | null
+          deleted_at: string | null
         }
         Insert: {
           id?: string
           chat_id: string
           user_id?: string | null
-          text: string
-          is_llm?: boolean
-          is_streaming?: boolean
+          content: string
+          parent_message_id?: string | null
+          is_llm_message?: boolean | null
           created_at?: string
+          updated_at?: string | null
+          deleted_at?: string | null
         }
         Update: {
           id?: string
           chat_id?: string
           user_id?: string | null
-          text?: string
-          is_llm?: boolean
-          is_streaming?: boolean
+          content?: string
+          parent_message_id?: string | null
+          is_llm_message?: boolean | null
           created_at?: string
+          updated_at?: string | null
+          deleted_at?: string | null
         }
       }
     }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
-    }
+    Views: {}
+    Functions: {}
+    Enums: {}
   }
 }
