@@ -7,10 +7,10 @@ import { type Chat } from "@/lib/types"
 type ChatListProps = {
   chats: Chat[]
   currentChatId?: string
-  onChatClick: (chatId: string) => void
+  projectId: string
 }
 
-export function ChatList({ chats, currentChatId, onChatClick }: ChatListProps) {
+export function ChatList({ chats, currentChatId, projectId }: ChatListProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
   useEffect(() => {
@@ -27,10 +27,6 @@ export function ChatList({ chats, currentChatId, onChatClick }: ChatListProps) {
   const handleChatAction = (action: string, chatId: string) => {
     console.log(`${action} action for chat:`, chatId)
     setOpenDropdown(null)
-
-    if (action === 'edit') {
-      onChatClick(chatId)
-    }
   }
 
   return (
@@ -43,7 +39,7 @@ export function ChatList({ chats, currentChatId, onChatClick }: ChatListProps) {
             title={chat.title}
             isActive={chat.id === currentChatId}
             isDropdownOpen={openDropdown === chat.id}
-            onClick={() => onChatClick(chat.id)}
+            href={`/project/${projectId}/${chat.id}`}
             onDropdownToggle={() => setOpenDropdown(openDropdown === chat.id ? null : chat.id)}
             onEdit={() => handleChatAction('edit', chat.id)}
             onRename={() => handleChatAction('rename', chat.id)}

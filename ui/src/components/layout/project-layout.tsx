@@ -1,7 +1,6 @@
 "use client"
 
 import { ReactNode, useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { SheetStack } from "@silk-hq/components"
 import { sidebarStore } from "@/lib/sidebar-store"
 import { ProjectSidebar } from "@/components/sidebar/project-sidebar"
@@ -20,7 +19,6 @@ type ProjectLayoutProps = {
 }
 
 export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserAvatars, children }: ProjectLayoutProps) {
-  const router = useRouter()
   const { projects } = useSidebarData()
   const { data: session } = useSession()
   const [isMenuOpen, setIsMenuOpen] = useState(() => sidebarStore.getIsOpen())
@@ -52,13 +50,6 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
   }, [isMenuOpen])
 
 
-  const handleProjectSelect = (projectValue: string) => {
-    router.push(`/project/${projectValue}`)
-  }
-
-  const handleChatClick = (chatId: string) => {
-    router.push(`/project/${projectId}/${chatId}`)
-  }
 
   return (
     <SheetStack.Root>
@@ -69,7 +60,6 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
           } ${allowAnimations ? "transition-all duration-150 ease-in-out" : ""} overflow-hidden flex-shrink-0 ${isMenuOpen ? "p-4" : "p-0"}`}
         >
           <ProjectSidebar
-            isOpen={isMenuOpen}
             onClose={() => {
               setAllowAnimations(true)
               sidebarStore.setIsOpenExplicit(false)
@@ -78,10 +68,7 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
             projects={projects}
             chats={chats}
             currentChatId={currentChatId}
-            onProjectChange={handleProjectSelect}
-            onChatClick={handleChatClick}
-            onNewChat={() => router.push(`/project/${projectId}`)}
-            onSettingsClick={() => router.push(`/project/${projectId}/settings`)}
+            projectId={projectId}
           />
         </div>
 

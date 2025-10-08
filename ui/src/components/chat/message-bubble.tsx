@@ -1,5 +1,6 @@
 "use client"
 
+import { memo } from "react"
 import { cn } from "@/lib/utils"
 import { UserInfoSheet } from "@/components/sheets/user-info-sheet"
 
@@ -24,7 +25,7 @@ interface MessageBubbleProps {
   }
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   isCurrentUser,
   avatarUrl,
@@ -133,4 +134,4 @@ export function MessageBubble({
       </div>
     </div>
   )
-}
+})

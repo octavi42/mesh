@@ -4,15 +4,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { AuthSheet } from "@/components/sheets/auth-sheet";
 import { useSession } from "@/lib/hooks/use-session";
-import { useRouter } from "next/navigation";
 
 export default function Home() {
   const { data: session } = useSession();
-  const router = useRouter();
 
   const handleSignInClick = () => {
     if (session) {
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
       return true;
     }
     return false;

@@ -1,6 +1,6 @@
 "use client"
 
-import { cn } from "@/lib/utils"
+import { memo } from "react"
 import { motion } from "motion/react"
 
 interface LlmMessageBubbleProps {
@@ -10,7 +10,7 @@ interface LlmMessageBubbleProps {
   userName?: string
 }
 
-export function LlmMessageBubble({
+export const LlmMessageBubble = memo(function LlmMessageBubble({
   message,
   isStreaming = true,
   avatarUrl = "https://api.dicebear.com/7.x/bottts/svg?seed=AI",
@@ -81,4 +81,4 @@ export function LlmMessageBubble({
       </div>
     </div>
   )
-}
+})

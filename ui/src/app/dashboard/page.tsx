@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useSession } from "@/lib/hooks/use-session"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef } from "react"
@@ -33,9 +34,6 @@ export default function DashboardPage() {
     return null
   }
 
-  const handleProjectClick = (projectId: string) => {
-    router.push(`/project/${projectId}`)
-  }
 
   const currentUser = {
     id: session.user.id,
@@ -81,10 +79,11 @@ export default function DashboardPage() {
           {projects.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {projects.map((project) => (
-                <button
+                <Link
                   key={project.value}
-                  onClick={() => handleProjectClick(project.value)}
-                  className="group p-6 bg-white rounded-2xl border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all text-left"
+                  href={`/project/${project.value}`}
+                  prefetch={true}
+                  className="group p-6 bg-white rounded-2xl border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all text-left block"
                 >
                   <div className="flex items-start gap-3 mb-3">
                     <div className="text-3xl">{project.icon}</div>
@@ -99,7 +98,7 @@ export default function DashboardPage() {
                       {project.description}
                     </p>
                   )}
-                </button>
+                </Link>
               ))}
             </div>
           ) : (

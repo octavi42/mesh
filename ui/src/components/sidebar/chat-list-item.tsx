@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { MoreHorizontal } from "lucide-react"
 import { ChatDropdownMenu } from "./chat-dropdown-menu"
 
@@ -8,7 +9,7 @@ type ChatListItemProps = {
   title: string
   isActive: boolean
   isDropdownOpen: boolean
-  onClick: () => void
+  href: string
   onDropdownToggle: () => void
   onEdit: () => void
   onRename: () => void
@@ -20,21 +21,22 @@ export function ChatListItem({
   title,
   isActive,
   isDropdownOpen,
-  onClick,
+  href,
   onDropdownToggle,
   onEdit,
   onRename,
   onDelete,
 }: ChatListItemProps) {
   return (
-    <div
+    <Link
+      href={href}
+      prefetch={true}
       key={chatId}
-      className={`group px-3 py-3 rounded-lg cursor-pointer relative transition-colors ${
+      className={`group px-3 py-3 rounded-lg cursor-pointer relative transition-colors block ${
         isActive
           ? 'bg-blue-50 border-l-2 border-blue-500'
           : 'hover:bg-slate-100'
       }`}
-      onClick={onClick}
     >
       <div className="flex items-center justify-between">
         <div className={`font-normal text-sm flex-1 mr-2 ${
@@ -63,6 +65,6 @@ export function ChatListItem({
           )}
         </div>
       </div>
-    </div>
+    </Link>
   )
 }

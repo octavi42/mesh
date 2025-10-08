@@ -2,6 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
+import { useLocalMessages, addLocalMessage, markMessageAsSynced } from "@/lib/hooks/use-local-messages"
+import { useEffect } from "react"
 
 interface Message {
   id: string
@@ -18,7 +20,9 @@ interface Message {
 }
 
 export function useMessages(chatId: string | undefined) {
-  return useQuery({
+  const localMessages = useLocalMessages(chatId || '')
+
+  const serverQuery = useQuery({
     queryKey: ['messages', chatId],
     queryFn: async () => {
       if (!chatId) return []
@@ -65,6 +69,61 @@ export function useMessages(chatId: string | undefined) {
     },
     enabled: !!chatId,
   })
+
+  useEffect(() => {
+    if (serverQuery.data && chatId) {
+      const syncMessages = async () => {
+        for (const msg of serverQuery.data) {
+          const existingLocal = localMessages?.find(lm => lm.id === msg.id)
+          if (!existingLocal) {
+            try {
+              await addLocalMessage({
+                id: msg.id,
+                chatId: chatId,
+                userId: msg.userId || '',
+                userName: msg.userName,
+                avatarUrl: msg.avatarUrl,
+                content: msg.content,
+                isLlm: msg.isLlm,
+                timestamp: msg.timestamp,
+                createdAt: msg.createdAt,
+                syncedToServer: true
+              })
+            } catch (error) {
+              console.error('Error syncing message to local DB:', error)
+            }
+          }
+        }
+      }
+      syncMessages()
+    }
+  }, [serverQuery.data, chatId, localMessages])
+
+  const messages = localMessages && localMessages.length > 0
+    ? localMessages.map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        userId: msg.userId,
+        userName: msg.userName,
+        avatarUrl: msg.avatarUrl,
+        timestamp: msg.timestamp,
+        createdAt: msg.createdAt,
+        isLlm: msg.isLlm,
+        isStreaming: msg.isStreaming,
+        user: msg.isLlm ? undefined : {
+          id: msg.userId,
+          name: msg.userName,
+          image: msg.avatarUrl,
+          isAccepted: true,
+          integrations: []
+        }
+      }))
+    : serverQuery.data || []
+
+  return {
+    ...serverQuery,
+    data: messages
+  }
 }
 
 export function useAddMessage(chatId: string) {

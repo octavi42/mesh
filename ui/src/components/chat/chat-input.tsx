@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/prompt-input"
 import { Button } from "@/components/ui/button"
 import { ArrowUp, Paperclip, Square, X } from "lucide-react"
-import { useRef } from "react"
+import { useRef, useEffect } from "react"
 
 type ChatInputProps = {
   input: string
@@ -18,6 +18,7 @@ type ChatInputProps = {
   files: File[]
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveFile: (index: number) => void
+  chatId?: string
 }
 
 export function ChatInput({
@@ -28,8 +29,37 @@ export function ChatInput({
   files,
   onFileChange,
   onRemoveFile,
+  chatId,
 }: ChatInputProps) {
   const uploadInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!chatId) return
+
+    const draftKey = `draft-${chatId}`
+
+    const savedDraft = localStorage.getItem(draftKey)
+    if (savedDraft && !input) {
+      onInputChange(savedDraft)
+    }
+
+    const saveTimeout = setTimeout(() => {
+      if (input) {
+        localStorage.setItem(draftKey, input)
+      } else {
+        localStorage.removeItem(draftKey)
+      }
+    }, 500)
+
+    return () => clearTimeout(saveTimeout)
+  }, [input, chatId, onInputChange])
+
+  const handleSubmit = () => {
+    if (chatId) {
+      localStorage.removeItem(`draft-${chatId}`)
+    }
+    onSubmit()
+  }
 
   return (
     <div className="p-4">
@@ -88,7 +118,7 @@ export function ChatInput({
                 variant="default"
                 size="icon"
                 className="h-8 w-8 rounded-full"
-                onClick={onSubmit}
+                onClick={handleSubmit}
               >
                 {isLoading ? (
                   <Square className="size-5 fill-current" />

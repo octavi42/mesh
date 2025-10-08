@@ -12,6 +12,7 @@ import { useSession } from "@/lib/hooks/use-session"
 import { useMessages } from "@/lib/hooks/use-messages"
 import { useChat } from "@/lib/hooks/use-chats"
 import { useQueryClient } from "@tanstack/react-query"
+import { addLocalMessage } from "@/lib/hooks/use-local-messages"
 
 
 export default function ChatPage({ params }: { params: Promise<{ id: string; chatId: string }> }) {
@@ -84,12 +85,15 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
     const tempId = `temp-${Date.now()}`
     const optimisticMessage = {
       id: tempId,
+      chatId: chatId,
       content: messageText,
       userId: currentUserId,
       userName: currentUserName,
       avatarUrl: currentUserAvatar,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       createdAt: new Date(),
+      isLlm: false,
+      syncedToServer: false,
       user: {
         id: currentUserId,
         name: currentUserName,
@@ -99,9 +103,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
       }
     }
 
-    queryClient.setQueryData(['messages', chatId], (old: unknown = []) => [...(Array.isArray(old) ? old : []), optimisticMessage])
-
     try {
+      await addLocalMessage(optimisticMessage)
+
       setIsLoading(true)
 
       await sendMessage({
@@ -113,9 +117,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
       setIsLoading(false)
     } catch (error) {
       setIsLoading(false)
-      queryClient.setQueryData(['messages', chatId], (old: unknown = []) =>
-        Array.isArray(old) ? old.filter((msg: { id: string }) => msg.id !== tempId) : []
-      )
       setInput(messageText)
       setFiles(messageFiles)
 
@@ -215,6 +216,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
         files={files}
         onFileChange={handleFileChange}
         onRemoveFile={handleRemoveFile}
+        chatId={chatId}
       />
     </ProjectLayout>
   )
