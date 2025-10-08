@@ -25,7 +25,12 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
   const [allowAnimations, setAllowAnimations] = useState(false)
 
   const currentProject = projects.find(p => p.value === projectId) || projects[0] || { id: '', label: '', value: '', description: '', icon: '' }
-  const { data: chats = [] } = useChats(currentProject?.id)
+  const { data: chats = [], isLoading: isChatsLoading } = useChats(projectId)
+
+  console.log('[ProjectLayout] ProjectId:', projectId)
+  console.log('[ProjectLayout] CurrentProject:', currentProject)
+  console.log('[ProjectLayout] Chats:', chats)
+  console.log('[ProjectLayout] IsChatsLoading:', isChatsLoading)
 
   // Set user context for RLS policies
   useEffect(() => {

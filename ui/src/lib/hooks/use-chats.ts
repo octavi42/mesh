@@ -8,27 +8,33 @@ import type { Chat } from "@/lib/types"
 export function useChats(projectId: string | undefined) {
   const { data: session } = useSession()
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['chats', projectId],
-    queryFn: async () => {
-      if (!projectId) return []
-      if (!session?.user?.id) return []
+    queryFn: async ({ queryKey }) => {
+      const [, projectIdFromKey] = queryKey
+
+      if (!projectIdFromKey) {
+        return []
+      }
+
+      if (!session?.user?.id) {
+        return []
+      }
+
+      const supabase = createClient()
 
       await setUserContext(session.user.id)
 
-      const supabase = createClient()
       const { data, error } = await supabase
         .from('chats')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('project_id', projectIdFromKey)
         .order('created_at', { ascending: true })
 
       if (error) {
-        console.error('Error fetching chats:', error)
+        console.error('[useChats] Error fetching chats:', error)
         throw error
       }
-
-      console.log('Fetched chats:', data)
 
       return data.map(chat => ({
         id: chat.id,
@@ -36,9 +42,11 @@ export function useChats(projectId: string | undefined) {
       })) as Chat[]
     },
     enabled: !!projectId && !!session?.user?.id,
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
+
+  return query
 }
 
 export function useChat(chatId: string | undefined) {
