@@ -1,8 +1,9 @@
 "use client"
 
 import { Sheet } from "@silk-hq/components"
-import { X, User, Settings, CreditCard } from "lucide-react"
+import { X, User, Settings, CreditCard, Bell } from "lucide-react"
 import { SettingsSheetWrapper } from "./settings-sheet-wrapper"
+import { NotificationsSheetWrapper } from "./notifications-sheet-wrapper"
 import { SHEET_ANIMATIONS } from "@/lib/constants/sheet-animations"
 import { useSession } from "@/lib/hooks/use-session"
 import { authClient } from "@/lib/auth-client"
@@ -191,6 +192,11 @@ export function AccountSheet() {
                       </div>
                     </div>
                   </SettingsSheetWrapper>
+
+                  <NotificationsSheetWrapper
+                    trigger={{ icon: Bell, label: "Notifications" }}
+                    title="Notifications"
+                  />
 
                   <hr className="my-4 border-gray-300" />
 

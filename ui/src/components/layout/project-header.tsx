@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client"
 type ProjectHeaderProps = {
   isMenuOpen: boolean
   onMenuToggle: () => void
-  title?: string
+  title?: string | React.ReactNode
   hideUserAvatars?: boolean
   currentChatId?: string
 }
@@ -56,12 +56,14 @@ export function ProjectHeader({ isMenuOpen, onMenuToggle, title, hideUserAvatars
         .eq('project_id', chatData.project_id)
 
       if (members) {
-        const users = members.map(m => ({
-          id: m.user.id,
-          name: m.user.display_name || m.user.email,
-          image: m.user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.user.display_name || m.user.email}`,
-          email: m.user.email
-        }))
+        const users = members
+          .filter(m => m.user)
+          .map(m => ({
+            id: m.user.id,
+            name: m.user.display_name || m.user.email,
+            image: m.user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.user.display_name || m.user.email}`,
+            email: m.user.email
+          }))
         setChatUsers(users)
       }
     }
@@ -82,9 +84,15 @@ export function ProjectHeader({ isMenuOpen, onMenuToggle, title, hideUserAvatars
             <Menu className="w-6 h-6 text-slate-600" />
           </button>
           {title && (
-            <h1 className="text-xl font-light text-slate-900">
-              {title}
-            </h1>
+            typeof title === 'string' ? (
+              <h1 className="text-xl font-light text-slate-900">
+                {title}
+              </h1>
+            ) : (
+              <div className="text-xl font-light text-slate-900">
+                {title}
+              </div>
+            )
           )}
         </div>
 

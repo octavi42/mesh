@@ -7,13 +7,14 @@ import { sidebarStore } from "@/lib/sidebar-store"
 import { ProjectSidebar } from "@/components/sidebar/project-sidebar"
 import { ProjectHeader } from "./project-header"
 import { useSidebarData } from "@/lib/contexts/sidebar-context"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, setUserContext } from "@/lib/supabase/client"
+import { useSession } from "@/lib/hooks/use-session"
 import type { Chat } from "@/lib/types"
 
 type ProjectLayoutProps = {
   projectId: string
   currentChatId?: string
-  headerTitle?: string
+  headerTitle?: string | ReactNode
   hideUserAvatars?: boolean
   children: ReactNode
 }
@@ -21,11 +22,19 @@ type ProjectLayoutProps = {
 export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserAvatars, children }: ProjectLayoutProps) {
   const router = useRouter()
   const { projects } = useSidebarData()
+  const { data: session } = useSession()
   const [isMenuOpen, setIsMenuOpen] = useState(() => sidebarStore.getIsOpen())
   const [allowAnimations, setAllowAnimations] = useState(false)
   const [chats, setChats] = useState<Chat[]>([])
 
   const currentProject = projects.find(p => p.value === projectId) || projects[0] || { id: '', label: '', value: '', description: '', icon: '' }
+
+  // Set user context for RLS policies
+  useEffect(() => {
+    if (session?.user?.id) {
+      setUserContext(session.user.id)
+    }
+  }, [session?.user?.id])
 
   useEffect(() => {
     const unsubscribe = sidebarStore.subscribe((isOpen) => {

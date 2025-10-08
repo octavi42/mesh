@@ -5,7 +5,7 @@ import { ProjectLayout } from "@/components/layout/project-layout"
 import { ChatInput } from "@/components/chat/chat-input"
 import { MessageBubble } from "@/components/chat/message-bubble"
 import { LlmMessageBubble } from "@/components/chat/llm-message-bubble"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, setUserContext } from "@/lib/supabase/client"
 import { sendMessage } from "@/lib/actions/message-actions"
 import { useRealtimeMessages } from "@/lib/hooks/use-realtime-messages"
 import { useSession } from "@/lib/hooks/use-session"
@@ -39,6 +39,13 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
   const [messages, setMessages] = useState<Message[]>([])
   const [chatTitle, setChatTitle] = useState<string>('')
   const { data: session } = useSession()
+
+  // Set user context for RLS policies
+  useEffect(() => {
+    if (session?.user?.id) {
+      setUserContext(session.user.id)
+    }
+  }, [session?.user?.id])
 
   useEffect(() => {
     async function loadChatData() {
@@ -140,9 +147,36 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
 
   useRealtimeMessages(chatId, handleRealtimeMessage)
 
+  const [currentUserData, setCurrentUserData] = useState<{
+    name: string
+    avatar: string
+  } | null>(null)
+
+  useEffect(() => {
+    async function loadUserData() {
+      if (!session?.user?.id) return
+
+      const supabase = createClient()
+      const { data: userData } = await supabase
+        .from('users')
+        .select('display_name, avatar_url')
+        .eq('id', session.user.id)
+        .single()
+
+      if (userData) {
+        setCurrentUserData({
+          name: userData.display_name || 'Unknown',
+          avatar: userData.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.display_name}`
+        })
+      }
+    }
+
+    loadUserData()
+  }, [session?.user?.id])
+
   const currentUserId = session?.user?.id || ""
-  const currentUserName = session?.user?.name || session?.user?.email || "You"
-  const currentUserAvatar = session?.user?.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUserName}`
+  const currentUserName = currentUserData?.name || "You"
+  const currentUserAvatar = currentUserData?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUserName}`
 
   const handleSubmit = async () => {
     if (!input.trim() && files.length === 0) return

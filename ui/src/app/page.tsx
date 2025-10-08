@@ -18,6 +18,7 @@ export default function Home() {
     return false;
   };
 
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-white to-slate-50">
       <header className="absolute top-0 left-0 right-0 z-10">

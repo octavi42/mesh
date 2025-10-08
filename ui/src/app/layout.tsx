@@ -30,12 +30,17 @@ export default async function RootLayout({
   const session = await auth.api.getSession({ headers: await headers() })
   let projects = []
 
+  console.log('[RootLayout] Session:', session?.user?.id)
   if (session?.user) {
     try {
-      projects = await getProjects()
+      console.log('[RootLayout] Fetching projects for user:', session.user.id)
+      projects = await getProjects(session.user.id)
+      console.log('[RootLayout] Projects fetched:', projects.length)
     } catch (error) {
-      console.error("Failed to fetch projects:", error)
+      console.error("[RootLayout] Failed to fetch projects:", error)
     }
+  } else {
+    console.log('[RootLayout] No session, skipping project fetch')
   }
 
   return (
