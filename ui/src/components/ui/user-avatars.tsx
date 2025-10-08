@@ -9,6 +9,7 @@ interface User {
   name?: string;
   image: string;
   isAccepted?: boolean;
+  isPending?: boolean;
   integrations?: any[];
 }
 
@@ -106,17 +107,27 @@ export const UserAvatars = ({
             }}
             transition={{ type: "spring", stiffness: 200, damping: 20 }}
           >
-            <div className="w-full h-full rounded-full overflow-hidden border border-white shadow-md">
+            <div className={cn(
+              "w-full h-full rounded-full overflow-hidden border border-white shadow-md",
+              user.isPending && "opacity-50 ring-2 ring-yellow-400"
+            )}>
               {isLengthBubble ? (
                 <div className="flex h-full w-full items-center justify-center bg-background text-xs font-medium">
                   +{hiddenAcceptedCount + remainingCount > 0 ? hiddenAcceptedCount + remainingCount : ''}
                 </div>
               ) : (
-                <img
-                  src={user.image}
-                  alt={user.name || "User"}
-                  className="w-full h-full object-cover"
-                />
+                <>
+                  <img
+                    src={user.image}
+                    alt={user.name || "User"}
+                    className="w-full h-full object-cover"
+                  />
+                  {user.isPending && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-4 h-4 bg-yellow-400 rounded-full border-2 border-white" />
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -142,7 +153,7 @@ export const UserAvatars = ({
                   )}
                 >
                   <div className="transform -translate-x-1/2 whitespace-nowrap rounded-md bg-black text-white text-xs px-2 py-1 shadow-lg">
-                    {user.name}
+                    {user.name} {user.isPending && "(Pending)"}
                   </div>
                 </motion.div>
               )}

@@ -63,7 +63,23 @@ export async function createChat(data: {
           is_accepted: false,
         })
       } else {
-        console.log(`External user ${email} not found in database, skipping`)
+        const inviteToken = crypto.randomUUID()
+
+        const { error: inviteError } = await supabase
+          .from('chat_invitations')
+          .insert({
+            chat_id: chat.id,
+            email: email,
+            invited_by: session.user.id,
+            invite_token: inviteToken,
+            status: 'pending',
+          })
+
+        if (inviteError) {
+          console.error(`Error creating invitation for ${email}:`, inviteError)
+        } else {
+          console.log(`Created invitation for ${email} with token ${inviteToken}`)
+        }
       }
     }
   }
@@ -166,19 +182,99 @@ export async function removeUserFromChat(chatId: string, userId: string) {
   revalidatePath(`/project/[id]/[chatId]`)
 }
 
-export async function acceptChatInvitation(chatId: string, userId: string) {
+export async function acceptChatInvitation(inviteToken: string) {
+  const session = await auth.api.getSession({ headers: await headers() })
+
+  if (!session?.user?.id) {
+    throw new Error('Unauthorized')
+  }
+
   const supabase = await createClient()
 
-  const { error } = await supabase
-    .from('chat_memberships')
-    .update({ is_accepted: true })
-    .eq('chat_id', chatId)
-    .eq('user_id', userId)
+  const { data: invitation, error: fetchError } = await supabase
+    .from('chat_invitations')
+    .select(`
+      id,
+      chat_id,
+      email,
+      status,
+      expires_at,
+      chats!inner (
+        project_id
+      )
+    `)
+    .eq('invite_token', inviteToken)
+    .single()
 
-  if (error) {
-    console.error('Error accepting chat invitation:', error)
-    throw error
+  if (fetchError || !invitation) {
+    throw new Error('Invitation not found')
+  }
+
+  if (invitation.status !== 'pending') {
+    throw new Error('Invitation has already been processed')
+  }
+
+  if (new Date(invitation.expires_at) < new Date()) {
+    throw new Error('Invitation has expired')
+  }
+
+  const { data: user } = await supabase
+    .from('users')
+    .select('email')
+    .eq('id', session.user.id)
+    .single()
+
+  if (user?.email !== invitation.email) {
+    throw new Error('This invitation is for a different email address')
+  }
+
+  const projectId = invitation.chats.project_id
+
+  const { data: existingProjectMember } = await supabase
+    .from('members')
+    .select('id')
+    .eq('user_id', session.user.id)
+    .eq('project_id', projectId)
+    .single()
+
+  if (!existingProjectMember) {
+    const { error: projectMemberError } = await supabase
+      .from('members')
+      .insert({
+        user_id: session.user.id,
+        project_id: projectId,
+        role: 'member',
+      })
+
+    if (projectMemberError) {
+      console.error('Error adding user to project:', projectMemberError)
+      throw projectMemberError
+    }
+  }
+
+  const { error: membershipError } = await supabase
+    .from('chat_memberships')
+    .insert({
+      chat_id: invitation.chat_id,
+      user_id: session.user.id,
+      is_accepted: true,
+    })
+
+  if (membershipError) {
+    console.error('Error creating chat membership:', membershipError)
+    throw membershipError
+  }
+
+  const { error: updateError } = await supabase
+    .from('chat_invitations')
+    .update({ status: 'accepted' })
+    .eq('id', invitation.id)
+
+  if (updateError) {
+    console.error('Error updating invitation status:', updateError)
   }
 
   revalidatePath(`/project/[id]/[chatId]`)
+
+  return invitation.chat_id
 }

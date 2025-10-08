@@ -20,6 +20,9 @@ type ChatUser = {
   name: string
   image: string
   email: string
+  isPending?: boolean
+  isInvited?: boolean
+  isAccepted?: boolean
 }
 
 export function ProjectHeader({ isMenuOpen, onMenuToggle, title, hideUserAvatars = false, currentChatId }: ProjectHeaderProps) {
@@ -44,40 +47,66 @@ export function ProjectHeader({ isMenuOpen, onMenuToggle, title, hideUserAvatars
 
       console.log('Fetching chat members for chat:', currentChatId)
 
-      const { data: chatMemberships, error } = await supabase
-        .from('chat_memberships')
-        .select(`
-          user_id,
-          is_accepted,
-          users!inner (
-            id,
-            display_name,
-            email,
-            avatar_url
-          )
-        `)
-        .eq('chat_id', currentChatId)
+      const [membershipsResponse, invitationsResponse] = await Promise.all([
+        supabase
+          .from('chat_memberships')
+          .select(`
+            user_id,
+            is_accepted,
+            users!inner (
+              id,
+              display_name,
+              email,
+              avatar_url
+            )
+          `)
+          .eq('chat_id', currentChatId),
+        supabase
+          .from('chat_invitations')
+          .select('email, status')
+          .eq('chat_id', currentChatId)
+          .eq('status', 'pending')
+      ])
 
-      console.log('Chat memberships result:', { chatMemberships, error })
+      console.log('Chat memberships result:', membershipsResponse)
+      console.log('Chat invitations result:', invitationsResponse)
 
-      if (error) {
-        console.error('Error fetching chat members:', error)
+      if (membershipsResponse.error) {
+        console.error('Error fetching chat members:', membershipsResponse.error)
         return
       }
 
-      if (chatMemberships) {
-        const users = chatMemberships
-          .filter(m => m.users)
+      const users: ChatUser[] = []
+
+      if (membershipsResponse.data) {
+        const members = membershipsResponse.data
+          .filter(m => m.users && m.users.id !== session.user.id)
           .map(m => ({
             id: m.users.id,
             name: m.users.display_name || m.users.email,
             image: m.users.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.users.display_name || m.users.email}`,
             email: m.users.email,
-            isAccepted: m.is_accepted,
-            isInvited: true
+            isPending: false,
+            isInvited: true,
+            isAccepted: m.is_accepted
           }))
-        setChatUsers(users)
+        users.push(...members)
       }
+
+      if (invitationsResponse.data && !invitationsResponse.error) {
+        const invitations = invitationsResponse.data.map(inv => ({
+          id: inv.email,
+          name: inv.email,
+          image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${inv.email}`,
+          email: inv.email,
+          isPending: true,
+          isInvited: true,
+          isAccepted: false
+        }))
+        users.push(...invitations)
+      }
+
+      setChatUsers(users)
     }
 
     loadChatMembers()
