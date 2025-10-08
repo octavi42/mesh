@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./silk.css";
+import "./sidebar-init.css";
 import { SidebarProvider } from "@/lib/contexts/sidebar-context";
 import { QueryProvider } from "@/lib/providers/query-provider";
 import { getProjects } from "@/lib/db/projects";
@@ -45,7 +46,23 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var sidebarOpen = localStorage.getItem('sidebarOpen');
+                  if (sidebarOpen === 'true') {
+                    document.documentElement.classList.add('sidebar-open');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

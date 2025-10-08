@@ -39,7 +39,7 @@ class SidebarStore {
   private initialize(): void {
     const state = this.globalState
     if (!state.isInitialized && typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('sidebarOpen')
+      const saved = localStorage.getItem('sidebarOpen')
       state.isOpen = saved === 'true'
       state.isInitialized = true
     }
@@ -54,7 +54,7 @@ class SidebarStore {
     const state = this.globalState
     state.isOpen = isOpen
     if (typeof window !== 'undefined' && saveToStorage) {
-      sessionStorage.setItem('sidebarOpen', isOpen.toString())
+      localStorage.setItem('sidebarOpen', isOpen.toString())
     }
     state.listeners.forEach(listener => listener(isOpen))
   }

@@ -21,7 +21,7 @@ type ProjectLayoutProps = {
 export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserAvatars, children }: ProjectLayoutProps) {
   const { projects } = useSidebarData()
   const { data: session } = useSession()
-  const [isMenuOpen, setIsMenuOpen] = useState(() => sidebarStore.getIsOpen())
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [allowAnimations, setAllowAnimations] = useState(false)
 
   const currentProject = projects.find(p => p.value === projectId) || projects[0] || { id: '', label: '', value: '', description: '', icon: '' }
@@ -37,17 +37,25 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
   useEffect(() => {
     const unsubscribe = sidebarStore.subscribe((isOpen) => {
       setIsMenuOpen(isOpen)
+      if (isOpen) {
+        document.documentElement.classList.add('sidebar-open')
+      } else {
+        document.documentElement.classList.remove('sidebar-open')
+      }
     })
 
     sidebarStore.hydrate()
-
     const currentState = sidebarStore.getIsOpen()
-    if (currentState !== isMenuOpen) {
-      setIsMenuOpen(currentState)
+    setIsMenuOpen(currentState)
+
+    if (currentState) {
+      document.documentElement.classList.add('sidebar-open')
+    } else {
+      document.documentElement.classList.remove('sidebar-open')
     }
 
     return unsubscribe
-  }, [isMenuOpen])
+  }, [])
 
 
 
@@ -55,9 +63,7 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
     <SheetStack.Root>
       <div className="flex h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50 relative">
         <div
-          className={`${
-            isMenuOpen ? "w-[28em]" : "w-0"
-          } ${allowAnimations ? "transition-all duration-150 ease-in-out" : ""} overflow-hidden flex-shrink-0 ${isMenuOpen ? "p-4" : "p-0"}`}
+          className={`sidebar-container ${allowAnimations ? "transition-all duration-150 ease-in-out" : ""} overflow-hidden flex-shrink-0`}
         >
           <ProjectSidebar
             onClose={() => {
@@ -77,7 +83,7 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
             isMenuOpen={isMenuOpen}
             onMenuToggle={() => {
               setAllowAnimations(true)
-              sidebarStore.setIsOpen(true, false)
+              sidebarStore.setIsOpenExplicit(true)
             }}
             title={headerTitle}
             hideUserAvatars={hideUserAvatars}
