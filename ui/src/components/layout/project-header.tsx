@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { Menu } from "lucide-react"
 import { AccountSheet } from "@/components/sheets/account-sheet"
 import { UserAvatars } from "@/components/ui/user-avatars"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, setUserContext } from "@/lib/supabase/client"
+import { useSession } from "@/lib/hooks/use-session"
 
 type ProjectHeaderProps = {
   isMenuOpen: boolean
@@ -23,6 +24,7 @@ type ChatUser = {
 
 export function ProjectHeader({ isMenuOpen, onMenuToggle, title, hideUserAvatars = false, currentChatId }: ProjectHeaderProps) {
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([])
+  const { data: session } = useSession()
 
   useEffect(() => {
     async function loadChatMembers() {
@@ -31,45 +33,55 @@ export function ProjectHeader({ isMenuOpen, onMenuToggle, title, hideUserAvatars
         return
       }
 
+      if (!session?.user?.id) {
+        console.log('No session found')
+        return
+      }
+
+      await setUserContext(session.user.id)
+
       const supabase = createClient()
 
-      // Get the project_id for this chat
-      const { data: chatData } = await supabase
-        .from('chats')
-        .select('project_id')
-        .eq('id', currentChatId)
-        .single()
+      console.log('Fetching chat members for chat:', currentChatId)
 
-      if (!chatData) return
-
-      // Get all members of that project
-      const { data: members } = await supabase
-        .from('members')
+      const { data: chatMemberships, error } = await supabase
+        .from('chat_memberships')
         .select(`
-          user:users (
+          user_id,
+          is_accepted,
+          users!inner (
             id,
             display_name,
             email,
             avatar_url
           )
         `)
-        .eq('project_id', chatData.project_id)
+        .eq('chat_id', currentChatId)
 
-      if (members) {
-        const users = members
-          .filter(m => m.user)
+      console.log('Chat memberships result:', { chatMemberships, error })
+
+      if (error) {
+        console.error('Error fetching chat members:', error)
+        return
+      }
+
+      if (chatMemberships) {
+        const users = chatMemberships
+          .filter(m => m.users)
           .map(m => ({
-            id: m.user.id,
-            name: m.user.display_name || m.user.email,
-            image: m.user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.user.display_name || m.user.email}`,
-            email: m.user.email
+            id: m.users.id,
+            name: m.users.display_name || m.users.email,
+            image: m.users.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.users.display_name || m.users.email}`,
+            email: m.users.email,
+            isAccepted: m.is_accepted,
+            isInvited: true
           }))
         setChatUsers(users)
       }
     }
 
     loadChatMembers()
-  }, [currentChatId])
+  }, [currentChatId, session])
 
   return (
     <div className={`p-6 ${title ? 'border-b border-slate-200/50' : ''}`}>

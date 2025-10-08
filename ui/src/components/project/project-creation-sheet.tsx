@@ -54,14 +54,19 @@ export function ProjectCreationSheet({ triggerRef }: ProjectCreationSheetProps) 
   const handleCreateProject = async () => {
     setIsCreating(true)
     try {
-      const project = await createProjectAction({
+      const projectData = {
         name: projectName,
         description,
         context,
         teamMembers,
-      })
+      }
 
-      router.push(`/project/${project.id}`)
+      const projectPromise = createProjectAction(projectData)
+
+      triggerRef.current?.click()
+      router.push(`/dashboard`)
+
+      await projectPromise
       router.refresh()
     } catch (error) {
       console.error('Error creating project:', error)

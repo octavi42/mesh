@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -13,8 +14,10 @@ interface Message {
 
 export function useRealtimeMessages(
   chatId: string,
-  onMessageReceived: (message: Message) => void
+  onMessageReceived?: (message: Message) => void
 ) {
+  const queryClient = useQueryClient()
+
   useEffect(() => {
     const supabase = createClient()
     let channel: RealtimeChannel
@@ -26,7 +29,10 @@ export function useRealtimeMessages(
           'broadcast',
           { event: 'new_message' },
           (payload) => {
-            onMessageReceived(payload.payload as Message)
+            queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+            if (onMessageReceived) {
+              onMessageReceived(payload.payload as Message)
+            }
           }
         )
         .subscribe()
@@ -39,5 +45,5 @@ export function useRealtimeMessages(
         supabase.removeChannel(channel)
       }
     }
-  }, [chatId, onMessageReceived])
+  }, [chatId, queryClient, onMessageReceived])
 }

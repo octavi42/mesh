@@ -7,9 +7,9 @@ import { sidebarStore } from "@/lib/sidebar-store"
 import { ProjectSidebar } from "@/components/sidebar/project-sidebar"
 import { ProjectHeader } from "./project-header"
 import { useSidebarData } from "@/lib/contexts/sidebar-context"
-import { createClient, setUserContext } from "@/lib/supabase/client"
+import { setUserContext } from "@/lib/supabase/client"
 import { useSession } from "@/lib/hooks/use-session"
-import type { Chat } from "@/lib/types"
+import { useChats } from "@/lib/hooks/use-chats"
 
 type ProjectLayoutProps = {
   projectId: string
@@ -25,9 +25,9 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
   const { data: session } = useSession()
   const [isMenuOpen, setIsMenuOpen] = useState(() => sidebarStore.getIsOpen())
   const [allowAnimations, setAllowAnimations] = useState(false)
-  const [chats, setChats] = useState<Chat[]>([])
 
   const currentProject = projects.find(p => p.value === projectId) || projects[0] || { id: '', label: '', value: '', description: '', icon: '' }
+  const { data: chats = [] } = useChats(currentProject?.id)
 
   // Set user context for RLS policies
   useEffect(() => {
@@ -51,45 +51,9 @@ export function ProjectLayout({ projectId, currentChatId, headerTitle, hideUserA
     return unsubscribe
   }, [isMenuOpen])
 
-  useEffect(() => {
-    async function loadChats() {
-      if (!currentProject?.id) return
 
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('chats')
-        .select('*')
-        .eq('project_id', currentProject.id)
-        .order('created_at', { ascending: true })
-
-      if (!error && data) {
-        setChats(data.map(chat => ({
-          id: chat.id,
-          title: chat.name
-        })))
-      }
-    }
-
-    loadChats()
-  }, [currentProject?.id])
-
-  const handleProjectSelect = async (projectValue: string) => {
-    const newProject = projects.find(p => p.value === projectValue)
-    if (!newProject?.id) return
-
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('chats')
-      .select('id')
-      .eq('project_id', newProject.id)
-      .order('created_at', { ascending: true })
-      .limit(1)
-
-    if (data && data.length > 0) {
-      router.push(`/project/${projectValue}/${data[0].id}`)
-    } else {
-      router.push(`/project/${projectValue}`)
-    }
+  const handleProjectSelect = (projectValue: string) => {
+    router.push(`/project/${projectValue}`)
   }
 
   const handleChatClick = (chatId: string) => {

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./silk.css";
 import { SidebarProvider } from "@/lib/contexts/sidebar-context";
+import { QueryProvider } from "@/lib/providers/query-provider";
 import { getProjects } from "@/lib/db/projects";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -48,9 +49,11 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SidebarProvider initialProjects={projects}>
-          {children}
-        </SidebarProvider>
+        <QueryProvider>
+          <SidebarProvider initialProjects={projects}>
+            {children}
+          </SidebarProvider>
+        </QueryProvider>
       </body>
     </html>
   );

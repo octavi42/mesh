@@ -5,10 +5,11 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { UserPlus, MessageSquarePlus, Mail } from "lucide-react"
 import { InviteExternalUserSheet } from "./invite-external-user-sheet"
+import { useSession } from "@/lib/hooks/use-session"
 
 type CreateChatPanelProps = {
   projectId: string
-  onCreateChat: (selectedUsers: string[]) => void
+  onCreateChat: (selectedUsers: string[], externalEmails: string[]) => void
 }
 
 type ProjectMember = {
@@ -18,8 +19,15 @@ type ProjectMember = {
   avatar_url: string | null
 }
 
+type ExternalUser = {
+  email: string
+  isExternal: true
+}
+
 export function CreateChatPanel({ projectId, onCreateChat }: CreateChatPanelProps) {
+  const { data: session } = useSession()
   const [members, setMembers] = useState<ProjectMember[]>([])
+  const [externalUsers, setExternalUsers] = useState<ExternalUser[]>([])
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const inviteSheetTriggerRef = useRef<HTMLButtonElement>(null)
@@ -42,12 +50,15 @@ export function CreateChatPanel({ projectId, onCreateChat }: CreateChatPanelProp
 
       if (membersData) {
         const users = membersData.map(m => m.user).filter(Boolean)
-        setMembers(users as ProjectMember[])
+        const filteredUsers = users.filter(user => user.id !== session?.user?.id)
+        setMembers(filteredUsers as ProjectMember[])
       }
     }
 
-    loadProjectMembers()
-  }, [projectId])
+    if (session?.user?.id) {
+      loadProjectMembers()
+    }
+  }, [projectId, session?.user?.id])
 
   const toggleUser = (userId: string) => {
     setSelectedUsers(prev =>
@@ -57,9 +68,23 @@ export function CreateChatPanel({ projectId, onCreateChat }: CreateChatPanelProp
     )
   }
 
+  const handleAddExternalUser = (email: string) => {
+    if (!externalUsers.some(u => u.email === email) && !members.some(m => m.email === email)) {
+      setExternalUsers(prev => [...prev, { email, isExternal: true }])
+      setSelectedUsers(prev => [...prev, email])
+    }
+  }
+
+  const removeExternalUser = (email: string) => {
+    setExternalUsers(prev => prev.filter(u => u.email !== email))
+    setSelectedUsers(prev => prev.filter(id => id !== email))
+  }
+
   const handleCreateChat = () => {
     setIsLoading(true)
-    onCreateChat(selectedUsers)
+    const externalEmails = externalUsers.map(u => u.email)
+    const allSelectedUsers = session?.user?.id ? [session.user.id, ...selectedUsers] : selectedUsers
+    onCreateChat(allSelectedUsers, externalEmails)
   }
 
   return (
@@ -69,19 +94,48 @@ export function CreateChatPanel({ projectId, onCreateChat }: CreateChatPanelProp
           <MessageSquarePlus className="w-6 h-6 text-slate-600" />
         </div>
         <div>
-          <h2 className="text-2xl font-light text-slate-900">Create New Chat</h2>
+          <h2 className="text-2xl font-light text-slate-900">Add Members</h2>
           <p className="text-sm text-slate-500">Select team members to start chatting</p>
         </div>
       </div>
 
       <div>
-        {members.length === 0 ? (
+        {members.length === 0 && externalUsers.length === 0 ? (
           <div className="text-center py-12 text-slate-400">
             <UserPlus className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>No team members found</p>
           </div>
         ) : (
           <div className="space-y-2 mb-6 max-h-96 overflow-y-auto">
+            {externalUsers.map((user) => (
+              <div
+                key={user.email}
+                className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-blue-500 bg-blue-50"
+              >
+                <div className="relative">
+                  <img
+                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`}
+                    alt={user.email}
+                    className="w-12 h-12 rounded-full"
+                  />
+                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                    <Mail className="w-3 h-3 text-white" />
+                  </div>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="font-medium text-slate-900">{user.email}</p>
+                  <p className="text-sm text-blue-600">External User</p>
+                </div>
+                <button
+                  onClick={() => removeExternalUser(user.email)}
+                  className="w-8 h-8 rounded-lg hover:bg-blue-100 flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
             {members.map((member) => (
               <button
                 key={member.id}
@@ -115,19 +169,16 @@ export function CreateChatPanel({ projectId, onCreateChat }: CreateChatPanelProp
           </div>
         )}
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-center pt-4 border-t border-slate-200">
-            <Button
-              onClick={() => inviteSheetTriggerRef.current?.click()}
-              variant="outline"
-              className="flex items-center gap-2 text-slate-700 hover:text-slate-900 border-slate-300"
-            >
-              <Mail className="w-4 h-4" />
-              Invite External Users
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+        <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+          <Button
+            onClick={() => inviteSheetTriggerRef.current?.click()}
+            variant="outline"
+            className="flex items-center gap-2 text-slate-700 hover:text-slate-900 border-slate-300"
+          >
+            <Mail className="w-4 h-4" />
+            Invite External Users
+          </Button>
+          <div className="flex items-center gap-4">
             <p className="text-sm text-slate-600">
               {selectedUsers.length} member{selectedUsers.length !== 1 ? 's' : ''} selected
             </p>
@@ -145,6 +196,7 @@ export function CreateChatPanel({ projectId, onCreateChat }: CreateChatPanelProp
       <InviteExternalUserSheet
         triggerRef={inviteSheetTriggerRef}
         projectId={projectId}
+        onAddUser={handleAddExternalUser}
       />
     </div>
   )

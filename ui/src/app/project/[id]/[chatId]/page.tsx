@@ -9,26 +9,10 @@ import { createClient, setUserContext } from "@/lib/supabase/client"
 import { sendMessage } from "@/lib/actions/message-actions"
 import { useRealtimeMessages } from "@/lib/hooks/use-realtime-messages"
 import { useSession } from "@/lib/hooks/use-session"
+import { useMessages } from "@/lib/hooks/use-messages"
+import { useChat } from "@/lib/hooks/use-chats"
+import { useQueryClient } from "@tanstack/react-query"
 
-interface Message {
-  id: string
-  content: string
-  userId: string | null
-  userName: string
-  avatarUrl: string
-  timestamp: string
-  createdAt: Date
-  isLlm?: boolean
-  isStreaming?: boolean
-  user?: {
-    id: string | number
-    name?: string
-    image: string
-    isAccepted?: boolean
-    isInvited?: boolean
-    integrations?: unknown[]
-  }
-}
 
 export default function ChatPage({ params }: { params: Promise<{ id: string; chatId: string }> }) {
   const { id, chatId } = use(params)
@@ -36,9 +20,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
   const [isLoading, setIsLoading] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [chatTitle, setChatTitle] = useState<string>('')
   const { data: session } = useSession()
+  const queryClient = useQueryClient()
+  const { data: messages = [] } = useMessages(chatId)
+  const { data: chatData } = useChat(chatId)
+  const chatTitle = chatData?.name || ''
 
   // Set user context for RLS policies
   useEffect(() => {
@@ -47,103 +33,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
     }
   }, [session?.user?.id])
 
-  useEffect(() => {
-    async function loadChatData() {
-      const supabase = createClient()
 
-      // Load chat info
-      const { data: chatData } = await supabase
-        .from('chats')
-        .select('name')
-        .eq('id', chatId)
-        .single()
-
-      if (chatData) {
-        setChatTitle(chatData.name)
-      }
-
-      // Load messages
-      const { data: messagesData, error } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          user:users (
-            id,
-            display_name,
-            avatar_url
-          )
-        `)
-        .eq('chat_id', chatId)
-        .order('created_at', { ascending: true })
-
-      if (!error && messagesData) {
-        const formattedMessages = messagesData.map(msg => ({
-          id: msg.id,
-          content: msg.content,
-          userId: msg.user_id,
-          userName: msg.is_llm_message ? 'AI Assistant' : msg.user?.display_name || 'Unknown',
-          avatarUrl: msg.is_llm_message
-            ? 'https://api.dicebear.com/7.x/bottts/svg?seed=AI'
-            : msg.user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.user?.display_name}`,
-          timestamp: new Date(msg.created_at).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit'
-          }),
-          createdAt: new Date(msg.created_at),
-          isLlm: msg.is_llm_message,
-          isStreaming: false,
-          user: msg.user ? {
-            id: msg.user.id,
-            name: msg.user.display_name || '',
-            image: msg.user.avatar_url || '',
-            isAccepted: true,
-            integrations: []
-          } : undefined
-        }))
-        setMessages(formattedMessages)
-      }
-    }
-
-    loadChatData()
-  }, [chatId])
-
-  const handleRealtimeMessage = useCallback((newMsg: Message & { user?: { display_name?: string; avatar_url?: string } }) => {
-    setMessages(prev => {
-      const existingIndex = prev.findIndex(m => m.id === newMsg.id || m.id.startsWith('temp-'))
-
-      const formattedMessage = {
-        id: newMsg.id,
-        content: newMsg.content,
-        userId: newMsg.user_id,
-        userName: newMsg.is_llm_message ? 'AI Assistant' : newMsg.user?.display_name || 'Unknown',
-        avatarUrl: newMsg.is_llm_message
-          ? 'https://api.dicebear.com/7.x/bottts/svg?seed=AI'
-          : newMsg.user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${newMsg.user?.display_name}`,
-        timestamp: new Date(newMsg.created_at).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-        createdAt: new Date(newMsg.created_at),
-        isLlm: newMsg.is_llm_message,
-        isStreaming: false,
-        user: newMsg.user ? {
-          id: newMsg.user.id,
-          name: newMsg.user.display_name || '',
-          image: newMsg.user.avatar_url || '',
-          isAccepted: true,
-          integrations: []
-        } : undefined
-      }
-
-      if (existingIndex !== -1) {
-        const updated = [...prev]
-        updated[existingIndex] = formattedMessage
-        return updated
-      }
-
-      return [...prev, formattedMessage]
-    })
-  }, [])
+  const handleRealtimeMessage = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
+  }, [chatId, queryClient])
 
   useRealtimeMessages(chatId, handleRealtimeMessage)
 
@@ -188,16 +81,15 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
     setInput("")
     setFiles([])
 
-    const now = new Date()
     const tempId = `temp-${Date.now()}`
-    const newMessage: Message = {
+    const optimisticMessage = {
       id: tempId,
       content: messageText,
       userId: currentUserId,
       userName: currentUserName,
       avatarUrl: currentUserAvatar,
-      timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      createdAt: now,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date(),
       user: {
         id: currentUserId,
         name: currentUserName,
@@ -207,7 +99,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
       }
     }
 
-    setMessages(prev => [...prev, newMessage])
+    queryClient.setQueryData(['messages', chatId], (old: unknown = []) => [...(Array.isArray(old) ? old : []), optimisticMessage])
 
     try {
       setIsLoading(true)
@@ -217,10 +109,13 @@ export default function ChatPage({ params }: { params: Promise<{ id: string; cha
         content: messageText
       })
 
+      queryClient.invalidateQueries({ queryKey: ['messages', chatId] })
       setIsLoading(false)
     } catch (error) {
       setIsLoading(false)
-      setMessages(prev => prev.filter(msg => msg.id !== tempId))
+      queryClient.setQueryData(['messages', chatId], (old: unknown = []) =>
+        Array.isArray(old) ? old.filter((msg: { id: string }) => msg.id !== tempId) : []
+      )
       setInput(messageText)
       setFiles(messageFiles)
 

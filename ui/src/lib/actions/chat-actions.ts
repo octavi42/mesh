@@ -8,6 +8,8 @@ import { revalidatePath } from 'next/cache'
 export async function createChat(data: {
   projectId: string
   title: string
+  userIds?: string[]
+  externalEmails?: string[]
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
 
@@ -16,6 +18,8 @@ export async function createChat(data: {
   }
 
   const supabase = await createClient()
+
+  await supabase.rpc('set_user_id', { user_id: session.user.id })
 
   const { data: chat, error } = await supabase
     .from('chats')
@@ -30,6 +34,51 @@ export async function createChat(data: {
   if (error) {
     console.error('Error creating chat:', error)
     throw error
+  }
+
+  const membershipsToAdd = []
+
+  if (data.userIds && data.userIds.length > 0) {
+    for (const userId of data.userIds) {
+      membershipsToAdd.push({
+        chat_id: chat.id,
+        user_id: userId,
+        is_accepted: true,
+      })
+    }
+  }
+
+  if (data.externalEmails && data.externalEmails.length > 0) {
+    for (const email of data.externalEmails) {
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .single()
+
+      if (existingUser) {
+        membershipsToAdd.push({
+          chat_id: chat.id,
+          user_id: existingUser.id,
+          is_accepted: false,
+        })
+      } else {
+        console.log(`External user ${email} not found in database, skipping`)
+      }
+    }
+  }
+
+  if (membershipsToAdd.length > 0) {
+    const { error: membershipError } = await supabase
+      .from('chat_memberships')
+      .insert(membershipsToAdd)
+
+    if (membershipError) {
+      console.error('Error adding members to chat:', membershipError)
+      throw membershipError
+    } else {
+      console.log(`Successfully added ${membershipsToAdd.length} members to chat ${chat.id}`)
+    }
   }
 
   revalidatePath(`/project/${data.projectId}`)

@@ -2,7 +2,7 @@ create type notification_type as enum ('mention', 'reply', 'project_invite', 'sy
 
 create table public.notifications (
   id text primary key not null default gen_random_uuid()::text,
-  user_id text references "user"("id") on delete cascade not null,
+  user_id text references public.users(id) on delete cascade not null,
   type notification_type not null,
   title text not null,
   message text not null,

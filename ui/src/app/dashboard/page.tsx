@@ -2,16 +2,18 @@
 
 import { useSession } from "@/lib/hooks/use-session"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { useSidebarData } from "@/lib/contexts/sidebar-context"
 import { UserAvatars } from "@/components/ui/user-avatars"
 import { SheetStack } from "@silk-hq/components"
+import { ProjectCreationSheet } from "@/components/project/project-creation-sheet"
 
 export default function DashboardPage() {
   const { data: session, isPending } = useSession()
   const router = useRouter()
   const { projects } = useSidebarData()
+  const createProjectTriggerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -66,6 +68,16 @@ export default function DashboardPage() {
             <p className="text-lg text-slate-600">Choose a project to continue working</p>
           </div>
 
+          <div className="flex justify-end mb-6">
+            <Button
+              className="rounded-full shadow-sm"
+              size="lg"
+              onClick={() => createProjectTriggerRef.current?.click()}
+            >
+              Create Project
+            </Button>
+          </div>
+
           {projects.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {projects.map((project) => (
@@ -102,7 +114,11 @@ export default function DashboardPage() {
                   <h3 className="text-xl font-medium text-slate-900 mb-2">No projects yet</h3>
                   <p className="text-slate-500 mb-6">Create your first project to get started</p>
                 </div>
-                <Button className="rounded-full shadow-sm" size="lg">
+                <Button
+                  className="rounded-full shadow-sm"
+                  size="lg"
+                  onClick={() => createProjectTriggerRef.current?.click()}
+                >
                   Create Project
                 </Button>
               </div>
@@ -110,6 +126,7 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+      <ProjectCreationSheet triggerRef={createProjectTriggerRef} />
       </div>
     </SheetStack.Root>
   )

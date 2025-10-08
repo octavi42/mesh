@@ -1,4 +1,6 @@
 -- Update current_user_id to read from request headers
+DROP FUNCTION IF EXISTS public.current_user_id() CASCADE;
+
 CREATE OR REPLACE FUNCTION public.current_user_id()
 RETURNS TEXT
 LANGUAGE plpgsql

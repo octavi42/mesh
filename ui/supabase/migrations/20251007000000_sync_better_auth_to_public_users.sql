@@ -29,6 +29,7 @@ DROP POLICY IF EXISTS "Users can manage their own OAuth accounts" ON public.oaut
 DROP POLICY IF EXISTS "Users can view their own verification tokens" ON public.verification_tokens;
 
 -- Drop foreign key constraints
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_id_fkey;
 ALTER TABLE public.user_integrations DROP CONSTRAINT IF EXISTS user_integrations_user_id_fkey;
 ALTER TABLE public.projects DROP CONSTRAINT IF EXISTS projects_created_by_fkey;
 ALTER TABLE public.members DROP CONSTRAINT IF EXISTS members_user_id_fkey;
@@ -45,7 +46,7 @@ ALTER TABLE public.verification_tokens DROP CONSTRAINT IF EXISTS fk_verification
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 -- Drop the current_user_id function so we can change its return type
-DROP FUNCTION IF EXISTS public.current_user_id();
+DROP FUNCTION IF EXISTS public.current_user_id() CASCADE;
 
 -- Change column types
 ALTER TABLE public.users ALTER COLUMN id TYPE TEXT;
