@@ -1,10 +1,33 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useChannels } from '@/lib/hooks/use-channels';
+import { useChatStore } from '@/lib/stores/chat-store';
+import { ChannelLink } from './ChannelLink';
+
 interface SidebarProps {
   isOpen: boolean;
 }
 
 export function Sidebar({ isOpen }: SidebarProps) {
+  const { currentChannelId, setCurrentChannel, currentWorkspaceId } = useChatStore();
+  const channels = useChannels(currentWorkspaceId);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const index = parseInt(e.key) - 1;
+        if (channels && channels[index]) {
+          setCurrentChannel(channels[index].id);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [channels, setCurrentChannel]);
+
   return (
     <aside
       className={`
@@ -24,20 +47,15 @@ export function Sidebar({ isOpen }: SidebarProps) {
 
       <div className="w-64 flex-1 flex-shrink-0 overflow-y-auto p-3">
         <div className="space-y-1">
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
-            <span className="flex-shrink-0 text-lg">#</span>
-            <span className="whitespace-nowrap">general</span>
-          </button>
-
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
-            <span className="flex-shrink-0 text-lg">#</span>
-            <span className="whitespace-nowrap">random</span>
-          </button>
-
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
-            <span className="flex-shrink-0 text-lg">#</span>
-            <span className="whitespace-nowrap">dev</span>
-          </button>
+          {channels?.map((channel, index) => (
+            <ChannelLink
+              key={channel.id}
+              channelId={channel.id}
+              channelName={channel.name}
+              isActive={currentChannelId === channel.id}
+              shortcutNumber={index < 9 ? index + 1 : undefined}
+            />
+          ))}
         </div>
       </div>
 

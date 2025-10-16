@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@nostr-dev-kit/ndk": "^2.17.9",
+    "babel-plugin-react-compiler": "^1.0.0",
     "dexie": "^4.2.1",
     "dexie-react-hooks": "^4.2.0",
     "next": "15.5.5",
