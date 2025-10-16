@@ -44,15 +44,31 @@ export async function seedMockData() {
   const workspaceCount = await db.workspaces.count();
 
   if (workspaceCount === 0) {
-    const workspace: Workspace = {
-      id: 'workspace-1',
-      name: 'My Team',
-      description: 'Default workspace',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+    const workspaces: Workspace[] = [
+      {
+        id: 'workspace-1',
+        name: 'My Team',
+        description: 'Default workspace',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      {
+        id: 'workspace-2',
+        name: 'Side Project',
+        description: 'Side project workspace',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      {
+        id: 'workspace-3',
+        name: 'Freelance',
+        description: 'Freelance workspace',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    ];
 
-    await db.workspaces.add(workspace);
+    await db.workspaces.bulkAdd(workspaces);
 
     const channels: Channel[] = [
       {
@@ -79,8 +95,149 @@ export async function seedMockData() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       },
+      {
+        id: 'channel-4',
+        workspaceId: 'workspace-2',
+        name: 'general',
+        description: 'Side project general chat',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      {
+        id: 'channel-5',
+        workspaceId: 'workspace-2',
+        name: 'ideas',
+        description: 'Project ideas',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      {
+        id: 'channel-6',
+        workspaceId: 'workspace-2',
+        name: 'design',
+        description: 'Design discussion',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      {
+        id: 'channel-7',
+        workspaceId: 'workspace-3',
+        name: 'general',
+        description: 'Freelance general chat',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      {
+        id: 'channel-8',
+        workspaceId: 'workspace-3',
+        name: 'clients',
+        description: 'Client discussions',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      {
+        id: 'channel-9',
+        workspaceId: 'workspace-3',
+        name: 'invoices',
+        description: 'Invoice tracking',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
     ];
 
     await db.channels.bulkAdd(channels);
+
+    const messages: Message[] = [
+      {
+        id: 'msg-1',
+        channelId: 'channel-1',
+        authorPubkey: 'npub1alice',
+        content: 'Welcome to the team!',
+        createdAt: Date.now() - 3600000,
+        updatedAt: Date.now() - 3600000,
+      },
+      {
+        id: 'msg-2',
+        channelId: 'channel-1',
+        authorPubkey: 'npub1bob',
+        content: 'Thanks! Excited to be here.',
+        createdAt: Date.now() - 3000000,
+        updatedAt: Date.now() - 3000000,
+      },
+      {
+        id: 'msg-3',
+        channelId: 'channel-2',
+        authorPubkey: 'npub1alice',
+        content: 'Anyone up for coffee?',
+        createdAt: Date.now() - 1800000,
+        updatedAt: Date.now() - 1800000,
+      },
+      {
+        id: 'msg-4',
+        channelId: 'channel-3',
+        authorPubkey: 'npub1bob',
+        content: 'Just pushed the latest changes.',
+        createdAt: Date.now() - 900000,
+        updatedAt: Date.now() - 900000,
+      },
+      {
+        id: 'msg-5',
+        channelId: 'channel-4',
+        authorPubkey: 'npub1alice',
+        content: 'Starting work on the new feature!',
+        createdAt: Date.now() - 7200000,
+        updatedAt: Date.now() - 7200000,
+      },
+      {
+        id: 'msg-6',
+        channelId: 'channel-4',
+        authorPubkey: 'npub1bob',
+        content: 'Let me know if you need any help.',
+        createdAt: Date.now() - 6000000,
+        updatedAt: Date.now() - 6000000,
+      },
+      {
+        id: 'msg-7',
+        channelId: 'channel-5',
+        authorPubkey: 'npub1alice',
+        content: 'What if we add a dark mode?',
+        createdAt: Date.now() - 4800000,
+        updatedAt: Date.now() - 4800000,
+      },
+      {
+        id: 'msg-8',
+        channelId: 'channel-6',
+        authorPubkey: 'npub1bob',
+        content: 'Here are the latest mockups.',
+        createdAt: Date.now() - 3600000,
+        updatedAt: Date.now() - 3600000,
+      },
+      {
+        id: 'msg-9',
+        channelId: 'channel-7',
+        authorPubkey: 'npub1alice',
+        content: 'Client meeting went well today.',
+        createdAt: Date.now() - 10800000,
+        updatedAt: Date.now() - 10800000,
+      },
+      {
+        id: 'msg-10',
+        channelId: 'channel-8',
+        authorPubkey: 'npub1bob',
+        content: 'Client A approved the proposal!',
+        createdAt: Date.now() - 7200000,
+        updatedAt: Date.now() - 7200000,
+      },
+      {
+        id: 'msg-11',
+        channelId: 'channel-9',
+        authorPubkey: 'npub1alice',
+        content: 'Invoice #123 sent to Client B.',
+        createdAt: Date.now() - 5400000,
+        updatedAt: Date.now() - 5400000,
+      },
+    ];
+
+    await db.messages.bulkAdd(messages);
   }
 }

@@ -4,8 +4,9 @@ import { persist } from 'zustand/middleware';
 interface ChatState {
   currentWorkspaceId: string;
   currentChannelId: string | null;
-  setCurrentWorkspace: (id: string) => void;
+  setCurrentWorkspace: (id: string, channelId?: string) => void;
   setCurrentChannel: (id: string) => void;
+  navigate: (workspaceId: string, channelId: string) => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -13,8 +14,24 @@ export const useChatStore = create<ChatState>()(
     (set) => ({
       currentWorkspaceId: 'workspace-1',
       currentChannelId: null,
-      setCurrentWorkspace: (id) => set({ currentWorkspaceId: id }),
-      setCurrentChannel: (id) => set({ currentChannelId: id }),
+
+      setCurrentWorkspace: (id, channelId) => {
+        set((state) => ({
+          currentWorkspaceId: id,
+          currentChannelId: channelId ?? null,
+        }));
+      },
+
+      setCurrentChannel: (id) => {
+        set({ currentChannelId: id });
+      },
+
+      navigate: (workspaceId, channelId) => {
+        set({
+          currentWorkspaceId: workspaceId,
+          currentChannelId: channelId,
+        });
+      },
     }),
     {
       name: 'chat-storage',

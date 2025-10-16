@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { useChatStore } from '@/lib/stores/chat-store';
 
 interface ChannelLinkProps {
@@ -15,15 +16,32 @@ export function ChannelLink({
   isActive,
   shortcutNumber,
 }: ChannelLinkProps) {
-  const { setCurrentChannel } = useChatStore();
+  const { setCurrentChannel, currentWorkspaceId } = useChatStore();
+  const isNavigatingRef = useRef(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0 && !isNavigatingRef.current) {
+      isNavigatingRef.current = true;
+      setCurrentChannel(channelId);
+
+      if (typeof window !== 'undefined') {
+        const url = `/w/${currentWorkspaceId}/c/${channelId}`;
+        window.history.pushState({}, '', url);
+      }
+
+      requestAnimationFrame(() => {
+        isNavigatingRef.current = false;
+      });
+    }
+  };
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    setCurrentChannel(channelId);
   };
 
   return (
     <button
+      onMouseDown={handleMouseDown}
       onClick={handleClick}
       className={`
         flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors

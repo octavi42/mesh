@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ChannelView } from '@/components/chat/ChannelView';
 import { useChatStore } from '@/lib/stores/chat-store';
@@ -8,7 +8,7 @@ import { useChannels } from '@/lib/hooks/use-channels';
 import { seedMockData } from '@/lib/db/schema';
 
 export default function HomePage() {
-  const { currentChannelId, setCurrentChannel, currentWorkspaceId } = useChatStore();
+  const { currentChannelId, setCurrentChannel, currentWorkspaceId, setCurrentWorkspace } = useChatStore();
   const channels = useChannels(currentWorkspaceId);
 
   useEffect(() => {
@@ -17,9 +17,34 @@ export default function HomePage() {
 
   useEffect(() => {
     if (channels && channels.length > 0 && !currentChannelId) {
-      setCurrentChannel(channels[0].id);
+      const firstChannel = channels[0];
+      setCurrentChannel(firstChannel.id);
+
+      if (typeof window !== 'undefined') {
+        const url = `/w/${currentWorkspaceId}/c/${firstChannel.id}`;
+        window.history.replaceState({}, '', url);
+      }
     }
-  }, [channels, currentChannelId, setCurrentChannel]);
+  }, [channels, currentChannelId, setCurrentChannel, currentWorkspaceId]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const workspaceMatch = path.match(/\/w\/([^/]+)/);
+      const channelMatch = path.match(/\/c\/([^/]+)/);
+
+      if (workspaceMatch && workspaceMatch[1] !== currentWorkspaceId) {
+        setCurrentWorkspace(workspaceMatch[1]);
+      }
+
+      if (channelMatch && channelMatch[1] !== currentChannelId) {
+        setCurrentChannel(channelMatch[1]);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [currentWorkspaceId, currentChannelId, setCurrentWorkspace, setCurrentChannel]);
 
   if (!currentChannelId) {
     return (
@@ -40,7 +65,7 @@ export default function HomePage() {
 
   return (
     <AppLayout>
-      <ChannelView channelId={currentChannelId} />
+      <ChannelView key={currentChannelId} channelId={currentChannelId} />
     </AppLayout>
   );
 }

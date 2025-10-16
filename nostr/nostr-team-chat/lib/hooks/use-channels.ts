@@ -15,10 +15,10 @@ export function useChannels(workspaceId: string | null) {
 export function useChannel(channelId: string | null) {
   return useLiveQuery(
     () => {
-      if (!channelId) return null;
+      if (!channelId) return undefined;
       return db.channels.get(channelId);
     },
     [channelId],
-    null
+    undefined
   );
 }

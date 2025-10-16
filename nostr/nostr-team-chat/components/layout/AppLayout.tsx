@@ -39,7 +39,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         onClick={toggleSidebar}
         className="fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-gray-600 shadow-lg transition-all hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-400 dark:hover:bg-gray-800"
         style={{
-          transform: sidebarOpen ? 'translateX(256px)' : 'translateX(0)',
+          transform: sidebarOpen ? 'translateX(336px)' : 'translateX(0)',
           transition: 'transform 300ms ease-in-out',
         }}
         aria-label="Toggle sidebar"
