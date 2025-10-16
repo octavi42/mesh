@@ -35,7 +35,31 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-gray-50 dark:bg-gray-900">
-      <IconBar />
+      <button
+        onClick={toggleSidebar}
+        className="fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-gray-600 shadow-lg transition-all hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-400 dark:hover:bg-gray-800"
+        style={{
+          transform: sidebarOpen ? 'translateX(256px)' : 'translateX(0)',
+          transition: 'transform 300ms ease-in-out',
+        }}
+        aria-label="Toggle sidebar"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <line x1="3" x2="21" y1="6" y2="6" />
+          <line x1="3" x2="21" y1="12" y2="12" />
+          <line x1="3" x2="21" y1="18" y2="18" />
+        </svg>
+      </button>
 
       <Sidebar isOpen={sidebarOpen} />
 

@@ -31,7 +31,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
   return (
     <aside
       className={`
-        flex flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950
+        flex h-full flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950
         transition-all duration-300 ease-in-out
         ${isOpen ? 'w-64' : 'w-0'}
       `}
