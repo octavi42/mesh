@@ -26,6 +26,7 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
   const [searchQuery, setSearchQuery] = useState('');
   const [showInviteSheet, setShowInviteSheet] = useState(false);
   const inviteButtonRef = useRef<HTMLButtonElement>(null);
+  const dismissButtonRef = useRef<HTMLButtonElement>(null);
 
   const filteredUsers = users.filter(user =>
     user.name?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -38,6 +39,10 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
         inviteButtonRef.current?.click();
       }, 50);
     }, 300);
+  };
+
+  const handleDismissAll = () => {
+    dismissButtonRef.current?.click();
   };
 
   return (
@@ -60,6 +65,9 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
               stackingAnimation={SHEET_ANIMATIONS.rightPanel.stackingAnimation}
             >
               <div className="AllUsersSheet-innerContent">
+                <Sheet.Trigger action="dismiss" asChild>
+                  <button ref={dismissButtonRef} style={{ display: 'none' }} />
+                </Sheet.Trigger>
                 <div className="p-8 flex-shrink-0">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-semibold text-gray-900">All Members</h2>
@@ -100,6 +108,7 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                       key={user.id}
                       user={user}
                       isAdmin={isAdmin}
+                      onDismissParent={handleDismissAll}
                       trigger={
                         <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
                           <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 flex-shrink-0">
