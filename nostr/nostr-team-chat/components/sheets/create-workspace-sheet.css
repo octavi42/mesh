@@ -1,0 +1,132 @@
+.create-workspace-sheet-content {
+  padding: 24px;
+  background: white;
+  border-radius: 16px;
+  max-width: 600px;
+  margin: 16px auto;
+}
+
+.create-workspace-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.close-button:hover {
+  background: #f3f4f6;
+}
+
+.create-workspace-sheet-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.create-workspace-sheet-description {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.create-workspace-sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.form-input {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 16px;
+  color: #111827;
+  transition: all 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.form-input::placeholder {
+  color: #9ca3af;
+}
+
+.create-button {
+  padding: 12px 24px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.create-button:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.create-button:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .create-workspace-sheet-content {
+    background: #111827;
+  }
+
+  .create-workspace-sheet-title {
+    color: white;
+  }
+
+  .create-workspace-sheet-description {
+    color: #9ca3af;
+  }
+
+  .form-label {
+    color: #d1d5db;
+  }
+
+  .form-input {
+    background: #1f2937;
+    border-color: #374151;
+    color: white;
+  }
+
+  .form-input:focus {
+    border-color: #6366f1;
+  }
+}
