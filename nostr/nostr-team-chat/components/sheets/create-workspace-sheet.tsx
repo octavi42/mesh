@@ -2,8 +2,15 @@
 
 import { useState } from 'react';
 import { Sheet } from '@silk-hq/components';
-import { X } from 'lucide-react';
+import { X, UserPlus, ChevronDown, ChevronUp } from 'lucide-react';
+import { InviteUserSheet } from './invite-user-sheet';
 import './create-workspace-sheet.css';
+
+interface User {
+  id: string;
+  name: string;
+  pubkey: string;
+}
 
 interface CreateWorkspaceSheetProps {
   trigger?: React.ReactNode;
@@ -12,9 +19,15 @@ interface CreateWorkspaceSheetProps {
 export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
   const [workspaceName, setWorkspaceName] = useState('');
   const [workspaceIcon, setWorkspaceIcon] = useState('');
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [invitedUsers, setInvitedUsers] = useState<User[]>([]);
 
   const handleCreate = () => {
-    console.log('Creating workspace:', { workspaceName, workspaceIcon });
+    console.log('Creating workspace:', { workspaceName, workspaceIcon, invitedUsers });
+  };
+
+  const handleRemoveUser = (userId: string) => {
+    setInvitedUsers(invitedUsers.filter(u => u.id !== userId));
   };
 
   return (
@@ -65,18 +78,65 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
                   />
                 </div>
 
+
                 <div className="space-y-2">
-                  <label htmlFor="workspace-icon" className="text-sm font-medium text-slate-700">
-                    Icon (emoji)
-                  </label>
-                  <input
-                    id="workspace-icon"
-                    type="text"
-                    value={workspaceIcon}
-                    onChange={(e) => setWorkspaceIcon(e.target.value)}
-                    placeholder="🚀"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 text-slate-900"
-                    maxLength={2}
+                  <button
+                    type="button"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="flex items-center justify-between w-full mb-2 hover:bg-slate-50 p-2 rounded-lg transition-colors"
+                  >
+                    <label className="text-sm font-medium text-slate-700 cursor-pointer">
+                      Invite Members
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {invitedUsers.length > 0 && (
+                        <span className="text-xs text-slate-500">
+                          {invitedUsers.length} {invitedUsers.length === 1 ? 'member' : 'members'}
+                        </span>
+                      )}
+                      {isExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  <div
+                    className="overflow-hidden transition-all duration-300 ease-in-out"
+                    style={{
+                      maxHeight: isExpanded && invitedUsers.length > 0 ? '160px' : '0px',
+                      opacity: isExpanded && invitedUsers.length > 0 ? 1 : 0,
+                    }}
+                  >
+                    <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
+                      {invitedUsers.map((user) => (
+                        <div key={user.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900">{user.name}</p>
+                            <p className="text-xs text-slate-500 truncate font-mono">{user.pubkey.slice(0, 20)}...</p>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveUser(user.id)}
+                            className="ml-2 flex items-center justify-center w-6 h-6 rounded hover:bg-slate-200 transition-colors"
+                          >
+                            <X className="w-4 h-4 text-slate-400" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <InviteUserSheet
+                    trigger={
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2 border-2 border-dashed border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-sm text-slate-600 hover:text-blue-600 flex items-center justify-center gap-2"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Add Member
+                      </button>
+                    }
                   />
                 </div>
 
