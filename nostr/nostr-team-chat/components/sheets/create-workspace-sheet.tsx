@@ -105,26 +105,32 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
                   <div
                     className="overflow-hidden transition-all duration-300 ease-in-out"
                     style={{
-                      maxHeight: isExpanded && invitedUsers.length > 0 ? '160px' : '0px',
-                      opacity: isExpanded && invitedUsers.length > 0 ? 1 : 0,
+                      maxHeight: isExpanded ? '160px' : '0px',
+                      opacity: isExpanded ? 1 : 0,
                     }}
                   >
-                    <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
-                      {invitedUsers.map((user) => (
-                        <div key={user.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900">{user.name}</p>
-                            <p className="text-xs text-slate-500 truncate font-mono">{user.pubkey.slice(0, 20)}...</p>
+                    {invitedUsers.length > 0 ? (
+                      <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
+                        {invitedUsers.map((user) => (
+                          <div key={user.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-900">{user.name}</p>
+                              <p className="text-xs text-slate-500 truncate font-mono">{user.pubkey.slice(0, 20)}...</p>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveUser(user.id)}
+                              className="ml-2 flex items-center justify-center w-6 h-6 rounded hover:bg-slate-200 transition-colors"
+                            >
+                              <X className="w-4 h-4 text-slate-400" />
+                            </button>
                           </div>
-                          <button
-                            onClick={() => handleRemoveUser(user.id)}
-                            className="ml-2 flex items-center justify-center w-6 h-6 rounded hover:bg-slate-200 transition-colors"
-                          >
-                            <X className="w-4 h-4 text-slate-400" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mb-3 p-4 text-center text-sm text-slate-400">
+                        No members invited yet
+                      </div>
+                    )}
                   </div>
 
                   <InviteUserSheet
