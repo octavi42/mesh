@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useChannels } from '@/lib/hooks/use-channels';
+import { db } from '@/lib/db/schema';
 
 interface Workspace {
   id: string;
@@ -20,15 +21,28 @@ export function WorkspaceList() {
   const { currentWorkspaceId, setCurrentWorkspace } = useChatStore();
   const isNavigatingRef = useRef(false);
 
-  const handleWorkspaceClick = (workspaceId: string) => {
+  const handleWorkspaceClick = async (workspaceId: string) => {
     if (isNavigatingRef.current || workspaceId === currentWorkspaceId) return;
 
     isNavigatingRef.current = true;
-    setCurrentWorkspace(workspaceId);
 
-    if (typeof window !== 'undefined') {
-      const url = `/w/${workspaceId}`;
-      window.history.pushState({}, '', url);
+    const channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
+    const firstChannel = channels[0];
+
+    if (firstChannel) {
+      setCurrentWorkspace(workspaceId, firstChannel.id);
+
+      if (typeof window !== 'undefined') {
+        const url = `/w/${workspaceId}/c/${firstChannel.id}`;
+        window.history.pushState({}, '', url);
+      }
+    } else {
+      setCurrentWorkspace(workspaceId);
+
+      if (typeof window !== 'undefined') {
+        const url = `/w/${workspaceId}`;
+        window.history.pushState({}, '', url);
+      }
     }
 
     requestAnimationFrame(() => {

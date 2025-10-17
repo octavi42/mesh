@@ -41,6 +41,10 @@ db.version(1).stores({
 export { db };
 
 export async function seedMockData() {
+  await db.workspaces.clear();
+  await db.channels.clear();
+  await db.messages.clear();
+
   const workspaceCount = await db.workspaces.count();
 
   if (workspaceCount === 0) {

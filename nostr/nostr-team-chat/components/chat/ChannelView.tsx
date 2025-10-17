@@ -33,10 +33,23 @@ export function ChannelView({ channelId }: ChannelViewProps) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header with user avatars */}
-      <div className="flex h-16 items-center justify-end px-6 gap-3">
-        <UserAvatars users={mockUsers} size={40} maxVisible={5} />
-        <AccountSheet />
+      {/* Header with channel name and user avatars */}
+      <div className="flex h-16 items-center justify-between border-b border-gray-200 px-6 dark:border-gray-800">
+        <div className="flex items-center gap-2">
+          <span className="text-xl text-gray-400">#</span>
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {channel.name}
+          </h1>
+          {channel.description && (
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {channel.description}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <UserAvatars users={mockUsers} size={40} maxVisible={5} />
+          <AccountSheet />
+        </div>
       </div>
 
       <div className="flex flex-1 items-center justify-center overflow-y-auto">
