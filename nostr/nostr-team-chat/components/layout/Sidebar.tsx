@@ -5,6 +5,8 @@ import { useChannels } from '@/lib/hooks/use-channels';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelLink } from './ChannelLink';
 import { WorkspaceList } from './WorkspaceList';
+import { CreateChannelSheet } from '@/components/sheets/create-channel-sheet';
+import { Plus } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -47,10 +49,17 @@ export function Sidebar({ isOpen }: SidebarProps) {
       </div>
 
       <div className="flex w-64 flex-shrink-0 flex-col">
-        <div className="flex h-14 flex-shrink-0 items-center border-b border-gray-200 px-4 dark:border-gray-800">
+        <div className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
           <h2 className="whitespace-nowrap text-lg font-semibold text-gray-900 dark:text-white">
-            Team Chat
+            Channels
           </h2>
+          <CreateChannelSheet
+            trigger={
+              <button className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <Plus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              </button>
+            }
+          />
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
