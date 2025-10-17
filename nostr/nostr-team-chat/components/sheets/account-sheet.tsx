@@ -1,8 +1,10 @@
 'use client';
 
+import { useState, useRef } from 'react';
 import { Sheet } from '@silk-hq/components';
-import { X, User, Key, LogOut } from 'lucide-react';
+import { X, User, Key, LogOut, Bell } from 'lucide-react';
 import { SHEET_ANIMATIONS } from '@/lib/constants/sheet-animations';
+import { NotificationsSheet } from './notifications-sheet';
 import './account-sheet.css';
 
 interface AccountSheetProps {
@@ -10,6 +12,9 @@ interface AccountSheetProps {
 }
 
 export function AccountSheet({ trigger }: AccountSheetProps) {
+  const [showNotificationsSheet, setShowNotificationsSheet] = useState(false);
+  const notificationsButtonRef = useRef<HTMLButtonElement>(null);
+
   const mockUser = {
     name: 'You',
     image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=CurrentUser',
@@ -19,6 +24,13 @@ export function AccountSheet({ trigger }: AccountSheetProps) {
 
   const handleSignOut = () => {
     console.log('Sign out clicked');
+  };
+
+  const handleNotificationsClick = () => {
+    setShowNotificationsSheet(true);
+    setTimeout(() => {
+      notificationsButtonRef.current?.click();
+    }, 50);
   };
 
   const defaultTrigger = (
@@ -32,12 +44,13 @@ export function AccountSheet({ trigger }: AccountSheetProps) {
   );
 
   return (
-    <Sheet.Root license="commercial">
-      <Sheet.Trigger asChild>
-        {trigger || defaultTrigger}
-      </Sheet.Trigger>
+    <>
+      <Sheet.Root license="commercial">
+        <Sheet.Trigger asChild>
+          {trigger || defaultTrigger}
+        </Sheet.Trigger>
 
-      <Sheet.Portal>
+        <Sheet.Portal>
         <Sheet.View contentPlacement="right" nativeEdgeSwipePrevention={true} style={{ zIndex: 9999 }}>
           <Sheet.Backdrop
             travelAnimation={{
@@ -100,6 +113,14 @@ export function AccountSheet({ trigger }: AccountSheetProps) {
                     <Key className="w-5 h-5 text-gray-600" />
                     <span className="text-gray-900">Manage Keys</span>
                   </button>
+
+                  <button
+                    onClick={handleNotificationsClick}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <Bell className="w-5 h-5 text-gray-600" />
+                    <span className="text-gray-900">Notifications</span>
+                  </button>
                 </div>
               </div>
 
@@ -115,8 +136,19 @@ export function AccountSheet({ trigger }: AccountSheetProps) {
               </div>
             </div>
           </Sheet.Content>
+          {showNotificationsSheet && (
+            <NotificationsSheet
+              trigger={
+                <button
+                  ref={notificationsButtonRef}
+                  style={{ display: 'none' }}
+                />
+              }
+            />
+          )}
         </Sheet.View>
       </Sheet.Portal>
-    </Sheet.Root>
+      </Sheet.Root>
+    </>
   );
 }
