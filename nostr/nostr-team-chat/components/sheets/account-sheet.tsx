@@ -5,6 +5,7 @@ import { Sheet } from '@silk-hq/components';
 import { X, User, Key, LogOut, Bell, UserX, Shield } from 'lucide-react';
 import { SHEET_ANIMATIONS } from '@/lib/constants/sheet-animations';
 import { NotificationsSheet } from './notifications-sheet';
+import { PublicKeySheet } from './public-key-sheet';
 import './account-sheet.css';
 
 interface AccountSheetProps {
@@ -21,7 +22,10 @@ interface AccountSheetProps {
 
 export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSheetProps) {
   const [showNotificationsSheet, setShowNotificationsSheet] = useState(false);
+  const [showPublicKeySheet, setShowPublicKeySheet] = useState(false);
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
+  const publicKeyButtonRef = useRef<HTMLButtonElement>(null);
+  const accountSheetRef = useRef<HTMLButtonElement>(null);
 
   const displayUser = user || {
     name: 'You',
@@ -53,6 +57,14 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
     console.log('View profile:', displayUser.name);
   };
 
+  const handlePublicKeyClick = () => {
+    accountSheetRef.current?.click();
+    setShowPublicKeySheet(true);
+    setTimeout(() => {
+      publicKeyButtonRef.current?.click();
+    }, 50);
+  };
+
   const defaultTrigger = (
     <button className="flex items-center justify-center w-10 h-10 rounded-full overflow-hidden border-2 border-indigo-500 hover:border-indigo-600 transition-colors flex-shrink-0">
       {displayUser.image ? (
@@ -67,7 +79,9 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
     <>
       <Sheet.Root license="commercial">
         <Sheet.Trigger asChild>
-          {trigger || defaultTrigger}
+          <div ref={accountSheetRef as any}>
+            {trigger || defaultTrigger}
+          </div>
         </Sheet.Trigger>
 
         <Sheet.Portal>
@@ -113,13 +127,16 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
 
               <div className="flex-1 overflow-y-auto px-8">
                 <div className="space-y-2">
-                  <div className="p-3 bg-gray-50 rounded-lg">
+                  <button
+                    onClick={handlePublicKeyClick}
+                    className="w-full p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-left"
+                  >
                     <div className="flex items-center gap-3 mb-2">
                       <Key className="w-4 h-4 text-gray-500" />
                       <p className="text-xs font-medium text-gray-700">Public Key</p>
                     </div>
                     <code className="text-xs break-all text-gray-900 font-mono block">{displayUser.pubkey}</code>
-                  </div>
+                  </button>
 
                   {isCurrentUser ? (
                     <>
@@ -198,6 +215,17 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
         </Sheet.View>
       </Sheet.Portal>
       </Sheet.Root>
+      {showPublicKeySheet && (
+        <PublicKeySheet
+          trigger={
+            <button
+              ref={publicKeyButtonRef}
+              style={{ display: 'none' }}
+            />
+          }
+          pubkey={displayUser.pubkey}
+        />
+      )}
     </>
   );
 }
