@@ -12,10 +12,12 @@ import { useSecureAuth } from '@/lib/hooks/use-secure-auth';
 
 export default function AppPage() {
   const router = useRouter();
-  const { isValidating, isValid } = useSecureAuth(true);
+  const { isValidating, isValid, isAuthenticated, pubkey } = useSecureAuth(true);
   const nostrLoginInitialized = useRef(false);
   const { currentChannelId, setCurrentChannel, currentWorkspaceId, setCurrentWorkspace } = useChatStore();
   const channels = useChannels(currentWorkspaceId);
+
+  console.log('🔍 AppPage render:', { isValidating, isValid, isAuthenticated, pubkey });
 
   useEffect(() => {
     seedMockData();
@@ -37,10 +39,23 @@ export default function AppPage() {
 
     const handleAuth = async (e: Event) => {
       const customEvent = e as CustomEvent;
-      console.log('nostr-login auth', customEvent.detail);
+      const authType = customEvent.detail.type;
 
-      if (customEvent.detail.type === 'logout') {
+      console.log('📡 /app nlAuth event:', authType, customEvent.detail);
+
+      if (authType === 'logout') {
+        console.log('🔴 Logout event received in /app');
+
+        const { logout } = useAuthStore.getState();
+
+        await fetch('/api/auth/logout', { method: 'POST' }).catch(err =>
+          console.error('Failed to call logout API:', err)
+        );
+
+        logout();
+
         setTimeout(() => {
+          console.log('Redirecting to / after logout');
           window.location.href = '/';
         }, 100);
       }
@@ -87,16 +102,26 @@ export default function AppPage() {
 
   if (isValidating) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-400">Verifying authentication...</p>
+      <AppLayout>
+        <div className="flex h-full items-center justify-center">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Loading...</p>
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   if (!isValid) {
-    return null;
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Redirecting...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!currentChannelId) {

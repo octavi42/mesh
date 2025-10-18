@@ -49,14 +49,34 @@ export const useAuthStore = create<AuthState>()(
       },
 
       validateSession: async () => {
-        const isValid = await SecureSessionManager.validateSession();
+        try {
+          const response = await fetch('/api/auth/session');
 
-        if (!isValid) {
+          if (!response.ok) {
+            get().logout();
+            return false;
+          }
+
+          const data = await response.json();
+
+          if (!data.authenticated) {
+            get().logout();
+            return false;
+          }
+
+          const state = get();
+          if (state.pubkey && state.pubkey !== data.pubkey) {
+            console.error('Pubkey mismatch between client and server');
+            get().logout();
+            return false;
+          }
+
+          return true;
+        } catch (error) {
+          console.error('Session validation failed:', error);
           get().logout();
           return false;
         }
-
-        return true;
       },
     }),
     {

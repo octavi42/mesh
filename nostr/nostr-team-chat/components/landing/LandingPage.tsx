@@ -12,7 +12,6 @@ export function LandingPage() {
   const nostrLoginInitialized = useRef(false);
   const { login, logout, isAuthenticated } = useAuthStore();
   const { generateChallenge, verifyChallenge } = useAuthChallenge();
-  const [authChallenge, setAuthChallenge] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
@@ -28,27 +27,12 @@ export function LandingPage() {
 
     const checkAuth = async () => {
       if (isAuthenticated) {
-        console.log('Checking auth validity - isAuthenticated:', isAuthenticated);
-        console.log('window.nostr available:', !!window.nostr);
-
-        if (!window.nostr) {
-          console.log('No window.nostr, logging out');
-          logout();
-          return;
-        }
-
-        try {
-          const pubkey = await window.nostr.getPublicKey();
-          console.log('Got pubkey, user is authenticated:', pubkey);
-        } catch (error) {
-          console.log('Failed to get pubkey, logging out:', error);
-          logout();
-        }
+        console.log('✅ User is authenticated:', isAuthenticated);
       }
     };
 
     checkAuth();
-  }, [isAuthenticated, logout, isHydrated]);
+  }, [isAuthenticated, isHydrated]);
 
   useEffect(() => {
     if (nostrLoginInitialized.current) return;
@@ -66,37 +50,48 @@ export function LandingPage() {
 
     const handleAuth = async (e: Event) => {
       const customEvent = e as CustomEvent;
-      if (customEvent.detail.type === 'login' || customEvent.detail.type === 'signup') {
+      const authType = customEvent.detail.type;
+
+      console.log('📡 nlAuth event:', authType, customEvent.detail);
+
+      if (authType === 'login' || authType === 'signup') {
         try {
           if (!window.nostr) {
             console.error('window.nostr not available');
             return;
           }
 
-          const challenge = generateChallenge();
-          setAuthChallenge(challenge);
+          const pubkey = await window.nostr.getPublicKey();
+          console.log('✅ User logged in, pubkey:', pubkey);
 
-          console.log('Generated challenge for auth:', challenge);
+          console.log('🔑 Requesting challenge from server...');
+          const challengeData = await generateChallenge();
 
-          const verifiedPubkey = await verifyChallenge(challenge, window.location.origin);
+          console.log('🔐 Verifying signature with server...');
+          const verifiedPubkey = await verifyChallenge(
+            challengeData.challengeId,
+            challengeData.challenge,
+            window.location.origin
+          );
 
           if (verifiedPubkey) {
-            console.log('✅ Authentication successful! Pubkey:', verifiedPubkey);
-            login(verifiedPubkey, challenge);
+            console.log('✅ Server verification successful!');
+            login(verifiedPubkey, challengeData.challenge);
           } else {
-            console.error('❌ Authentication failed - signature verification failed');
+            console.error('❌ Server verification failed');
             logout();
           }
         } catch (error) {
           console.error('Failed to authenticate:', error);
           logout();
         }
-      } else if (customEvent.detail.type === 'logout') {
-        console.log('Logout event received');
+      } else if (authType === 'logout') {
+        console.log('🔴 Logout event received');
+
+        await fetch('/api/auth/logout', { method: 'POST' });
         logout();
 
         setTimeout(() => {
-          console.log('Redirecting to / after logout');
           window.location.href = '/';
         }, 100);
       }
