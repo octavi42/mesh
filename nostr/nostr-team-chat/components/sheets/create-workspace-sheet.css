@@ -103,30 +103,36 @@
   cursor: not-allowed;
 }
 
-@media (prefers-color-scheme: dark) {
-  .create-workspace-sheet-content {
-    background: #111827;
-  }
+.dark .create-workspace-sheet-content {
+  background: #0a0a0a;
+}
 
-  .create-workspace-sheet-title {
-    color: white;
-  }
+.dark .create-workspace-sheet-title {
+  color: white;
+}
 
-  .create-workspace-sheet-description {
-    color: #9ca3af;
-  }
+.dark .create-workspace-sheet-description {
+  color: #9ca3af;
+}
 
-  .form-label {
-    color: #d1d5db;
-  }
+.dark .form-label {
+  color: #d1d5db;
+}
 
-  .form-input {
-    background: #1f2937;
-    border-color: #374151;
-    color: white;
-  }
+.dark .form-input {
+  background: #171717;
+  border-color: #262626;
+  color: white;
+}
 
-  .form-input:focus {
-    border-color: #6366f1;
-  }
+.dark .form-input:focus {
+  border-color: #6366f1;
+}
+
+.dark .close-button {
+  color: #9ca3af;
+}
+
+.dark .close-button:hover {
+  background: #171717;
 }

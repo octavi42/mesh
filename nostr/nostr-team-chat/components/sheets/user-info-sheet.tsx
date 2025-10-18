@@ -56,7 +56,7 @@ function ConfirmationSheet({ isOpen, onClose, onConfirm, title, message, confirm
             <div className={`w-12 h-12 rounded-full flex items-center justify-center ${confirmStyle === 'danger' ? 'bg-red-100' : 'bg-indigo-100'}`}>
               <AlertTriangle className={`w-6 h-6 ${confirmStyle === 'danger' ? 'text-red-600' : 'text-indigo-600'}`} />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
           </div>
           <p className="text-gray-600 mb-6">{message}</p>
           <div className="flex gap-3">
@@ -182,30 +182,30 @@ export function UserInfoSheet({ user, trigger, isAdmin = false, onDismissParent 
                 </Sheet.Trigger>
                 <div className="p-8 pb-4 flex-shrink-0">
                   <div className="mb-6 flex flex-col items-center">
-                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 mb-4">
+                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 mb-4">
                       <img
                         src={user.image}
                         alt={user.name || 'User'}
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900">{user.name || 'Anonymous'}</h3>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{user.name || 'Anonymous'}</h3>
                   </div>
                 </div>
 
                 <div className="px-8">
                   <div className="space-y-4">
                     {user.role && (
-                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                         <div>
-                          <p className="text-xs text-gray-500">Role</p>
-                          <p className="text-sm text-gray-900">{user.role}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Role</p>
+                          <p className="text-sm text-gray-900 dark:text-white">{user.role}</p>
                         </div>
                       </div>
                     )}
 
                     {user.pubkey && (
-                      <div className="p-3 bg-gray-50 rounded-lg">
+                      <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
                         <p className="text-xs text-gray-500 mb-2">Public Key</p>
                         <code className="text-xs break-all text-gray-900 font-mono">{user.pubkey}</code>
                       </div>
@@ -217,14 +217,14 @@ export function UserInfoSheet({ user, trigger, isAdmin = false, onDismissParent 
                   <div className="space-y-2">
                     <button
                       onClick={() => console.log('View profile:', user.id)}
-                      className="w-full px-4 py-3 bg-gray-50 text-gray-900 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 text-gray-900 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
                     >
                       <UserIcon className="w-4 h-4" />
                       View Profile
                     </button>
                     <button
                       onClick={handleAdminClick}
-                      className="w-full px-4 py-3 bg-gray-50 text-gray-900 rounded-lg hover:bg-gray-100 transition-colors flex items-center justify-center gap-2"
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 text-gray-900 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
                     >
                       <Shield className="w-4 h-4" />
                       Make Admin

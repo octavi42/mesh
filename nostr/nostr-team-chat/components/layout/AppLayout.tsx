@@ -34,10 +34,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen w-full overflow-hidden bg-[#fafafa] dark:bg-[#0a0a0a]">
       <button
         onClick={toggleSidebar}
-        className="fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-gray-600 shadow-lg transition-all hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-400 dark:hover:bg-gray-800"
+        className="fixed left-4 top-4 z-50 flex h-9 w-9 items-center justify-center rounded-lg bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200 transition-all hover:bg-white hover:border-gray-300 dark:bg-gray-950/80 dark:text-gray-300 dark:border-gray-800 dark:hover:bg-gray-900 dark:hover:border-gray-700"
         style={{
           transform: sidebarOpen ? 'translateX(336px)' : 'translateX(0)',
           transition: 'transform 300ms ease-in-out',

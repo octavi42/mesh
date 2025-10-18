@@ -27,7 +27,7 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
       case 'invite':
         return <UserPlus className="w-6 h-6 text-purple-500" />;
       default:
-        return <MessageSquare className="w-6 h-6 text-gray-500" />;
+        return <MessageSquare className="w-6 h-6 text-gray-500 dark:text-gray-400" />;
     }
   };
 
@@ -50,15 +50,15 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
             <div className="NotificationDetailSheet-innerContent">
               <div className="p-8 flex-shrink-0">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Notification</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Notification</h2>
                   <Sheet.Trigger action="dismiss" asChild>
                     <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
-                      <X className="w-5 h-5 text-gray-600" />
+                      <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                     </button>
                   </Sheet.Trigger>
                 </div>
 
-                <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                   <div className="flex-shrink-0 mt-1">
                     {getIcon()}
                   </div>
@@ -74,18 +74,18 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Details</h4>
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Type</span>
+                        <span className="text-gray-500 dark:text-gray-400">Type</span>
                         <span className="text-gray-900 capitalize">{notification.type}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Status</span>
-                        <span className="text-gray-900">{notification.read ? 'Read' : 'Unread'}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Status</span>
+                        <span className="text-gray-900 dark:text-white">{notification.read ? 'Read' : 'Unread'}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Time</span>
-                        <span className="text-gray-900">{notification.time}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Time</span>
+                        <span className="text-gray-900 dark:text-white">{notification.time}</span>
                       </div>
                     </div>
                   </div>

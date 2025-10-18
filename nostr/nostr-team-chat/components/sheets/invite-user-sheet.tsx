@@ -65,7 +65,7 @@ export function InviteUserSheet({ trigger }: InviteUserSheetProps) {
                     />
                   </div>
                   <p className="text-xs text-slate-500">
-                    Enter the user's Nostr public key to invite them to this workspace
+                    Enter the user&apos;s Nostr public key to invite them to this workspace
                   </p>
                 </div>
 

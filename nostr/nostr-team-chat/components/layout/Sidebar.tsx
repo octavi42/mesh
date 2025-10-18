@@ -34,7 +34,7 @@ export function Sidebar({ isOpen }: SidebarProps) {
   return (
     <aside
       className={`
-        flex h-full border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950
+        flex h-full border-r border-gray-100 bg-white dark:border-gray-900 dark:bg-black
         transition-all duration-300 ease-in-out
         ${isOpen ? 'w-[336px]' : 'w-0'}
       `}
@@ -42,21 +42,21 @@ export function Sidebar({ isOpen }: SidebarProps) {
         overflow: 'hidden',
       }}
     >
-      <div className="flex w-20 flex-shrink-0 flex-col border-r border-gray-200 dark:border-gray-800">
+      <div className="flex w-20 flex-shrink-0 flex-col border-r border-gray-100 dark:border-gray-900">
         <div className="flex-1 overflow-y-auto">
           <WorkspaceList />
         </div>
       </div>
 
       <div className="flex w-64 flex-shrink-0 flex-col">
-        <div className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-800">
-          <h2 className="whitespace-nowrap text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-100 px-4 dark:border-gray-900">
+          <h2 className="whitespace-nowrap text-base font-medium text-gray-900 dark:text-white">
             Channels
           </h2>
           <CreateChannelSheet
             trigger={
-              <button className="flex items-center justify-center w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <Plus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <button className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-50 transition-colors dark:hover:bg-gray-900">
+                <Plus className="w-4 h-4 text-gray-500 dark:text-gray-400" />
               </button>
             }
           />

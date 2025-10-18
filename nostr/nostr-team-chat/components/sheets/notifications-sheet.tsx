@@ -77,12 +77,12 @@ export function NotificationsSheet({ trigger }: NotificationsSheetProps) {
               <div className="p-8 flex-shrink-0">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
-                    <Bell className="w-5 h-5 text-gray-600" />
-                    <h2 className="text-lg font-semibold text-gray-900">Notifications</h2>
+                    <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Notifications</h2>
                   </div>
                   <Sheet.Trigger action="dismiss" asChild>
                     <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
-                      <X className="w-5 h-5 text-gray-600" />
+                      <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                     </button>
                   </Sheet.Trigger>
                 </div>
@@ -96,12 +96,12 @@ export function NotificationsSheet({ trigger }: NotificationsSheetProps) {
                       onClick={() => handleNotificationClick(notification)}
                       className={`p-4 rounded-lg border transition-colors cursor-pointer ${
                         notification.read
-                          ? 'bg-white border-gray-200 hover:bg-gray-50'
+                          ? 'bg-white border-gray-200 dark:border-gray-700 hover:bg-gray-50'
                           : 'bg-blue-50 border-blue-200 hover:bg-blue-100'
                       }`}
                     >
                       <div className="flex items-start justify-between mb-1">
-                        <h3 className="text-sm font-medium text-gray-900">{notification.title}</h3>
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">{notification.title}</h3>
                         {!notification.read && (
                           <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
                         )}

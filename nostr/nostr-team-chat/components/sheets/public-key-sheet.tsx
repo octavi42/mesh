@@ -97,10 +97,10 @@ export function PublicKeySheet({ trigger, pubkey }: PublicKeySheetProps) {
             <Sheet.BleedingBackground className="bg-white" />
             <div className="p-8">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-gray-900">Public Key</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Public Key</h2>
                 <Sheet.Trigger asChild>
-                  <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <X className="w-5 h-5 text-gray-500" />
+                  <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+                    <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                   </button>
                 </Sheet.Trigger>
               </div>
@@ -114,7 +114,7 @@ export function PublicKeySheet({ trigger, pubkey }: PublicKeySheetProps) {
                   />
                 </div>
 
-                <div className="w-full p-4 bg-gray-50 rounded-xl">
+                <div className="w-full p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                   <p className="text-xs font-medium text-gray-700 mb-2">Key</p>
                   <code className="text-xs break-all text-gray-900 font-mono block">{pubkey}</code>
                 </div>

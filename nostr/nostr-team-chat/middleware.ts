@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   if (path.startsWith('/w/')) {
-    return NextResponse.rewrite(new URL('/', request.url));
+    return NextResponse.rewrite(new URL('/app', request.url));
   }
 
   return NextResponse.next();

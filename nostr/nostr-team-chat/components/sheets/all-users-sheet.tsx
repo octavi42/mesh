@@ -70,7 +70,7 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                 </Sheet.Trigger>
                 <div className="p-8 flex-shrink-0">
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-semibold text-gray-900">All Members</h2>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">All Members</h2>
                     <div className="flex items-center gap-2">
                       <Sheet.Trigger action="dismiss" asChild>
                         <button
@@ -82,8 +82,8 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                         </button>
                       </Sheet.Trigger>
                       <Sheet.Trigger action="dismiss" asChild>
-                        <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
-                          <X className="w-5 h-5 text-gray-600" />
+                        <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                          <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                         </button>
                       </Sheet.Trigger>
                     </div>
@@ -96,7 +96,7 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                     placeholder="Search members..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -110,8 +110,8 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                       isAdmin={isAdmin}
                       onDismissParent={handleDismissAll}
                       trigger={
-                        <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                          <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 flex-shrink-0">
+                        <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:bg-gray-900 transition-colors cursor-pointer">
+                          <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0">
                             <img
                               src={user.image}
                               alt={user.name || 'User'}
@@ -129,7 +129,7 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                     />
                   ))}
                   {filteredUsers.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                       No members found
                     </div>
                   )}
