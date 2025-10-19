@@ -206,8 +206,8 @@ export function UserInfoSheet({ user, trigger, isAdmin = false, onDismissParent 
 
                     {user.pubkey && (
                       <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                        <p className="text-xs text-gray-500 mb-2">Public Key</p>
-                        <code className="text-xs break-all text-gray-900 font-mono">{user.pubkey}</code>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Public Key</p>
+                        <code className="text-xs break-all text-gray-900 dark:text-gray-100 font-mono">{user.pubkey}</code>
                       </div>
                     )}
                   </div>

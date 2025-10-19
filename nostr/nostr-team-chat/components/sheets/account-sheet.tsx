@@ -22,12 +22,13 @@ interface AccountSheetProps {
 }
 
 export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSheetProps) {
-  const { logout } = useAuthStore();
+  const { logout, pubkey: authPubkey, npub: authNpub } = useAuthStore();
   const [showNotificationsSheet, setShowNotificationsSheet] = useState(false);
   const [showPublicKeySheet, setShowPublicKeySheet] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
   const publicKeyButtonRef = useRef<HTMLButtonElement>(null);
+  const accountSheetRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark');
@@ -37,7 +38,7 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
   const displayUser = user || {
     name: 'You',
     image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=CurrentUser',
-    pubkey: 'npub1currentuser1234567890abcdefghijklmnopqrstuvwxyz',
+    pubkey: authNpub || authPubkey || 'Loading...',
     createdAt: new Date('2024-01-15')
   };
 
@@ -128,6 +129,9 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
             stackingAnimation={SHEET_ANIMATIONS.rightPanel.stackingAnimation}
           >
             <div className="AccountSheet-innerContent">
+              <Sheet.Trigger action="dismiss" asChild>
+                <button ref={accountSheetRef} style={{ display: 'none' }} />
+              </Sheet.Trigger>
               <div className="p-8 flex-shrink-0">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{isCurrentUser ? 'Account' : 'User Profile'}</h2>

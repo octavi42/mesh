@@ -10,17 +10,14 @@ interface LoginSheetProps {
 }
 
 export function LoginSheet({ trigger, onLoginClick }: LoginSheetProps) {
-  const handleLoginClick = () => {
+  const handleGetStartedClick = () => {
     if (onLoginClick) {
       onLoginClick();
     }
   };
 
   const defaultTrigger = (
-    <button
-      onClick={handleLoginClick}
-      className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
-    >
+    <button className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
       <LogIn className="w-4 h-4" />
       Login
     </button>
@@ -60,7 +57,7 @@ export function LoginSheet({ trigger, onLoginClick }: LoginSheetProps) {
 
               <div className="space-y-4">
                   <button
-                    onClick={handleLoginClick}
+                    onClick={handleGetStartedClick}
                     className="w-full p-6 bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl group"
                   >
                     <div className="flex items-center gap-4">
