@@ -9,19 +9,42 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { useChannels } from '@/lib/hooks/use-channels';
 import { seedMockData } from '@/lib/db/schema';
 import { useSecureAuth } from '@/lib/hooks/use-secure-auth';
+import { useWorkspaceStore } from '@/lib/stores/workspace-store';
 
 export default function AppPage() {
   const router = useRouter();
   const { isValidating, isValid, isAuthenticated, pubkey } = useSecureAuth(true);
   const nostrLoginInitialized = useRef(false);
+  const nip29Initialized = useRef(false);
   const { currentChannelId, setCurrentChannel, currentWorkspaceId, setCurrentWorkspace } = useChatStore();
+  const { initializeClient, workspaces, currentWorkspace } = useWorkspaceStore();
   const channels = useChannels(currentWorkspaceId);
 
   console.log('🔍 AppPage render:', { isValidating, isValid, isAuthenticated, pubkey });
+  console.log('📂 Workspaces:', workspaces);
+  console.log('📍 Current workspace (workspace-store):', currentWorkspace?.groupId);
+  console.log('📍 Current workspace (chat-store):', currentWorkspaceId);
 
   useEffect(() => {
     seedMockData();
   }, []);
+
+  useEffect(() => {
+    if (nip29Initialized.current || !isAuthenticated) return;
+
+    nip29Initialized.current = true;
+    initializeClient().catch((error) => {
+      console.error('Failed to initialize NIP-29:', error);
+      nip29Initialized.current = false;
+    });
+  }, [isAuthenticated, initializeClient]);
+
+  useEffect(() => {
+    if (currentWorkspace && currentWorkspace.groupId !== currentWorkspaceId) {
+      console.log('🔄 Syncing currentWorkspaceId from workspace-store:', currentWorkspace.groupId);
+      setCurrentWorkspace(currentWorkspace.groupId);
+    }
+  }, [currentWorkspace, currentWorkspaceId, setCurrentWorkspace]);
 
   useEffect(() => {
     if (nostrLoginInitialized.current) return;

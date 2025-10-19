@@ -5,61 +5,61 @@ import { useChatStore } from '@/lib/stores/chat-store';
 import { useChannels } from '@/lib/hooks/use-channels';
 import { db } from '@/lib/db/schema';
 import { CreateWorkspaceSheet } from '@/components/sheets/create-workspace-sheet';
-
-interface Workspace {
-  id: string;
-  name: string;
-  icon?: string;
-}
-
-const mockWorkspaces: Workspace[] = [
-  { id: 'workspace-1', name: 'My Team', icon: '🚀' },
-  { id: 'workspace-2', name: 'Side Project', icon: '💡' },
-  { id: 'workspace-3', name: 'Freelance', icon: '💼' },
-];
+import { useWorkspaceStore } from '@/lib/stores/workspace-store';
 
 export function WorkspaceList() {
   const { currentWorkspaceId, setCurrentWorkspace } = useChatStore();
+  const { workspaces } = useWorkspaceStore();
   const isNavigatingRef = useRef(false);
 
+  console.log('🔍 WorkspaceList render - workspaces:', workspaces, 'currentWorkspaceId:', currentWorkspaceId);
+
   const handleWorkspaceClick = async (workspaceId: string) => {
-    if (isNavigatingRef.current || workspaceId === currentWorkspaceId) return;
+    console.log('🖱️ Workspace clicked:', workspaceId);
+    if (isNavigatingRef.current) {
+      console.log('⚠️ Click ignored - already navigating');
+      return;
+    }
 
     isNavigatingRef.current = true;
 
-    const channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
-    const firstChannel = channels[0];
+    try {
+      const channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
+      const firstChannel = channels[0];
 
-    if (firstChannel) {
-      setCurrentWorkspace(workspaceId, firstChannel.id);
+      if (firstChannel) {
+        setCurrentWorkspace(workspaceId, firstChannel.id);
 
-      if (typeof window !== 'undefined') {
-        const url = `/w/${workspaceId}/c/${firstChannel.id}`;
-        window.history.pushState({}, '', url);
+        if (typeof window !== 'undefined') {
+          const url = `/app/w/${workspaceId}/c/${firstChannel.id}`;
+          window.history.pushState({}, '', url);
+        }
+      } else {
+        setCurrentWorkspace(workspaceId);
+
+        if (typeof window !== 'undefined') {
+          const url = `/app/w/${workspaceId}`;
+          window.history.pushState({}, '', url);
+        }
       }
-    } else {
-      setCurrentWorkspace(workspaceId);
-
-      if (typeof window !== 'undefined') {
-        const url = `/w/${workspaceId}`;
-        window.history.pushState({}, '', url);
-      }
+    } catch (error) {
+      console.error('Failed to handle workspace click:', error);
+    } finally {
+      requestAnimationFrame(() => {
+        isNavigatingRef.current = false;
+      });
     }
-
-    requestAnimationFrame(() => {
-      isNavigatingRef.current = false;
-    });
   };
 
   return (
     <div className="flex flex-col items-center gap-2 py-4">
-      {mockWorkspaces.map((workspace) => {
-        const isActive = currentWorkspaceId === workspace.id;
+      {workspaces.map((workspace) => {
+        const isActive = currentWorkspaceId === workspace.groupId;
 
         return (
           <button
-            key={workspace.id}
-            onMouseDown={() => handleWorkspaceClick(workspace.id)}
+            key={workspace.groupId}
+            onMouseDown={() => handleWorkspaceClick(workspace.groupId)}
             className={`
               flex h-12 w-12 items-center justify-center rounded-xl text-2xl
               transition-all duration-200
@@ -71,7 +71,11 @@ export function WorkspaceList() {
             aria-label={workspace.name}
             title={workspace.name}
           >
-            {workspace.icon || workspace.name[0].toUpperCase()}
+            {workspace.picture ? (
+              <img src={workspace.picture} alt={workspace.name} className="w-12 h-12 rounded-xl object-cover" />
+            ) : (
+              workspace.name[0]?.toUpperCase() || '?'
+            )}
           </button>
         );
       })}

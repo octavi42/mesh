@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Sheet } from '@silk-hq/components';
-import { X, UserPlus, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, UserPlus, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { InviteUserSheet } from './invite-user-sheet';
+import { useWorkspaceStore } from '@/lib/stores/workspace-store';
+import { useChatStore } from '@/lib/stores/chat-store';
 import './create-workspace-sheet.css';
 
 interface User {
@@ -18,12 +20,50 @@ interface CreateWorkspaceSheetProps {
 
 export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
   const [workspaceName, setWorkspaceName] = useState('');
+  const [workspaceDescription, setWorkspaceDescription] = useState('');
   const [workspaceIcon, setWorkspaceIcon] = useState('');
   const [isExpanded, setIsExpanded] = useState(true);
   const [invitedUsers, setInvitedUsers] = useState<User[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreate = () => {
-    console.log('Creating workspace:', { workspaceName, workspaceIcon, invitedUsers });
+  const dismissButtonRef = useRef<HTMLButtonElement>(null);
+  const { createWorkspace, initializeClient, subscribeToWorkspace } = useWorkspaceStore();
+  const { setCurrentWorkspace } = useChatStore();
+
+  const handleCreate = async () => {
+    if (!workspaceName.trim()) return;
+
+    setIsCreating(true);
+    setError(null);
+
+    try {
+      await initializeClient();
+
+      const groupId = await createWorkspace(
+        workspaceName.trim(),
+        workspaceDescription.trim() || undefined,
+        workspaceIcon.trim() || undefined,
+        false
+      );
+
+      console.log('✅ Workspace created:', groupId);
+
+      subscribeToWorkspace(groupId);
+      setCurrentWorkspace(groupId);
+
+      setWorkspaceName('');
+      setWorkspaceDescription('');
+      setWorkspaceIcon('');
+      setInvitedUsers([]);
+
+      dismissButtonRef.current?.click();
+    } catch (err) {
+      console.error('Failed to create workspace:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create workspace');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleRemoveUser = (userId: string) => {
@@ -53,7 +93,7 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-light text-slate-900">Create Workspace</h2>
                 <Sheet.Trigger action="dismiss" asChild>
-                  <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors">
+                  <button ref={dismissButtonRef} className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors">
                     <X className="w-5 h-5 text-slate-400" />
                   </button>
                 </Sheet.Trigger>
@@ -64,6 +104,12 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
               </p>
 
               <div className="space-y-4">
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <label htmlFor="workspace-name" className="text-sm font-medium text-slate-700">
                     Workspace Name
@@ -74,7 +120,23 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
                     value={workspaceName}
                     onChange={(e) => setWorkspaceName(e.target.value)}
                     placeholder="My Awesome Team"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 text-slate-900"
+                    disabled={isCreating}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="workspace-description" className="text-sm font-medium text-slate-700">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    id="workspace-description"
+                    value={workspaceDescription}
+                    onChange={(e) => setWorkspaceDescription(e.target.value)}
+                    placeholder="What's this workspace about?"
+                    disabled={isCreating}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed resize-none"
                   />
                 </div>
 
@@ -148,10 +210,17 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
 
                 <button
                   onClick={handleCreate}
-                  className="w-full px-4 py-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium shadow-sm mt-2"
-                  disabled={!workspaceName}
+                  className="w-full px-4 py-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium shadow-sm mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={!workspaceName.trim() || isCreating}
                 >
-                  Create Workspace
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Workspace'
+                  )}
                 </button>
               </div>
             </div>
