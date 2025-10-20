@@ -60,29 +60,20 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
-        let attempts = 0;
-        const maxAttempts = 20;
-
-        while (attempts < maxAttempts) {
-          if (window.nostr) {
-            try {
-              const pubkey = await window.nostr.getPublicKey();
-              console.log('✅ Got pubkey from window.nostr:', pubkey);
-              get().setPubkey(pubkey);
-              return;
-            } catch (error) {
-              console.log('⚠️ window.nostr exists but getPublicKey failed:', error);
-              get().clearAuth();
-              return;
-            }
+        if (window.nostr) {
+          try {
+            const pubkey = await window.nostr.getPublicKey();
+            console.log('✅ Got pubkey from window.nostr:', pubkey);
+            get().setPubkey(pubkey);
+            return;
+          } catch (error) {
+            console.log('⚠️ window.nostr exists but getPublicKey failed:', error);
+            set({ loading: false });
+            return;
           }
-
-          console.log(`⏳ Waiting for window.nostr... attempt ${attempts + 1}/${maxAttempts}`);
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          attempts++;
         }
 
-        console.log('❌ window.nostr not available after waiting, but not clearing auth if persisted');
+        console.log('ℹ️ No persisted auth and window.nostr not available, user needs to login');
         set({ loading: false });
       },
 

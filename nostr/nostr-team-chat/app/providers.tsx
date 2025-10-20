@@ -70,11 +70,6 @@ export function Providers({ children }: { children: ReactNode }) {
 
             console.log('🔄 Initializing workspace client');
             await initializeClient();
-
-            if (window.location.pathname === '/') {
-              console.log('🔀 Redirecting to /app after login');
-              router.push('/app');
-            }
           } catch (error) {
             console.error('❌ Failed to get pubkey after auth:', error);
           }

@@ -1,15 +1,17 @@
 'use client';
 
 import { useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { nostrLoginState } from '@/lib/nostr-login-state';
-import { LogIn, LogOut } from 'lucide-react';
+import { LogIn, LogOut, ArrowRight } from 'lucide-react';
 
 interface LoginButtonProps {
   className?: string;
 }
 
 export function LoginButton({ className = '' }: LoginButtonProps) {
+  const router = useRouter();
   const { isAuthenticated, loading } = useAuthStore();
   const isInitializing = useRef(false);
 
@@ -88,13 +90,22 @@ export function LoginButton({ className = '' }: LoginButtonProps) {
 
   if (isAuthenticated) {
     return (
-      <button
-        onClick={handleLogout}
-        className={`flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors ${className}`}
-      >
-        <LogOut className="w-4 h-4" />
-        Logout
-      </button>
+      <div className={`flex items-center gap-3 ${className}`}>
+        <button
+          onClick={() => router.push('/app')}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+        >
+          Enter App
+          <ArrowRight className="w-4 h-4" />
+        </button>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Logout
+        </button>
+      </div>
     );
   }
 
