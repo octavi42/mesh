@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { IconBar } from './IconBar';
 import { Sidebar } from './Sidebar';
+import { AccountSheet } from '@/components/sheets/account-sheet';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -60,6 +61,10 @@ export function AppLayout({ children }: AppLayoutProps) {
           <line x1="3" x2="21" y1="18" y2="18" />
         </svg>
       </button>
+
+      <div className="fixed right-4 top-4 z-50">
+        <AccountSheet />
+      </div>
 
       <Sidebar isOpen={sidebarOpen} />
 

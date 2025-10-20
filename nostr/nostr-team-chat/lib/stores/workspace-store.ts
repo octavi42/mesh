@@ -16,6 +16,7 @@ interface WorkspaceStore {
   isLoading: boolean;
   error: string | null;
   subscriptionManager: NIP29SubscriptionManager | null;
+  userPubkey: string | null;
 
   initializeClient: () => Promise<void>;
   createWorkspace: (name: string, description?: string, picture?: string, isOpen?: boolean) => Promise<string>;
@@ -27,6 +28,7 @@ interface WorkspaceStore {
   unsubscribeFromWorkspace: (groupId: string) => void;
   leaveWorkspace: (groupId: string) => Promise<void>;
   updateWorkspaceLocal: (groupId: string, updates: Partial<NIP29Workspace>) => Promise<void>;
+  clearAllData: () => Promise<void>;
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
@@ -37,10 +39,24 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
       isLoading: false,
       error: null,
       subscriptionManager: null,
+      userPubkey: null,
 
       initializeClient: async () => {
         try {
-          set({ isLoading: true, error: null });
+          const { pubkey: currentPubkey } = useAuthStore.getState();
+
+          if (!currentPubkey) {
+            console.warn('No authenticated user, cannot initialize workspace');
+            return;
+          }
+
+          const existingUserPubkey = get().userPubkey;
+          if (existingUserPubkey && existingUserPubkey !== currentPubkey) {
+            console.log('🔄 Different user detected, clearing workspace data');
+            await get().clearAllData();
+          }
+
+          set({ isLoading: true, error: null, userPubkey: currentPubkey });
 
           const client = getGlobalNIP29Client();
 
@@ -357,12 +373,44 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           console.error('Failed to update workspace locally:', error);
         }
       },
+
+      clearAllData: async () => {
+        try {
+          console.log('🧹 Clearing all workspace data');
+
+          const { subscriptionManager } = get();
+          if (subscriptionManager) {
+            get().workspaces.forEach((w) => {
+              subscriptionManager.unsubscribeFromGroup(w.groupId);
+            });
+          }
+
+          await db.nip29Workspaces.clear();
+          await db.nip29Members.clear();
+
+          set({
+            workspaces: [],
+            currentWorkspace: null,
+            subscriptionManager: null,
+            userPubkey: null,
+          });
+
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('workspace-storage');
+          }
+
+          console.log('✅ Workspace data cleared');
+        } catch (error) {
+          console.error('Failed to clear workspace data:', error);
+        }
+      },
     }),
     {
       name: 'workspace-storage',
       partialize: (state) => ({
         workspaces: state.workspaces,
         currentWorkspace: state.currentWorkspace,
+        userPubkey: state.userPubkey,
       }),
     }
   )

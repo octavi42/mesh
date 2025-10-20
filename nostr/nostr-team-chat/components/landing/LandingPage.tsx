@@ -4,14 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoginSheet } from '@/components/sheets/login-sheet';
 import { useAuthStore } from '@/lib/stores/auth-store';
-import { useAuthChallenge } from '@/lib/hooks/use-secure-auth';
-import { NostrAuth } from '@/lib/auth/nostr-auth';
 
 export function LandingPage() {
   const router = useRouter();
-  const nostrLoginInitialized = useRef(false);
-  const { login, logout, isAuthenticated } = useAuthStore();
-  const { generateChallenge, verifyChallenge } = useAuthChallenge();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
@@ -23,29 +19,25 @@ export function LandingPage() {
   };
 
   useEffect(() => {
-    if (!isHydrated) return;
-
-    const checkAuth = async () => {
-      if (isAuthenticated) {
-        console.log('✅ User is authenticated:', isAuthenticated);
+    async function checkAuth() {
+      try {
+        if (typeof window !== 'undefined' && window.nostr) {
+          await window.nostr.getPublicKey();
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        setIsAuthenticated(false);
       }
-    };
+    }
 
-    checkAuth();
-  }, [isAuthenticated, isHydrated]);
+    if (isHydrated) {
+      checkAuth();
+    }
+  }, [isHydrated]);
 
   useEffect(() => {
-    if (nostrLoginInitialized.current) return;
-
-    import('nostr-login')
-      .then(async ({ init }) => {
-        init({
-          bunkers: 'nsec.app,nsecbunker.com',
-          theme: 'default',
-          darkMode: document.documentElement.classList.contains('dark'),
-        });
-        nostrLoginInitialized.current = true;
-      })
+    import('@/lib/nostr-login-init')
+      .then(({ initNostrLogin }) => initNostrLogin())
       .catch((error) => console.error('Failed to load nostr-login', error));
 
     const handleAuth = async (e: Event) => {
@@ -55,45 +47,13 @@ export function LandingPage() {
       console.log('📡 nlAuth event:', authType, customEvent.detail);
 
       if (authType === 'login' || authType === 'signup') {
-        try {
-          if (!window.nostr) {
-            console.error('window.nostr not available');
-            return;
-          }
-
-          const pubkey = await window.nostr.getPublicKey();
-          console.log('✅ User logged in, pubkey:', pubkey);
-
-          console.log('🔑 Requesting challenge from server...');
-          const challengeData = await generateChallenge();
-
-          console.log('🔐 Verifying signature with server...');
-          const verifiedPubkey = await verifyChallenge(
-            challengeData.challengeId,
-            challengeData.challenge,
-            window.location.origin
-          );
-
-          if (verifiedPubkey) {
-            console.log('✅ Server verification successful!');
-            login(verifiedPubkey, challengeData.challenge);
-          } else {
-            console.error('❌ Server verification failed');
-            logout();
-          }
-        } catch (error) {
-          console.error('Failed to authenticate:', error);
-          logout();
-        }
+        console.log('✅ User logged in via nostr-login');
+        setIsAuthenticated(true);
+        router.push('/app');
       } else if (authType === 'logout') {
-        console.log('🔴 Logout event received');
-
-        await fetch('/api/auth/logout', { method: 'POST' });
-        logout();
-
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 100);
+        console.log('🚪 User logged out via nostr-login');
+        setIsAuthenticated(false);
+        router.push('/');
       }
     };
 
@@ -102,7 +62,7 @@ export function LandingPage() {
     return () => {
       document.removeEventListener('nlAuth', handleAuth);
     };
-  }, [login, logout]);
+  }, [router]);
 
   const handleLoginClick = () => {
     if (typeof window !== 'undefined') {

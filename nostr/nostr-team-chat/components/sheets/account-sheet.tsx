@@ -22,6 +22,7 @@ interface AccountSheetProps {
 }
 
 export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSheetProps) {
+  console.log('AccountSheet rendering', { trigger, user, isCurrentUser });
   const { logout, pubkey: authPubkey, npub: authNpub } = useAuthStore();
   const [showNotificationsSheet, setShowNotificationsSheet] = useState(false);
   const [showPublicKeySheet, setShowPublicKeySheet] = useState(false);
@@ -46,11 +47,6 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
     if (typeof window !== 'undefined') {
       document.dispatchEvent(new Event('nlLogout'));
     }
-    logout();
-
-    setTimeout(() => {
-      window.location.href = '/';
-    }, 100);
   };
 
   const handleNotificationsClick = () => {
@@ -99,11 +95,23 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
   };
 
   const defaultTrigger = (
-    <button className="flex items-center justify-center w-10 h-10 rounded-full overflow-hidden border-2 border-indigo-500 hover:border-indigo-600 transition-colors flex-shrink-0">
+    <button
+      style={{
+        background: 'red',
+        width: '48px',
+        height: '48px',
+        borderRadius: '50%',
+        border: '3px solid blue',
+        position: 'relative',
+        zIndex: 9999,
+        flexShrink: 0
+      }}
+      className="flex items-center justify-center cursor-pointer"
+    >
       {displayUser.image ? (
-        <img src={displayUser.image} alt={displayUser.name} className="w-full h-full object-cover" />
+        <img src={displayUser.image} alt={displayUser.name} className="w-full h-full object-cover rounded-full" />
       ) : (
-        <User className="w-5 h-5 text-indigo-500" />
+        <User className="w-5 h-5 text-white" />
       )}
     </button>
   );

@@ -7,6 +7,7 @@ interface ChatState {
   setCurrentWorkspace: (id: string, channelId?: string) => void;
   setCurrentChannel: (id: string) => void;
   navigate: (workspaceId: string, channelId: string) => void;
+  reset: () => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -30,6 +31,13 @@ export const useChatStore = create<ChatState>()(
         set({
           currentWorkspaceId: workspaceId,
           currentChannelId: channelId,
+        });
+      },
+
+      reset: () => {
+        set({
+          currentWorkspaceId: 'workspace-1',
+          currentChannelId: null,
         });
       },
     }),

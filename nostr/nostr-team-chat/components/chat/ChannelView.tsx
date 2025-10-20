@@ -21,6 +21,7 @@ const mockUsers = [
 ];
 
 export function ChannelView({ channelId }: ChannelViewProps) {
+  console.log('🎨 ChannelView rendering for channelId:', channelId);
   const channel = useChannel(channelId);
 
   if (!channel) {
@@ -34,7 +35,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   return (
     <div className="flex h-full flex-col bg-white dark:bg-black">
       {/* Header with channel name and user avatars */}
-      <div className="flex h-16 items-center justify-between border-b border-gray-100 px-6 dark:border-gray-900">
+      <div className="flex h-16 items-center justify-between border-b border-gray-100 px-6 dark:border-gray-900 relative z-10">
         <div className="flex items-center gap-2">
           <span className="text-lg text-gray-400">#</span>
           <h1 className="text-base font-medium text-gray-900 dark:text-white">
@@ -48,7 +49,23 @@ export function ChannelView({ channelId }: ChannelViewProps) {
         </div>
         <div className="flex items-center gap-3">
           <UserAvatars users={mockUsers} size={40} maxVisible={5} />
-          <AccountSheet />
+          <button
+            style={{
+              background: 'green',
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              marginLeft: '12px',
+              zIndex: 9999,
+              position: 'relative'
+            }}
+            onClick={() => console.log('TEST BUTTON CLICKED')}
+          >
+            TEST
+          </button>
+          <div className="ml-3 relative z-50">
+            <AccountSheet />
+          </div>
         </div>
       </div>
 

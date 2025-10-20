@@ -13,17 +13,18 @@ import { useWorkspaceStore } from '@/lib/stores/workspace-store';
 
 export default function AppPage() {
   const router = useRouter();
-  const { isValidating, isValid, isAuthenticated, pubkey } = useSecureAuth(true);
-  const nostrLoginInitialized = useRef(false);
+  const { isAuthenticated, pubkey, loading } = useSecureAuth(true);
   const nip29Initialized = useRef(false);
   const { currentChannelId, setCurrentChannel, currentWorkspaceId, setCurrentWorkspace } = useChatStore();
   const { initializeClient, workspaces, currentWorkspace } = useWorkspaceStore();
   const channels = useChannels(currentWorkspaceId);
 
-  console.log('🔍 AppPage render:', { isValidating, isValid, isAuthenticated, pubkey });
+  console.log('🔍 AppPage render:', { isAuthenticated, pubkey });
   console.log('📂 Workspaces:', workspaces);
   console.log('📍 Current workspace (workspace-store):', currentWorkspace?.groupId);
   console.log('📍 Current workspace (chat-store):', currentWorkspaceId);
+  console.log('📺 Channels:', channels);
+  console.log('📍 Current channel:', currentChannelId);
 
   useEffect(() => {
     seedMockData();
@@ -47,40 +48,24 @@ export default function AppPage() {
   }, [currentWorkspace, currentWorkspaceId, setCurrentWorkspace]);
 
   useEffect(() => {
-    if (nostrLoginInitialized.current) return;
-
-    import('nostr-login')
-      .then(async ({ init }) => {
-        init({
-          bunkers: 'nsec.app,nsecbunker.com',
-          theme: 'default',
-          darkMode: document.documentElement.classList.contains('dark'),
-        });
-        nostrLoginInitialized.current = true;
-      })
+    import('@/lib/nostr-login-init')
+      .then(({ initNostrLogin }) => initNostrLogin())
       .catch((error) => console.error('Failed to load nostr-login', error));
 
     const handleAuth = async (e: Event) => {
       const customEvent = e as CustomEvent;
       const authType = customEvent.detail.type;
 
-      console.log('📡 /app nlAuth event:', authType, customEvent.detail);
+      console.log('📡 /APP PAGE nlAuth event:', authType, customEvent.detail);
 
       if (authType === 'logout') {
-        console.log('🔴 Logout event received in /app');
+        console.log('🚪 /APP PAGE: Logout event - clearing data');
+        const { clearAllData } = useWorkspaceStore.getState();
+        const { reset: resetChat } = useChatStore.getState();
 
-        const { logout } = useAuthStore.getState();
-
-        await fetch('/api/auth/logout', { method: 'POST' }).catch(err =>
-          console.error('Failed to call logout API:', err)
-        );
-
-        logout();
-
-        setTimeout(() => {
-          console.log('Redirecting to / after logout');
-          window.location.href = '/';
-        }, 100);
+        await clearAllData();
+        resetChat();
+        router.push('/');
       }
     };
 
@@ -123,28 +108,8 @@ export default function AppPage() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [currentWorkspaceId, currentChannelId, setCurrentWorkspace, setCurrentChannel]);
 
-  if (isValidating) {
-    return (
-      <AppLayout>
-        <div className="flex h-full items-center justify-center">
-          <div className="text-center">
-            <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Loading...</p>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (!isValid) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-gray-300 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Redirecting...</p>
-        </div>
-      </div>
-    );
+  if (loading || !isAuthenticated) {
+    return null;
   }
 
   if (!currentChannelId) {

@@ -1,123 +1,61 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/stores/auth-store';
-import { NostrAuth, SecureSessionManager } from '@/lib/auth/nostr-auth';
 
 export function useSecureAuth(requireAuth: boolean = true) {
   const router = useRouter();
-  const { isAuthenticated, pubkey } = useAuthStore();
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [pubkey, setPubkey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setIsHydrated(true);
+    async function checkAuth() {
+      console.log('🔍 Checking auth...');
+
+      // Wait for nostr-login to initialize
+      let attempts = 0;
+      const maxAttempts = 20; // 2 seconds max
+
+      while (attempts < maxAttempts) {
+        if (typeof window !== 'undefined' && window.nostr) {
+          try {
+            const pk = await window.nostr.getPublicKey();
+            console.log('✅ Got pubkey from window.nostr:', pk);
+            setPubkey(pk);
+            setLoading(false);
+            return;
+          } catch (error) {
+            console.log('⚠️ window.nostr exists but getPublicKey failed:', error);
+            setPubkey(null);
+            setLoading(false);
+            return;
+          }
+        }
+
+        console.log(`⏳ Waiting for window.nostr... attempt ${attempts + 1}/${maxAttempts}`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+
+      console.log('❌ window.nostr not available after waiting');
+      setPubkey(null);
+      setLoading(false);
+    }
+
+    checkAuth();
   }, []);
 
   useEffect(() => {
-    if (!isHydrated) {
-      console.log('⏳ Waiting for hydration...');
-      return;
+    if (loading) return;
+
+    if (requireAuth && !pubkey) {
+      console.log('❌ Not authenticated, redirecting to /');
+      router.push('/');
     }
-
-    console.log('🔍 Auth check:', { isAuthenticated, pubkey, requireAuth });
-
-    if (requireAuth && (!isAuthenticated || !pubkey)) {
-      console.log('❌ Not authenticated - REDIRECTING TO /');
-
-      if (typeof window !== 'undefined') {
-        window.location.href = '/';
-      }
-      return;
-    }
-
-    if (isAuthenticated && pubkey) {
-      console.log('✅ Authenticated:', pubkey);
-    }
-  }, [isAuthenticated, pubkey, requireAuth, router, isHydrated]);
-
-  const isValid = isAuthenticated && !!pubkey;
+  }, [pubkey, requireAuth, router, loading]);
 
   return {
-    isValidating: !isHydrated,
-    isValid,
-    isAuthenticated,
-    pubkey
+    isAuthenticated: !!pubkey,
+    pubkey,
+    loading
   };
 }
 
-export function useAuthChallenge() {
-  const [challengeId, setChallengeId] = useState<string | null>(null);
-  const [challenge, setChallenge] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const generateChallenge = async () => {
-    try {
-      const response = await fetch('/api/auth/challenge', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate challenge');
-      }
-
-      const data = await response.json();
-      setChallengeId(data.challengeId);
-      setChallenge(data.challenge);
-
-      return data;
-    } catch (err) {
-      console.error('Failed to generate challenge:', err);
-      throw err;
-    }
-  };
-
-  const verifyChallenge = async (challengeId: string, challenge: string, url?: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const authEvent = await NostrAuth.createAuthEvent(challenge, url);
-
-      if (!authEvent) {
-        setError('Failed to create auth event');
-        setIsLoading(false);
-        return null;
-      }
-
-      const response = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          challengeId,
-          signedEvent: authEvent,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || 'Verification failed');
-        setIsLoading(false);
-        return null;
-      }
-
-      const result = await response.json();
-      setIsLoading(false);
-      return result.pubkey;
-    } catch (err) {
-      setError('Authentication failed');
-      setIsLoading(false);
-      return null;
-    }
-  };
-
-  return {
-    challengeId,
-    challenge,
-    isLoading,
-    error,
-    generateChallenge,
-    verifyChallenge,
-  };
-}
