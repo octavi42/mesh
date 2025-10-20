@@ -64,8 +64,18 @@ export function LandingPage() {
     };
   }, [router]);
 
-  const handleLoginClick = () => {
+  const handleLoginClick = async () => {
+    console.log('🔘 Login button clicked');
+
+    // Ensure nostr-login is initialized
+    const { initNostrLogin } = await import('@/lib/nostr-login-init');
+    await initNostrLogin();
+
+    // Small delay to ensure nostr-login is ready
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     if (typeof window !== 'undefined') {
+      console.log('🚀 Dispatching nlLaunch event');
       document.dispatchEvent(new CustomEvent('nlLaunch', { detail: 'welcome' }));
     }
   };

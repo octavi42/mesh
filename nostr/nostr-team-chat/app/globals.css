@@ -10,3 +10,13 @@
 body {
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
 }
+
+/* Ensure nostr-login modal appears on top */
+#nlmodal {
+  z-index: 999999 !important;
+  position: fixed !important;
+}
+
+#nlmodal iframe {
+  z-index: 999999 !important;
+}
