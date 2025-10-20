@@ -3,17 +3,57 @@
 import { useState } from 'react';
 import { Sheet } from '@silk-hq/components';
 import { X } from 'lucide-react';
+import { useChatStore } from '@/lib/stores/chat-store';
+import { db } from '@/lib/db/schema';
+import { sendMessageEvent } from '@/lib/nostr/nip29/events';
+import { getGlobalNIP29Client } from '@/lib/nostr/nip29';
 
 interface CreateChannelSheetProps {
   trigger?: React.ReactNode;
+  workspaceId: string;
 }
 
-export function CreateChannelSheet({ trigger }: CreateChannelSheetProps) {
+export function CreateChannelSheet({ trigger, workspaceId }: CreateChannelSheetProps) {
   const [channelName, setChannelName] = useState('');
   const [channelDescription, setChannelDescription] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const { setCurrentChannel } = useChatStore();
 
-  const handleCreate = () => {
-    console.log('Creating channel:', { channelName, channelDescription });
+  const handleCreate = async () => {
+    if (!channelName || isCreating) return;
+
+    setIsCreating(true);
+    try {
+      const channelId = `channel-${Date.now()}`;
+      const sanitizedName = channelName.toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+
+      await db.channels.add({
+        id: channelId,
+        workspaceId,
+        name: sanitizedName,
+        description: channelDescription,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const client = getGlobalNIP29Client();
+      const welcomeMessage = await sendMessageEvent(
+        workspaceId,
+        `Channel #${sanitizedName} created!`,
+        sanitizedName
+      );
+      await client.publishEvent(welcomeMessage);
+
+      setCurrentChannel(channelId);
+      setChannelName('');
+      setChannelDescription('');
+
+      console.log('✅ Channel created:', sanitizedName);
+    } catch (error) {
+      console.error('Failed to create channel:', error);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -81,13 +121,15 @@ export function CreateChannelSheet({ trigger }: CreateChannelSheetProps) {
                   />
                 </div>
 
-                <button
-                  onClick={handleCreate}
-                  className="w-full px-4 py-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium shadow-sm mt-2"
-                  disabled={!channelName}
-                >
-                  Create Channel
-                </button>
+                <Sheet.Trigger action="dismiss" asChild>
+                  <button
+                    onClick={handleCreate}
+                    className="w-full px-4 py-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors font-medium shadow-sm mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!channelName || isCreating}
+                  >
+                    {isCreating ? 'Creating...' : 'Create Channel'}
+                  </button>
+                </Sheet.Trigger>
               </div>
             </div>
           </Sheet.Content>

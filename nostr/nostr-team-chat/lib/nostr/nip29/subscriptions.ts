@@ -12,11 +12,14 @@ export class NIP29SubscriptionManager {
     groupId: string,
     onUpdate: (group: Partial<NIP29Group>) => void
   ): string {
+    const parts = groupId.split("'");
+    const localGroupId = parts.length === 2 ? parts[1] : groupId;
+
     const subId = this.client.subscribe(
       [
         {
           kinds: [NIP29EventKind.GroupMetadata],
-          '#h': [groupId],
+          '#d': [localGroupId],
           limit: 1,
         },
       ],
@@ -47,11 +50,14 @@ export class NIP29SubscriptionManager {
     groupId: string,
     onUpdate: (admins: string[]) => void
   ): string {
+    const parts = groupId.split("'");
+    const localGroupId = parts.length === 2 ? parts[1] : groupId;
+
     const subId = this.client.subscribe(
       [
         {
           kinds: [NIP29EventKind.GroupAdmins],
-          '#h': [groupId],
+          '#d': [localGroupId],
           limit: 1,
         },
       ],
@@ -69,11 +75,14 @@ export class NIP29SubscriptionManager {
     groupId: string,
     onUpdate: (members: string[]) => void
   ): string {
+    const parts = groupId.split("'");
+    const localGroupId = parts.length === 2 ? parts[1] : groupId;
+
     const subId = this.client.subscribe(
       [
         {
           kinds: [NIP29EventKind.GroupMembers],
-          '#h': [groupId],
+          '#d': [localGroupId],
           limit: 1,
         },
       ],
@@ -93,9 +102,12 @@ export class NIP29SubscriptionManager {
     channelName?: string,
     since?: number
   ): string {
+    const parts = groupId.split("'");
+    const localGroupId = parts.length === 2 ? parts[1] : groupId;
+
     const filter: SubscriptionFilter = {
       kinds: [NIP29EventKind.GroupChatMessage],
-      '#h': [groupId],
+      '#h': [localGroupId],
     } as SubscriptionFilter;
 
     if (since) {

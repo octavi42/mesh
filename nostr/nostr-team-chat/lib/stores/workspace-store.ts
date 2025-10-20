@@ -96,6 +96,11 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
           console.log('✅ Workspace creation event published:', event.id, 'groupId:', groupId);
 
+          const { addUserEvent } = await import('@/lib/nostr/nip29/events');
+          const addSelfEvent = await addUserEvent(groupId, event.pubkey);
+          await client.publishEvent(addSelfEvent);
+          console.log('✅ Added self as member:', addSelfEvent.id);
+
           const workspace: NIP29Workspace = {
             groupId,
             relayUrl,
@@ -162,6 +167,12 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
           console.log('🔍 Discovering groups for pubkey:', myPubkey);
 
+          console.log('🔎 Querying with filter:', {
+            kinds: [NIP29EventKind.GroupMembers],
+            '#p': [myPubkey],
+            limit: 50,
+          });
+
           const memberEvents = await client.fetchEvents({
             kinds: [NIP29EventKind.GroupMembers],
             '#p': [myPubkey],
@@ -170,22 +181,41 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
           console.log('📦 Found', memberEvents.length, 'potential groups');
 
+          const allMetadataEvents = await client.fetchEvents({
+            kinds: [NIP29EventKind.GroupMetadata],
+            limit: 20,
+          });
+          console.log('📋 All group metadata events on relay:', allMetadataEvents.length);
+          allMetadataEvents.forEach(e => {
+            const groupId = e.tags.find(([tag]) => tag === 'd')?.[1];
+            console.log('  - Group:', groupId, 'by', e.pubkey.substring(0, 8));
+          });
+
+          const allMemberEvents = await client.fetchEvents({
+            kinds: [NIP29EventKind.GroupMembers],
+            limit: 20,
+          });
+          console.log('📋 All member events on relay:', allMemberEvents.length);
+          allMemberEvents.forEach(e => {
+            const groupId = e.tags.find(([tag]) => tag === 'd')?.[1];
+            const members = e.tags.filter(([tag]) => tag === 'p').map(([, pubkey]) => pubkey.substring(0, 8));
+            console.log('  - Group:', groupId, 'Members:', members);
+          });
+
           const discoveredGroupIds = new Set<string>();
 
           for (const event of memberEvents) {
             console.log('📋 Member event:', event);
             console.log('📋 Event tags:', event.tags);
 
-            // kind:39002 uses 'd' tag for group ID (it's a parameterized replaceable event)
             const localGroupId = event.tags.find(([tag]) => tag === 'd')?.[1];
-            console.log('📋 Extracted local group ID:', localGroupId);
+            console.log('📋 Extracted local group ID from d tag:', localGroupId);
 
             if (!localGroupId) {
               console.warn('⚠️ No group ID found in event');
               continue;
             }
 
-            // Construct full group ID: relay-host'local-id
             const relayHost = client.getRelayUrl().replace('wss://', '').replace('ws://', '');
             const fullGroupId = `${relayHost}'${localGroupId}`;
             console.log('✅ Full group ID:', fullGroupId);
@@ -252,21 +282,24 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         try {
           const client = getGlobalNIP29Client();
 
+          const parts = groupId.split("'");
+          const localGroupId = parts.length === 2 ? parts[1] : groupId;
+
           const metadataEvents = await client.fetchEvents({
             kinds: [NIP29EventKind.GroupMetadata],
-            '#h': [groupId],
+            '#d': [localGroupId],
             limit: 1,
           });
 
           const adminsEvents = await client.fetchEvents({
             kinds: [NIP29EventKind.GroupAdmins],
-            '#h': [groupId],
+            '#d': [localGroupId],
             limit: 1,
           });
 
           const membersEvents = await client.fetchEvents({
             kinds: [NIP29EventKind.GroupMembers],
-            '#h': [groupId],
+            '#d': [localGroupId],
             limit: 1,
           });
 

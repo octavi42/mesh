@@ -26,9 +26,6 @@ export default function AppPage() {
   console.log('📺 Channels:', channels);
   console.log('📍 Current channel:', currentChannelId);
 
-  useEffect(() => {
-    seedMockData();
-  }, []);
 
   useEffect(() => {
     if (nip29Initialized.current || !isAuthenticated) return;
