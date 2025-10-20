@@ -104,6 +104,7 @@ export class NIP29SubscriptionManager {
       filter.limit = 100;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subId = this.client.subscribe([filter] as any, (event: NostrEvent) => {
       if (channelName) {
         const eventChannel = event.tags.find(([tag]) => tag === 'c')?.[1];

@@ -276,9 +276,11 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
           if (metadataEvents[0]) {
             const metadata = parseGroupMetadata(metadataEvents[0].content);
-            updates.name = metadata.name || updates.name;
-            updates.description = metadata.about;
-            updates.picture = metadata.picture;
+            if (typeof metadata.name === 'string') {
+              updates.name = metadata.name;
+            }
+            updates.description = typeof metadata.about === 'string' ? metadata.about : undefined;
+            updates.picture = typeof metadata.picture === 'string' ? metadata.picture : undefined;
             updates.isOpen = metadata.open === true;
             updates.isPublic = metadata.public === true;
           }

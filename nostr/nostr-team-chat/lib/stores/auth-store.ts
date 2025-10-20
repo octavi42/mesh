@@ -51,6 +51,15 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
 
+        const currentState = get();
+        const hasPersistedAuth = currentState.pubkey && currentState.isAuthenticated;
+
+        if (hasPersistedAuth) {
+          console.log('✅ Found persisted auth, keeping user logged in:', currentState.pubkey);
+          set({ loading: false });
+          return;
+        }
+
         let attempts = 0;
         const maxAttempts = 20;
 
@@ -73,8 +82,8 @@ export const useAuthStore = create<AuthState>()(
           attempts++;
         }
 
-        console.log('❌ window.nostr not available after waiting');
-        get().clearAuth();
+        console.log('❌ window.nostr not available after waiting, but not clearing auth if persisted');
+        set({ loading: false });
       },
 
       setLoading: (loading: boolean) => {

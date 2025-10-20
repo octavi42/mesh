@@ -13,31 +13,43 @@ export function Providers({ children }: { children: ReactNode }) {
   const { reset: resetChat } = useChatStore();
 
   useEffect(() => {
-    console.log('🚀 Providers mounted - initializing nostr-login');
-
-    const initNostrLogin = async () => {
-      try {
-        const { init } = await import('nostr-login');
-        init({
-          bunkers: 'nsec.app,njump.me',
-          theme: 'default',
-          darkMode: typeof window !== 'undefined' &&
-            (localStorage.getItem('theme') === 'dark' ||
-             document.documentElement.classList.contains('dark')),
-          perms: 'sign_event:1,sign_event:55,nip04_encrypt,nip44_encrypt',
-          noBanner: true,
-        });
-        console.log('✅ nostr-login initialized in Providers');
-      } catch (error) {
-        console.error('❌ Failed to initialize nostr-login:', error);
-      }
-    };
-
-    initNostrLogin();
+    console.log('🚀 Providers mounted - setting up auth listeners');
 
     const performCheckAuth = async () => {
       console.log('🔍 Providers: Initial checkAuth');
       await checkAuth();
+
+      const { isAuthenticated } = useAuthStore.getState();
+      if (isAuthenticated) {
+        console.log('✅ User is authenticated, initializing nostr-login');
+        try {
+          const { nostrLoginState } = await import('@/lib/nostr-login-state');
+
+          if (!nostrLoginState.initialized) {
+            console.log('🔄 Setting initialized flag before calling init()');
+            nostrLoginState.initialized = true;
+
+            const { init } = await import('nostr-login');
+            init({
+              bunkers: 'nsec.app,njump.me',
+              theme: 'default',
+              darkMode: typeof window !== 'undefined' &&
+                (localStorage.getItem('theme') === 'dark' ||
+                 document.documentElement.classList.contains('dark')),
+              perms: 'sign_event:1,sign_event:55,nip04_encrypt,nip44_encrypt',
+              noBanner: true,
+            });
+            console.log('✅ nostr-login initialized for authenticated user');
+          } else {
+            console.log('ℹ️ nostr-login already initialized, skipping');
+          }
+        } catch (error) {
+          console.error('❌ Failed to initialize nostr-login:', error);
+          if (error instanceof Error && error.message.includes('Already started')) {
+            console.log('ℹ️ nostr-login was already started by another component');
+          }
+        }
+      }
     };
     performCheckAuth();
 
