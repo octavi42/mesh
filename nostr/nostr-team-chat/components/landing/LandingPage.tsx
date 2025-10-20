@@ -49,10 +49,26 @@ export function LandingPage() {
       if (authType === 'login' || authType === 'signup') {
         console.log('✅ User logged in via nostr-login');
         setIsAuthenticated(true);
+        console.log('🔀 Redirecting to /app...');
         router.push('/app');
       } else if (authType === 'logout') {
         console.log('🚪 User logged out via nostr-login');
         setIsAuthenticated(false);
+
+        // Clear nostr-login data
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('nostr-login') || key.startsWith('nl-'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => {
+          console.log('🧹 Clearing nostr-login data:', key);
+          localStorage.removeItem(key);
+        });
+
+        console.log('🔀 Redirecting to /...');
         router.push('/');
       }
     };
@@ -67,14 +83,36 @@ export function LandingPage() {
   const handleLoginClick = async () => {
     console.log('🔘 Login button clicked');
 
-    // Ensure nostr-login is initialized
-    const { initNostrLogin } = await import('@/lib/nostr-login-init');
-    await initNostrLogin();
-
-    // Small delay to ensure nostr-login is ready
-    await new Promise(resolve => setTimeout(resolve, 100));
-
     if (typeof window !== 'undefined') {
+      // Check if user is already logged in
+      const hasNostrData = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
+        .some(key => key && (key.startsWith('nostr-login') || key.startsWith('nl-')));
+
+      if (hasNostrData) {
+        console.log('⚠️ Found existing nostr-login data - clearing and reloading for fresh start');
+        // Clear stale data
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('nostr-login') || key.startsWith('nl-'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        // Reload for fresh initialization
+        window.location.reload();
+        return;
+      }
+
+      // No stale data, proceed with normal login
+      console.log('✅ No stale data found, launching nostr-login modal');
+      const { initNostrLogin } = await import('@/lib/nostr-login-init');
+      await initNostrLogin();
+
+      // Small delay to ensure nostr-login is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       console.log('🚀 Dispatching nlLaunch event');
       document.dispatchEvent(new CustomEvent('nlLaunch', { detail: 'welcome' }));
     }

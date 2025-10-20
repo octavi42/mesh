@@ -43,9 +43,39 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
     createdAt: new Date('2024-01-15')
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    console.log('🔴 Sign Out button clicked');
+
+    // Close the account sheet first
+    accountSheetRef.current?.click();
+
     if (typeof window !== 'undefined') {
+      // Clear nostr-login data immediately
+      console.log('🧹 Clearing nostr-login data from account sheet');
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('nostr-login') || key.startsWith('nl-'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => {
+        console.log('🧹 Removing:', key);
+        localStorage.removeItem(key);
+      });
+
+      // Clear auth store
+      localStorage.removeItem('nostr-auth');
+
+      // Dispatch logout event
+      console.log('🔴 Dispatching nlLogout event');
       document.dispatchEvent(new Event('nlLogout'));
+
+      // Force redirect to home page immediately
+      console.log('🔀 Force redirecting to /');
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 100);
     }
   };
 

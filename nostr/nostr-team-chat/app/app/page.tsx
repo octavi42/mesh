@@ -65,6 +65,21 @@ export default function AppPage() {
 
         await clearAllData();
         resetChat();
+
+        // Clear nostr-login data
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('nostr-login') || key.startsWith('nl-'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => {
+          console.log('🧹 Clearing nostr-login data:', key);
+          localStorage.removeItem(key);
+        });
+
+        console.log('🔀 Redirecting to / from /app...');
         router.push('/');
       }
     };
