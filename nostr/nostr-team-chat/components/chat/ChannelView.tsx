@@ -1,8 +1,14 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useChannel } from '@/lib/hooks/use-channels';
 import { UserAvatars } from '@/components/ui/user-avatars';
 import { AccountSheet } from '@/components/sheets/account-sheet';
+import { MessageList } from './MessageList';
+import { MessageInput } from './MessageInput';
+import { useMessageStore } from '@/lib/stores/message-store';
+import { useChatStore } from '@/lib/stores/chat-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 interface ChannelViewProps {
   channelId: string;
@@ -23,6 +29,32 @@ const mockUsers = [
 export function ChannelView({ channelId }: ChannelViewProps) {
   console.log('🎨 ChannelView rendering for channelId:', channelId);
   const channel = useChannel(channelId);
+  const { currentWorkspaceId } = useChatStore();
+  const { pubkey } = useAuthStore();
+  const { sendMessage, loadMessages, subscribeToChannel, unsubscribeFromChannel } = useMessageStore();
+
+  const messagesMap = useMessageStore((state) => state.messages);
+  const messages = messagesMap.get(channelId) || [];
+
+  useEffect(() => {
+    if (!currentWorkspaceId || !channelId) return;
+
+    const initChannel = async () => {
+      await loadMessages(channelId, currentWorkspaceId);
+      await subscribeToChannel(channelId, currentWorkspaceId);
+    };
+
+    initChannel();
+
+    return () => {
+      unsubscribeFromChannel(channelId);
+    };
+  }, [channelId, currentWorkspaceId]);
+
+  const handleSendMessage = async (content: string) => {
+    if (!currentWorkspaceId) return;
+    await sendMessage(currentWorkspaceId, channelId, content);
+  };
 
   if (!channel) {
     return (
@@ -69,19 +101,13 @@ export function ChannelView({ channelId }: ChannelViewProps) {
         </div>
       </div>
 
-      <div className="flex flex-1 items-center justify-center overflow-y-auto">
-        <div className="text-center text-gray-500">
-          No messages yet. Start the conversation!
-        </div>
-      </div>
+      <MessageList messages={messages} currentUserPubkey={pubkey || undefined} />
 
-      <div className="p-4">
-        <input
-          type="text"
-          placeholder={`Message #${channel.name}`}
-          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-950"
-        />
-      </div>
+      <MessageInput
+        channelName={channel.name}
+        onSend={handleSendMessage}
+        disabled={!currentWorkspaceId || !pubkey}
+      />
     </div>
   );
 }

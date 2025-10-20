@@ -13,6 +13,7 @@
     "@silk-hq/components": "^0.9.12",
     "babel-plugin-react-compiler": "^1.0.0",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "dexie": "^4.2.1",
     "dexie-react-hooks": "^4.2.0",
     "jose": "^6.1.0",

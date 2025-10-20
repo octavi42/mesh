@@ -30,14 +30,17 @@ export function Providers({ children }: { children: ReactNode }) {
             nostrLoginState.initialized = true;
 
             const { init } = await import('nostr-login');
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
             init({
-              bunkers: 'nsec.app,njump.me',
+              methods: isMobile ? ['local', 'extension', 'connect'] : ['local', 'extension', 'connect'],
+              bunkers: isMobile ? 'nsec.app,njump.me,Amber' : 'nsec.app,njump.me',
               theme: 'default',
               darkMode: typeof window !== 'undefined' &&
                 (localStorage.getItem('theme') === 'dark' ||
                  document.documentElement.classList.contains('dark')),
-              perms: 'sign_event:1,sign_event:55,nip04_encrypt,nip44_encrypt',
+              perms: 'sign_event:1,sign_event:9,sign_event:55,nip04_encrypt,nip44_encrypt',
               noBanner: true,
+              rememberMe: true,
             });
             console.log('✅ nostr-login initialized for authenticated user');
           } else {
