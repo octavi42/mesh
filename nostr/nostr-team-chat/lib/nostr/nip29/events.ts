@@ -3,12 +3,16 @@ import type { UnsignedNostrEvent, NostrEvent, NIP29GroupMetadata } from './types
 import { NIP29EventKind } from './types';
 import { formatGroupMetadata } from './utils';
 
-async function signEvent(unsignedEvent: UnsignedNostrEvent): Promise<NostrEvent> {
+function ensureNostrAvailable(): void {
   if (!window.nostr) {
     throw new Error('Nostr extension not available');
   }
+}
 
-  const signedEvent = await window.nostr.signEvent(unsignedEvent);
+async function signEvent(unsignedEvent: UnsignedNostrEvent): Promise<NostrEvent> {
+  ensureNostrAvailable();
+
+  const signedEvent = await window.nostr!.signEvent(unsignedEvent);
   const computedId = getEventHash(signedEvent as UnsignedNostrEvent);
 
   if (computedId !== signedEvent.id) {
@@ -25,7 +29,8 @@ export async function createGroupEvent(
   picture?: string,
   isOpen: boolean = false
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const metadata: NIP29GroupMetadata = {
     name,
@@ -51,7 +56,8 @@ export async function addUserEvent(
   userPubkey: string,
   roles?: string[]
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const tags: string[][] = [
     ['h', groupId],
@@ -77,7 +83,8 @@ export async function removeUserEvent(
   groupId: string,
   userPubkey: string
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.RemoveUser,
@@ -97,7 +104,8 @@ export async function editMetadataEvent(
   groupId: string,
   metadata: NIP29GroupMetadata
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.EditMetadata,
@@ -115,7 +123,8 @@ export async function addPermissionEvent(
   userPubkey: string,
   permission: string
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.AddPermission,
@@ -137,7 +146,8 @@ export async function removePermissionEvent(
   userPubkey: string,
   permission: string
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.RemovePermission,
@@ -158,7 +168,8 @@ export async function deleteEventEvent(
   groupId: string,
   eventId: string
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.DeleteEvent,
@@ -175,7 +186,8 @@ export async function deleteEventEvent(
 }
 
 export async function deleteGroupEvent(groupId: string): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.DeleteGroup,
@@ -192,7 +204,8 @@ export async function createInviteEvent(
   groupId: string,
   expiresAt?: number
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const tags: string[][] = [['h', groupId]];
 
@@ -216,7 +229,8 @@ export async function joinRequestEvent(
   inviteCode?: string,
   message?: string
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const tags: string[][] = [['h', groupId]];
 
@@ -236,7 +250,8 @@ export async function joinRequestEvent(
 }
 
 export async function leaveRequestEvent(groupId: string): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.LeaveRequest,
@@ -255,7 +270,8 @@ export async function sendMessageEvent(
   channelName?: string,
   replyToEventId?: string
 ): Promise<NostrEvent> {
-  const pubkey = await window.nostr.getPublicKey();
+  ensureNostrAvailable();
+  const pubkey = await window.nostr!.getPublicKey();
 
   const tags: string[][] = [['h', groupId]];
 

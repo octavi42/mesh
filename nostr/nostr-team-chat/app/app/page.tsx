@@ -13,7 +13,7 @@ import { useWorkspaceStore } from '@/lib/stores/workspace-store';
 
 export default function AppPage() {
   const router = useRouter();
-  const { isAuthenticated, pubkey, loading } = useSecureAuth(true);
+  const { isAuthenticated, pubkey, loading } = useSecureAuth({ redirectOnUnauth: true });
   const nip29Initialized = useRef(false);
   const { currentChannelId, setCurrentChannel, currentWorkspaceId, setCurrentWorkspace } = useChatStore();
   const { initializeClient, workspaces, currentWorkspace } = useWorkspaceStore();
@@ -46,50 +46,6 @@ export default function AppPage() {
       setCurrentWorkspace(currentWorkspace.groupId);
     }
   }, [currentWorkspace, currentWorkspaceId, setCurrentWorkspace]);
-
-  useEffect(() => {
-    import('@/lib/nostr-login-init')
-      .then(({ initNostrLogin }) => initNostrLogin())
-      .catch((error) => console.error('Failed to load nostr-login', error));
-
-    const handleAuth = async (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const authType = customEvent.detail.type;
-
-      console.log('📡 /APP PAGE nlAuth event:', authType, customEvent.detail);
-
-      if (authType === 'logout') {
-        console.log('🚪 /APP PAGE: Logout event - clearing data');
-        const { clearAllData } = useWorkspaceStore.getState();
-        const { reset: resetChat } = useChatStore.getState();
-
-        await clearAllData();
-        resetChat();
-
-        // Clear nostr-login data
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (key.startsWith('nostr-login') || key.startsWith('nl-'))) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => {
-          console.log('🧹 Clearing nostr-login data:', key);
-          localStorage.removeItem(key);
-        });
-
-        console.log('🔀 Redirecting to / from /app...');
-        router.push('/');
-      }
-    };
-
-    document.addEventListener('nlAuth', handleAuth);
-
-    return () => {
-      document.removeEventListener('nlAuth', handleAuth);
-    };
-  }, [router]);
 
 
   useEffect(() => {

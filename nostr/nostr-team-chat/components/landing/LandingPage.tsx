@@ -35,50 +35,6 @@ export function LandingPage() {
     }
   }, [isHydrated]);
 
-  useEffect(() => {
-    import('@/lib/nostr-login-init')
-      .then(({ initNostrLogin }) => initNostrLogin())
-      .catch((error) => console.error('Failed to load nostr-login', error));
-
-    const handleAuth = async (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const authType = customEvent.detail.type;
-
-      console.log('📡 nlAuth event:', authType, customEvent.detail);
-
-      if (authType === 'login' || authType === 'signup') {
-        console.log('✅ User logged in via nostr-login');
-        setIsAuthenticated(true);
-        console.log('🔀 Redirecting to /app...');
-        router.push('/app');
-      } else if (authType === 'logout') {
-        console.log('🚪 User logged out via nostr-login');
-        setIsAuthenticated(false);
-
-        // Clear nostr-login data
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && (key.startsWith('nostr-login') || key.startsWith('nl-'))) {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.forEach(key => {
-          console.log('🧹 Clearing nostr-login data:', key);
-          localStorage.removeItem(key);
-        });
-
-        console.log('🔀 Redirecting to /...');
-        router.push('/');
-      }
-    };
-
-    document.addEventListener('nlAuth', handleAuth);
-
-    return () => {
-      document.removeEventListener('nlAuth', handleAuth);
-    };
-  }, [router]);
 
   const handleLoginClick = async () => {
     console.log('🔘 Login button clicked');

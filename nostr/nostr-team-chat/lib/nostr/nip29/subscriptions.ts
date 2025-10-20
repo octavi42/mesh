@@ -22,15 +22,20 @@ export class NIP29SubscriptionManager {
       ],
       (event: NostrEvent) => {
         const metadata = parseGroupMetadata(event.content);
-        onUpdate({
+        const update: Partial<NIP29Group> = {
           groupId,
-          name: metadata.name,
-          description: metadata.about,
-          picture: metadata.picture,
+          description: typeof metadata.about === 'string' ? metadata.about : undefined,
+          picture: typeof metadata.picture === 'string' ? metadata.picture : undefined,
           isOpen: metadata.open === true,
           isPublic: metadata.public === true,
           updatedAt: event.created_at * 1000,
-        });
+        };
+
+        if (typeof metadata.name === 'string') {
+          update.name = metadata.name;
+        }
+
+        onUpdate(update);
       }
     );
 
@@ -91,7 +96,7 @@ export class NIP29SubscriptionManager {
     const filter: SubscriptionFilter = {
       kinds: [NIP29EventKind.GroupChatMessage],
       '#h': [groupId],
-    };
+    } as SubscriptionFilter;
 
     if (since) {
       filter.since = since;
@@ -99,7 +104,7 @@ export class NIP29SubscriptionManager {
       filter.limit = 100;
     }
 
-    const subId = this.client.subscribe([filter], (event: NostrEvent) => {
+    const subId = this.client.subscribe([filter] as any, (event: NostrEvent) => {
       if (channelName) {
         const eventChannel = event.tags.find(([tag]) => tag === 'c')?.[1];
         if (eventChannel !== channelName) return;
