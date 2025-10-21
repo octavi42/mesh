@@ -4,9 +4,9 @@ import { getGlobalNIP29Client } from '@/lib/nostr/nip29';
 import type { NostrEvent } from '@/lib/nostr/nip29/types';
 
 interface MessageStore {
-  messages: Map<string, Message[]>;
-  recentEventIds: Map<string, string[]>;
-  subscriptions: Map<string, string>;
+  messages: Record<string, Message[]>;
+  recentEventIds: Record<string, string[]>;
+  subscriptions: Record<string, string>;
 
   getMessages: (channelId: string) => Message[];
   sendMessage: (groupId: string, channelId: string, content: string) => Promise<void>;
@@ -17,12 +17,12 @@ interface MessageStore {
 }
 
 export const useMessageStore = create<MessageStore>((set, get) => ({
-  messages: new Map(),
-  recentEventIds: new Map(),
-  subscriptions: new Map(),
+  messages: {},
+  recentEventIds: {},
+  subscriptions: {},
 
   getMessages: (channelId) => {
-    return get().messages.get(channelId) || [];
+    return get().messages[channelId] || [];
   },
 
   sendMessage: async (groupId, channelId, content) => {
@@ -68,9 +68,12 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       const parts = groupId.split("'");
       const localGroupId = parts.length === 2 ? parts[1] : groupId;
 
-      const tags: string[][] = [['h', localGroupId]];
+      const tags: string[][] = [
+        ['h', localGroupId],
+        ['channel', channelId]
+      ];
 
-      const recentEvents = get().recentEventIds.get(channelId) || [];
+      const recentEvents = get().recentEventIds[channelId] || [];
       recentEvents.slice(-3).forEach(eventId => {
         tags.push(['previous', eventId]);
       });
@@ -138,16 +141,21 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       await db.messages.put(confirmedMessage);
 
       set((state) => {
-        const channelMessages = state.messages.get(channelId) || [];
+        const channelMessages = state.messages[channelId] || [];
         const withoutTempAndDuplicates = channelMessages.filter(m => m.id !== tempMessage.id && m.id !== signedEvent.id);
-        const newMessages = new Map(state.messages);
-        newMessages.set(channelId, [...withoutTempAndDuplicates, confirmedMessage].sort((a, b) => a.createdAt - b.createdAt));
 
-        const eventIds = state.recentEventIds.get(channelId) || [];
-        const newEventIds = new Map(state.recentEventIds);
-        newEventIds.set(channelId, [...eventIds, signedEvent.id].slice(-10));
+        const eventIds = state.recentEventIds[channelId] || [];
 
-        return { messages: newMessages, recentEventIds: newEventIds };
+        return {
+          messages: {
+            ...state.messages,
+            [channelId]: [...withoutTempAndDuplicates, confirmedMessage].sort((a, b) => a.createdAt - b.createdAt)
+          },
+          recentEventIds: {
+            ...state.recentEventIds,
+            [channelId]: [...eventIds, signedEvent.id].slice(-10)
+          }
+        };
       });
 
       console.log('✅ Message sent:', signedEvent.id);
@@ -159,13 +167,16 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
 
   addMessage: (channelId, message) => {
     set((state) => {
-      const channelMessages = state.messages.get(channelId) || [];
+      const channelMessages = state.messages[channelId] || [];
       const exists = channelMessages.some(m => m.id === message.id);
-      if (exists) return state;
+      if (exists) return {};
 
-      const newMessages = new Map(state.messages);
-      newMessages.set(channelId, [...channelMessages, message].sort((a, b) => a.createdAt - b.createdAt));
-      return { messages: newMessages };
+      return {
+        messages: {
+          ...state.messages,
+          [channelId]: [...channelMessages, message].sort((a, b) => a.createdAt - b.createdAt)
+        }
+      };
     });
   },
 
@@ -180,11 +191,12 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       const localMessages = await db.messages.where('channelId').equals(channelId).toArray();
 
       if (localMessages.length > 0) {
-        set((state) => {
-          const newMessages = new Map(state.messages);
-          newMessages.set(channelId, localMessages.sort((a, b) => a.createdAt - b.createdAt));
-          return { messages: newMessages };
-        });
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [channelId]: localMessages.sort((a, b) => a.createdAt - b.createdAt)
+          }
+        }));
       }
 
       const parts = groupId.split("'");
@@ -193,6 +205,7 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       const events = await client.fetchEvents({
         kinds: [9],
         '#h': [localGroupId],
+        '#channel': [channelId],
         limit: 100,
       });
 
@@ -208,16 +221,18 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       if (messages.length > 0) {
         await db.messages.bulkPut(messages);
 
-        set((state) => {
-          const newMessages = new Map(state.messages);
-          newMessages.set(channelId, messages.sort((a, b) => a.createdAt - b.createdAt));
+        const eventIds = messages.map(m => m.id);
 
-          const eventIds = messages.map(m => m.id);
-          const newEventIds = new Map(state.recentEventIds);
-          newEventIds.set(channelId, eventIds.slice(-10));
-
-          return { messages: newMessages, recentEventIds: newEventIds };
-        });
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [channelId]: messages.sort((a, b) => a.createdAt - b.createdAt)
+          },
+          recentEventIds: {
+            ...state.recentEventIds,
+            [channelId]: eventIds.slice(-10)
+          }
+        }));
       }
 
       console.log('✅ Loaded', messages.length, 'messages for channel', channelId);
@@ -227,7 +242,7 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
   },
 
   subscribeToChannel: async (channelId, groupId) => {
-    const existingSub = get().subscriptions.get(channelId);
+    const existingSub = get().subscriptions[channelId];
     if (existingSub) return;
 
     try {
@@ -247,6 +262,7 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           {
             kinds: [9],
             '#h': [localGroupId],
+            '#channel': [channelId],
             since: now,
           },
         ],
@@ -264,21 +280,25 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           get().addMessage(channelId, message);
 
           set((state) => {
-            const eventIds = state.recentEventIds.get(channelId) || [];
-            const newEventIds = new Map(state.recentEventIds);
-            newEventIds.set(channelId, [...eventIds, event.id].slice(-10));
-            return { recentEventIds: newEventIds };
+            const eventIds = state.recentEventIds[channelId] || [];
+            return {
+              recentEventIds: {
+                ...state.recentEventIds,
+                [channelId]: [...eventIds, event.id].slice(-10)
+              }
+            };
           });
 
           console.log('📨 New message received:', event.id);
         }
       );
 
-      set((state) => {
-        const newSubs = new Map(state.subscriptions);
-        newSubs.set(channelId, subId);
-        return { subscriptions: newSubs };
-      });
+      set((state) => ({
+        subscriptions: {
+          ...state.subscriptions,
+          [channelId]: subId
+        }
+      }));
 
       console.log('📡 Subscribed to channel:', channelId);
     } catch (error) {
@@ -287,7 +307,7 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
   },
 
   unsubscribeFromChannel: (channelId) => {
-    const subId = get().subscriptions.get(channelId);
+    const subId = get().subscriptions[channelId];
     if (!subId) return;
 
     try {
@@ -295,9 +315,8 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       client.unsubscribe(subId);
 
       set((state) => {
-        const newSubs = new Map(state.subscriptions);
-        newSubs.delete(channelId);
-        return { subscriptions: newSubs };
+        const { [channelId]: _, ...restSubs } = state.subscriptions;
+        return { subscriptions: restSubs };
       });
 
       console.log('🔌 Unsubscribed from channel:', channelId);

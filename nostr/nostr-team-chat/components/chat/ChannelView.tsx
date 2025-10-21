@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useChannel } from '@/lib/hooks/use-channels';
 import { UserAvatars } from '@/components/ui/user-avatars';
 import { AccountSheet } from '@/components/sheets/account-sheet';
@@ -31,10 +31,13 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   const channel = useChannel(channelId);
   const { currentWorkspaceId } = useChatStore();
   const { pubkey } = useAuthStore();
-  const { sendMessage, loadMessages, subscribeToChannel, unsubscribeFromChannel } = useMessageStore();
+  const sendMessage = useMessageStore((state) => state.sendMessage);
+  const loadMessages = useMessageStore((state) => state.loadMessages);
+  const subscribeToChannel = useMessageStore((state) => state.subscribeToChannel);
+  const unsubscribeFromChannel = useMessageStore((state) => state.unsubscribeFromChannel);
 
-  const messagesMap = useMessageStore((state) => state.messages);
-  const messages = messagesMap.get(channelId) || [];
+  const messagesRecord = useMessageStore((state) => state.messages);
+  const messages = useMemo(() => messagesRecord[channelId] || [], [messagesRecord, channelId]);
 
   useEffect(() => {
     if (!currentWorkspaceId || !channelId) return;
