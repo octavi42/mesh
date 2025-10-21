@@ -3,7 +3,6 @@
 import { useEffect, useMemo } from 'react';
 import { useChannel } from '@/lib/hooks/use-channels';
 import { UserAvatars } from '@/components/ui/user-avatars';
-import { AccountSheet } from '@/components/sheets/account-sheet';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { useMessageStore } from '@/lib/stores/message-store';
@@ -70,7 +69,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   return (
     <div className="flex h-full flex-col bg-white dark:bg-black">
       {/* Header with channel name and user avatars */}
-      <div className="flex h-16 items-center justify-between border-b border-gray-100 px-6 dark:border-gray-900 relative z-10">
+      <div className="flex h-16 items-center justify-between border-b border-gray-100 pl-6 pr-20 dark:border-gray-900 relative z-10">
         <div className="flex items-center gap-2">
           <span className="text-lg text-gray-400">#</span>
           <h1 className="text-base font-medium text-gray-900 dark:text-white">
@@ -84,23 +83,6 @@ export function ChannelView({ channelId }: ChannelViewProps) {
         </div>
         <div className="flex items-center gap-3">
           <UserAvatars users={mockUsers} size={40} maxVisible={5} />
-          <button
-            style={{
-              background: 'green',
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              marginLeft: '12px',
-              zIndex: 9999,
-              position: 'relative'
-            }}
-            onClick={() => console.log('TEST BUTTON CLICKED')}
-          >
-            TEST
-          </button>
-          <div className="ml-3 relative z-50">
-            <AccountSheet />
-          </div>
         </div>
       </div>
 
