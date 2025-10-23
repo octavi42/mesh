@@ -19,7 +19,7 @@ export function ChannelLink({
   isActive,
   shortcutNumber,
 }: ChannelLinkProps) {
-  const { setCurrentChannel, currentWorkspaceId } = useChatStore();
+  const { setCurrentChannel, currentWorkspaceId, currentChannelId } = useChatStore();
   const loading = useMessageStore((state) => state.loadingChannels[channelId] || false);
   const router = useRouter();
   const isNavigatingRef = useRef(false);
@@ -37,6 +37,17 @@ export function ChannelLink({
     if (isNavigatingRef.current) return;
     isNavigatingRef.current = true;
 
+    const messageStore = useMessageStore.getState();
+
+    // IMMEDIATELY clear the current channel's messages (if any) for instant visual feedback
+    if (currentChannelId && currentChannelId !== channelId) {
+      messageStore.clearChannelMessages(currentChannelId);
+    }
+
+    // Set loading state for the new channel
+    messageStore.clearChannelMessages(channelId);
+    messageStore.setChannelLoading(channelId);
+
     // Update store immediately - this is synchronous and instant
     setCurrentChannel(channelId);
 
@@ -46,7 +57,7 @@ export function ChannelLink({
 
     // Reset flag immediately
     isNavigatingRef.current = false;
-  }, [channelId, currentWorkspaceId, setCurrentChannel, router]);
+  }, [channelId, currentWorkspaceId, currentChannelId, setCurrentChannel, router]);
 
   return (
     <button

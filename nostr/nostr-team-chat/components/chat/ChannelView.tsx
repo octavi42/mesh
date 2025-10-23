@@ -50,6 +50,11 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   useEffect(() => {
     console.log(`🔄 Channel changed to: ${channelId}, setting isInitializing=true`);
     setIsInitializing(true);
+    // Also immediately clear any existing messages for this channel to prevent flicker
+    const messageStore = useMessageStore.getState();
+    if (!messageStore.loadingChannels[channelId]) {
+      messageStore.clearChannelMessages(channelId);
+    }
   }, [channelId]);
 
   useEffect(() => {
@@ -67,12 +72,18 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     initializingRef.current = key;
     console.log('🔄 ChannelView: Initializing channel', channelId);
 
-    // Immediately trigger loading state for skeleton UI - ALWAYS reset when switching
+    // Check if loading state is already set (e.g., from ChannelLink click)
     const messageStore = useMessageStore.getState();
-    messageStore.clearChannelMessages(channelId);
-    messageStore.setChannelLoading(channelId);
+    const isAlreadyLoading = messageStore.loadingChannels[channelId];
 
-    console.log('🔄 ChannelView: Set loading state for channel', channelId);
+    if (!isAlreadyLoading) {
+      // Only set loading state if not already set (for direct navigation cases)
+      messageStore.clearChannelMessages(channelId);
+      messageStore.setChannelLoading(channelId);
+      console.log('🔄 ChannelView: Set loading state for channel', channelId);
+    } else {
+      console.log('🔄 ChannelView: Loading state already set for channel', channelId);
+    }
 
     // Start loading and subscribing immediately in background - don't block UI
     Promise.all([
@@ -130,10 +141,10 @@ export function ChannelView({ channelId }: ChannelViewProps) {
       <div className="flex-1 transition-opacity duration-200">
         {(() => {
           // Show skeletons if:
-          // 1. Component is initializing (just mounted/channel changed)
-          // 2. OR currently loading and not yet loaded
+          // 1. Component is initializing (just mounted/channel changed) - PRIORITY
+          // 2. OR currently loading this specific channel
           // 3. OR no messages AND channel hasn't been loaded yet (to distinguish from empty channels)
-          const shouldShowSkeletons = isInitializing || (loading && !loaded) || (messages.length === 0 && !loaded);
+          const shouldShowSkeletons = isInitializing || loading || (messages.length === 0 && !loaded);
           console.log(`🐛 Channel ${channelId}: initializing=${isInitializing}, loading=${loading}, loaded=${loaded}, messages=${messages.length}, shouldShow=${shouldShowSkeletons}`);
 
           return shouldShowSkeletons ? (
