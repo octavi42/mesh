@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import { useChannel } from '@/lib/hooks/use-channels';
 import { UserAvatars } from '@/components/ui/user-avatars';
-import { LoadingMessages, LoadingSpinner } from '@/components/ui/loading-spinner';
 import { MessageSkeletons } from '@/components/ui/message-skeleton';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
@@ -29,7 +28,7 @@ const mockUsers = [
 
 export function ChannelView({ channelId }: ChannelViewProps) {
   const channel = useChannel(channelId);
-  const { currentWorkspaceId } = useChatStore();
+  const { currentWorkspaceId, isNavigating } = useChatStore();
   const { pubkey } = useAuthStore();
   // Get static references to prevent re-renders
   const sendMessage = useMessageStore.getState().sendMessage;
@@ -89,9 +88,12 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     Promise.all([
       loadMessages(channelId, currentWorkspaceId),
       Promise.resolve(subscribeToChannel(channelId, currentWorkspaceId))
-    ]).finally(() => {
-      // Stop initializing once loading is complete
-      setIsInitializing(false);
+    ]).then(() => {
+      // Immediately stop initializing once loading completes
+      const currentMessages = useMessageStore.getState().messages[channelId] || [];
+      if (currentMessages.length > 0 || useMessageStore.getState().loadedChannels[channelId]) {
+        setIsInitializing(false);
+      }
     }).catch(console.error);
 
     return () => {
@@ -123,9 +125,6 @@ export function ChannelView({ channelId }: ChannelViewProps) {
             <h1 className="text-base font-medium text-gray-900 dark:text-white">
               {channel.name}
             </h1>
-            {loading && loaded && messages.length > 0 && (
-              <LoadingSpinner size="sm" className="text-gray-400" />
-            )}
           </div>
           {channel.description && (
             <span className="text-sm text-gray-400 dark:text-gray-500">
@@ -138,21 +137,26 @@ export function ChannelView({ channelId }: ChannelViewProps) {
         </div>
       </div>
 
-      <div className="flex-1 transition-opacity duration-200">
-        {(() => {
-          // Show skeletons if:
-          // 1. Component is initializing (just mounted/channel changed) - PRIORITY
-          // 2. OR currently loading this specific channel
-          // 3. OR no messages AND channel hasn't been loaded yet (to distinguish from empty channels)
-          const shouldShowSkeletons = isInitializing || loading || (messages.length === 0 && !loaded);
-          console.log(`🐛 Channel ${channelId}: initializing=${isInitializing}, loading=${loading}, loaded=${loaded}, messages=${messages.length}, shouldShow=${shouldShowSkeletons}`);
-
-          return shouldShowSkeletons ? (
-            <MessageSkeletons count={3} />
-          ) : (
-            <MessageList messages={messages} currentUserPubkey={pubkey || undefined} />
-          );
-        })()}
+      <div className="flex-1 relative">
+        {/* PRIORITY 1: Show skeleton if navigating (HIGHEST PRIORITY) */}
+        {isNavigating ? (
+          <MessageSkeletons count={3} />
+        ) : /* PRIORITY 2: Show skeleton if initializing */ isInitializing ? (
+          <MessageSkeletons count={3} />
+        ) : /* PRIORITY 3: Show skeleton if loading and no messages yet */ loading && messages.length === 0 ? (
+          <MessageSkeletons count={3} />
+        ) : /* PRIORITY 4: Show messages if we have them */ messages.length > 0 ? (
+          <MessageList messages={messages} currentUserPubkey={pubkey || undefined} />
+        ) : /* PRIORITY 5: Show empty state only if loaded and no messages */ loaded ? (
+          <div className="flex flex-1 items-center justify-center h-full">
+            <div className="text-center text-gray-500">
+              No messages yet. Start the conversation!
+            </div>
+          </div>
+        ) : (
+          /* FALLBACK: Show skeleton for any other loading state */
+          <MessageSkeletons count={3} />
+        )}
       </div>
 
       <MessageInput

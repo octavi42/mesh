@@ -4,8 +4,10 @@ import { persist } from 'zustand/middleware';
 interface ChatState {
   currentWorkspaceId: string;
   currentChannelId: string | null;
+  isNavigating: boolean;
   setCurrentWorkspace: (id: string, channelId?: string) => void;
   setCurrentChannel: (id: string) => void;
+  setNavigating: (navigating: boolean) => void;
   navigate: (workspaceId: string, channelId: string) => void;
   reset: () => void;
 }
@@ -15,6 +17,7 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       currentWorkspaceId: '', // Start empty, will be set by workspace store
       currentChannelId: null,
+      isNavigating: false,
 
       setCurrentWorkspace: (id, channelId) => {
         console.log('🔄 Chat store: Setting workspace', id, 'channel', channelId);
@@ -39,7 +42,7 @@ export const useChatStore = create<ChatState>()(
         const previousChannelId = get().currentChannelId;
 
         // Set new channel immediately for responsive UI - this is synchronous
-        set({ currentChannelId: id });
+        set({ currentChannelId: id, isNavigating: false });
 
         // Clean up previous channel subscriptions in background (non-blocking)
         if (previousChannelId && previousChannelId !== id) {
@@ -54,6 +57,10 @@ export const useChatStore = create<ChatState>()(
         }
       },
 
+      setNavigating: (navigating) => {
+        set({ isNavigating: navigating });
+      },
+
       navigate: (workspaceId, channelId) => {
         set({
           currentWorkspaceId: workspaceId,
@@ -65,6 +72,7 @@ export const useChatStore = create<ChatState>()(
         set({
           currentWorkspaceId: '',
           currentChannelId: null,
+          isNavigating: false,
         });
       },
     }),

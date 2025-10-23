@@ -19,13 +19,7 @@ export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
   }, [messages]);
 
   if (messages.length === 0) {
-    return (
-      <div className="flex flex-1 items-center justify-center overflow-y-auto">
-        <div className="text-center text-gray-500">
-          No messages yet. Start the conversation!
-        </div>
-      </div>
-    );
+    return null;
   }
 
   const TIME_GROUPING_WINDOW = 5 * 60 * 1000;

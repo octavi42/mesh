@@ -4,7 +4,6 @@ import { useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useMessageStore } from '@/lib/stores/message-store';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface ChannelLinkProps {
   channelId: string;
@@ -19,7 +18,7 @@ export function ChannelLink({
   isActive,
   shortcutNumber,
 }: ChannelLinkProps) {
-  const { setCurrentChannel, currentWorkspaceId, currentChannelId } = useChatStore();
+  const { setCurrentChannel, currentWorkspaceId, currentChannelId, setNavigating } = useChatStore();
   const loading = useMessageStore((state) => state.loadingChannels[channelId] || false);
   const router = useRouter();
   const isNavigatingRef = useRef(false);
@@ -37,6 +36,9 @@ export function ChannelLink({
     if (isNavigatingRef.current) return;
     isNavigatingRef.current = true;
 
+    // IMMEDIATELY set navigation state to trigger loading UI across all components
+    setNavigating(true);
+
     const messageStore = useMessageStore.getState();
 
     // IMMEDIATELY clear the current channel's messages (if any) for instant visual feedback
@@ -48,7 +50,7 @@ export function ChannelLink({
     messageStore.clearChannelMessages(channelId);
     messageStore.setChannelLoading(channelId);
 
-    // Update store immediately - this is synchronous and instant
+    // Update store immediately - this will also clear navigation state
     setCurrentChannel(channelId);
 
     // Navigate using Next.js router - this should be fast
@@ -73,9 +75,7 @@ export function ChannelLink({
     >
       <span className="flex-shrink-0 text-lg">#</span>
       <span className="flex-1 whitespace-nowrap text-left">{channelName}</span>
-      {loading && isActive ? (
-        <LoadingSpinner size="sm" className="text-indigo-600" />
-      ) : shortcutNumber ? (
+      {shortcutNumber ? (
         <span className="text-xs text-gray-400 dark:text-gray-500">
           ⌘{shortcutNumber}
         </span>
