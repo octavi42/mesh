@@ -142,7 +142,16 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           set({ workspaces });
 
           if (workspaces.length > 0 && !get().currentWorkspace) {
-            set({ currentWorkspace: workspaces[0] });
+            const firstWorkspace = workspaces[0];
+            set({ currentWorkspace: firstWorkspace });
+            
+            // Sync with chat store
+            const { useChatStore } = await import('./chat-store');
+            const chatStore = useChatStore.getState();
+            if (!chatStore.currentWorkspaceId || chatStore.currentWorkspaceId === 'workspace-1') {
+              chatStore.setCurrentWorkspace(firstWorkspace.groupId);
+              console.log('🔄 Synced chat store with workspace:', firstWorkspace.groupId);
+            }
           }
         } catch (error) {
           console.error('Failed to fetch workspaces:', error);

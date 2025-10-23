@@ -23,11 +23,16 @@ export interface NIP29Workspace {
   lastSyncedAt: number;
 }
 
-export interface NIP29Member {
+export interface Invite {
+  code: string;
   groupId: string;
-  pubkey: string;
-  roles: string[];
-  joinedAt: number;
+  createdBy: string;
+  createdAt: number;
+  expiresAt?: number;
+  maxUses?: number;
+  usedCount: number;
+  role: string;
+  isActive: boolean;
 }
 
 export interface Channel {
@@ -54,6 +59,7 @@ const db = new Dexie('NostrTeamChat') as Dexie & {
   messages: EntityTable<Message, 'id'>;
   nip29Workspaces: EntityTable<NIP29Workspace, 'groupId'>;
   nip29Members: EntityTable<NIP29Member, 'groupId'>;
+  invites: EntityTable<Invite, 'code'>;
 };
 
 db.version(1).stores({
@@ -68,6 +74,15 @@ db.version(2).stores({
   messages: 'id, channelId, authorPubkey, createdAt',
   nip29Workspaces: 'groupId, relayUrl, name, createdAt, lastSyncedAt',
   nip29Members: '[groupId+pubkey], groupId, pubkey, joinedAt',
+});
+
+db.version(3).stores({
+  workspaces: 'id, name, createdAt',
+  channels: 'id, workspaceId, name, createdAt',
+  messages: 'id, channelId, authorPubkey, createdAt',
+  nip29Workspaces: 'groupId, relayUrl, name, createdAt, lastSyncedAt',
+  nip29Members: '[groupId+pubkey], groupId, pubkey, joinedAt',
+  invites: 'code, groupId, createdBy, createdAt, expiresAt, isActive',
 });
 
 export { db };

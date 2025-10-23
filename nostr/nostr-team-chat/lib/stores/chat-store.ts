@@ -13,7 +13,7 @@ interface ChatState {
 export const useChatStore = create<ChatState>()(
   persist(
     (set) => ({
-      currentWorkspaceId: 'workspace-1',
+      currentWorkspaceId: '', // Start empty, will be set by workspace store
       currentChannelId: null,
 
       setCurrentWorkspace: (id, channelId) => {
@@ -36,7 +36,7 @@ export const useChatStore = create<ChatState>()(
 
       reset: () => {
         set({
-          currentWorkspaceId: 'workspace-1',
+          currentWorkspaceId: '',
           currentChannelId: null,
         });
       },

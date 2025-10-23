@@ -14,6 +14,7 @@ interface MessageStore {
   loadMessages: (channelId: string, groupId: string) => Promise<void>;
   subscribeToChannel: (channelId: string, groupId: string) => void;
   unsubscribeFromChannel: (channelId: string) => void;
+  clearAllMessages: () => Promise<void>;
 }
 
 export const useMessageStore = create<MessageStore>((set, get) => ({
@@ -205,18 +206,25 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       const events = await client.fetchEvents({
         kinds: [9],
         '#h': [localGroupId],
-        '#channel': [channelId],
         limit: 100,
       });
 
-      const messages: Message[] = events.map((event: NostrEvent) => ({
-        id: event.id,
-        channelId,
-        authorPubkey: event.pubkey,
-        content: event.content,
-        createdAt: event.created_at * 1000,
-        updatedAt: event.created_at * 1000,
-      }));
+      const messages: Message[] = events
+        .filter((event: NostrEvent) => {
+          const channelTag = event.tags.find(tag => tag[0] === 'channel');
+          if (channelTag && channelTag[1]) {
+            return channelTag[1] === channelId;
+          }
+          return true;
+        })
+        .map((event: NostrEvent) => ({
+          id: event.id,
+          channelId,
+          authorPubkey: event.pubkey,
+          content: event.content,
+          createdAt: event.created_at * 1000,
+          updatedAt: event.created_at * 1000,
+        }));
 
       if (messages.length > 0) {
         await db.messages.bulkPut(messages);
@@ -235,9 +243,19 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
         }));
       }
 
-      console.log('✅ Loaded', messages.length, 'messages for channel', channelId);
+      console.log('✅ Loaded', messages.length, 'messages for channel', channelId, '(with channel tag)');
     } catch (error) {
       console.error('Failed to load messages:', error);
+    }
+  },
+
+  clearAllMessages: async () => {
+    try {
+      await db.messages.clear();
+      set({ messages: {}, recentEventIds: {} });
+      console.log('✅ Cleared all messages from database');
+    } catch (error) {
+      console.error('Failed to clear messages:', error);
     }
   },
 
@@ -262,11 +280,17 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           {
             kinds: [9],
             '#h': [localGroupId],
-            '#channel': [channelId],
             since: now,
           },
         ],
         (event: NostrEvent) => {
+          const eventChannelTag = event.tags.find(tag => tag[0] === 'channel');
+          const eventChannelId = eventChannelTag && eventChannelTag[1] ? eventChannelTag[1] : null;
+
+          if (eventChannelId && eventChannelId !== channelId) {
+            return;
+          }
+
           const message: Message = {
             id: event.id,
             channelId,
