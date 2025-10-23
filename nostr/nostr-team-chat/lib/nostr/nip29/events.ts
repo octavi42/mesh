@@ -59,10 +59,9 @@ export async function addUserEvent(
   ensureNostrAvailable();
   const pubkey = await window.nostr!.getPublicKey();
 
-  // Extract local group ID for the h tag (relay expects only the local part)
-  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
+  // Use the full group ID for the h tag (relay expects the full group identifier)
   const tags: string[][] = [
-    ['h', localGroupId],
+    ['h', groupId],
     ['p', userPubkey],
   ];
 
@@ -209,9 +208,8 @@ export async function createInviteEvent(
   ensureNostrAvailable();
   const pubkey = await window.nostr!.getPublicKey();
 
-  // Extract local group ID for the h tag (relay expects only the local part)
-  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
-  const tags: string[][] = [['h', localGroupId]];
+  // Use the full group ID for the h tag
+  const tags: string[][] = [['h', groupId]];
 
   if (expiresAt) {
     tags.push(['expiration', expiresAt.toString()]);
@@ -236,9 +234,8 @@ export async function joinRequestEvent(
   ensureNostrAvailable();
   const pubkey = await window.nostr!.getPublicKey();
 
-  // Extract local group ID for the h tag (relay expects only the local part)
-  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
-  const tags: string[][] = [['h', localGroupId]];
+  // Use the full group ID for the h tag
+  const tags: string[][] = [['h', groupId]];
 
   if (inviteCode) {
     tags.push(['code', inviteCode]);

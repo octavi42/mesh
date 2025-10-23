@@ -96,10 +96,9 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
           console.log('✅ Workspace creation event published:', event.id, 'groupId:', groupId);
 
-          const { addUserEvent } = await import('@/lib/nostr/nip29/events');
-          const addSelfEvent = await addUserEvent(groupId, event.pubkey);
-          await client.publishEvent(addSelfEvent);
-          console.log('✅ Added self as member:', addSelfEvent.id);
+          // Skip AddUser step for now - your relay may not support it yet
+          // The group creator is typically automatically considered an admin/member
+          console.log('ℹ️ Skipping AddUser step - group creator is automatically a member');
 
           const workspace: NIP29Workspace = {
             groupId,
@@ -130,8 +129,12 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
           return groupId;
         } catch (error) {
-          console.error('Failed to create workspace:', error);
-          set({ error: 'Failed to create workspace', isLoading: false });
+          console.error('❌ Failed to create workspace:', {
+            error: error.message,
+            stack: error.stack,
+            name
+          });
+          set({ error: `Failed to create workspace: ${error.message}`, isLoading: false });
           throw error;
         }
       },

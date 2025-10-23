@@ -69,10 +69,26 @@ export class NIP29RelayClient {
     }
 
     try {
-      await this.relay.publish(event);
-      console.log('✅ Event published:', event.kind, event.id);
+      console.log('📤 Publishing event:', {
+        kind: event.kind,
+        id: event.id,
+        tags: event.tags,
+        content: event.content.substring(0, 100)
+      });
+
+      const result = await this.relay.publish(event);
+      console.log('✅ Event published successfully:', {
+        kind: event.kind,
+        id: event.id,
+        result
+      });
     } catch (error) {
-      console.error('Failed to publish event:', error);
+      console.error('❌ Failed to publish event:', {
+        kind: event.kind,
+        id: event.id,
+        error: error.message,
+        tags: event.tags
+      });
       throw error;
     }
   }
@@ -160,7 +176,7 @@ let globalClient: NIP29RelayClient | null = null;
 
 export function getGlobalNIP29Client(relayUrl?: string): NIP29RelayClient {
   if (!globalClient) {
-    const url = relayUrl || 'wss://relay.groups.nip29.com';
+    const url = relayUrl || process.env.NEXT_PUBLIC_NIP29_RELAY_URL || 'wss://groups.contextio.app';
     globalClient = new NIP29RelayClient(url);
   }
   return globalClient;
