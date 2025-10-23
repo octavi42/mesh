@@ -7,6 +7,9 @@ interface MessageStore {
   messages: Record<string, Message[]>;
   recentEventIds: Record<string, string[]>;
   subscriptions: Record<string, string>;
+  activeChannelId: string | null;
+  loadingChannels: Record<string, boolean>;
+  loadedChannels: Record<string, boolean>;
 
   getMessages: (channelId: string) => Message[];
   sendMessage: (groupId: string, channelId: string, content: string) => Promise<void>;
@@ -15,12 +18,20 @@ interface MessageStore {
   subscribeToChannel: (channelId: string, groupId: string) => void;
   unsubscribeFromChannel: (channelId: string) => void;
   clearAllMessages: () => Promise<void>;
+  clearAllSubscriptions: () => void;
+  isChannelLoading: (channelId: string) => boolean;
+  isChannelLoaded: (channelId: string) => boolean;
+  setChannelLoading: (channelId: string) => void;
+  clearChannelMessages: (channelId: string) => void;
 }
 
 export const useMessageStore = create<MessageStore>((set, get) => ({
   messages: {},
   recentEventIds: {},
   subscriptions: {},
+  activeChannelId: null,
+  loadingChannels: {},
+  loadedChannels: {},
 
   getMessages: (channelId) => {
     return get().messages[channelId] || [];
@@ -182,20 +193,48 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
   },
 
   loadMessages: async (channelId, groupId) => {
+    const state = get();
+
+    // Set loading state immediately - even before checking if already loading
+    set((state) => ({
+      loadingChannels: {
+        ...state.loadingChannels,
+        [channelId]: true
+      }
+    }));
+
+    // Prevent duplicate loading requests
+    if (state.loadingChannels[channelId]) {
+      console.log('⏭️ Already loading, but continuing with this request:', channelId);
+    }
+
     try {
+      console.log('📥 Loading messages for channel:', channelId, 'group:', groupId);
+
       const client = getGlobalNIP29Client();
 
+      // Ensure connection is stable
       if (!client.isConnected()) {
+        console.log('🔌 Message store: Connecting to relay...');
         await client.connect();
       }
 
+      // Don't clear messages immediately - keep them for smooth UX until new ones load
+      console.log('📡 Fetching fresh messages for channel:', channelId);
+
+      // Load from local database first for immediate display
       const localMessages = await db.messages.where('channelId').equals(channelId).toArray();
+      console.log('💾 Found', localMessages.length, 'local messages for channel:', channelId);
 
       if (localMessages.length > 0) {
         set((state) => ({
           messages: {
             ...state.messages,
             [channelId]: localMessages.sort((a, b) => a.createdAt - b.createdAt)
+          },
+          loadedChannels: {
+            ...state.loadedChannels,
+            [channelId]: true
           }
         }));
       }
@@ -239,6 +278,30 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           recentEventIds: {
             ...state.recentEventIds,
             [channelId]: eventIds.slice(-10)
+          },
+          loadingChannels: {
+            ...state.loadingChannels,
+            [channelId]: false
+          },
+          loadedChannels: {
+            ...state.loadedChannels,
+            [channelId]: true
+          }
+        }));
+      } else {
+        // Even if no messages, mark as loaded and stop loading
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [channelId]: []
+          },
+          loadingChannels: {
+            ...state.loadingChannels,
+            [channelId]: false
+          },
+          loadedChannels: {
+            ...state.loadedChannels,
+            [channelId]: true
           }
         }));
       }
@@ -246,92 +309,138 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       console.log('✅ Loaded', messages.length, 'messages for channel', channelId, '(with channel tag)');
     } catch (error) {
       console.error('Failed to load messages:', error);
+
+      // Stop loading on error
+      set((state) => ({
+        loadingChannels: {
+          ...state.loadingChannels,
+          [channelId]: false
+        }
+      }));
     }
   },
 
   clearAllMessages: async () => {
     try {
       await db.messages.clear();
-      set({ messages: {}, recentEventIds: {} });
+      set({
+        messages: {},
+        recentEventIds: {},
+        loadingChannels: {},
+        loadedChannels: {}
+      });
       console.log('✅ Cleared all messages from database');
     } catch (error) {
       console.error('Failed to clear messages:', error);
     }
   },
 
-  subscribeToChannel: async (channelId, groupId) => {
-    const existingSub = get().subscriptions[channelId];
-    if (existingSub) return;
+  subscribeToChannel: (channelId, groupId) => {
+    const currentState = get();
 
-    try {
-      const client = getGlobalNIP29Client();
-
-      if (!client.isConnected()) {
-        await client.connect();
-      }
-
-      const parts = groupId.split("'");
-      const localGroupId = parts.length === 2 ? parts[1] : groupId;
-
-      const now = Math.floor(Date.now() / 1000);
-
-      const subId = client.subscribe(
-        [
-          {
-            kinds: [9],
-            '#h': [localGroupId],
-            since: now,
-          },
-        ],
-        (event: NostrEvent) => {
-          const eventChannelTag = event.tags.find(tag => tag[0] === 'channel');
-          const eventChannelId = eventChannelTag && eventChannelTag[1] ? eventChannelTag[1] : null;
-
-          if (eventChannelId && eventChannelId !== channelId) {
-            return;
-          }
-
-          const message: Message = {
-            id: event.id,
-            channelId,
-            authorPubkey: event.pubkey,
-            content: event.content,
-            createdAt: event.created_at * 1000,
-            updatedAt: event.created_at * 1000,
-          };
-
-          db.messages.put(message);
-          get().addMessage(channelId, message);
-
-          set((state) => {
-            const eventIds = state.recentEventIds[channelId] || [];
-            return {
-              recentEventIds: {
-                ...state.recentEventIds,
-                [channelId]: [...eventIds, event.id].slice(-10)
-              }
-            };
-          });
-
-          console.log('📨 New message received:', event.id);
-        }
-      );
-
-      set((state) => ({
-        subscriptions: {
-          ...state.subscriptions,
-          [channelId]: subId
-        }
-      }));
-
-      console.log('📡 Subscribed to channel:', channelId);
-    } catch (error) {
-      console.error('Failed to subscribe to channel:', error);
+    // Only allow one active channel subscription at a time to save quota
+    if (currentState.activeChannelId && currentState.activeChannelId !== channelId) {
+      console.log('🧹 Unsubscribing from previous channel:', currentState.activeChannelId);
+      get().unsubscribeFromChannel(currentState.activeChannelId);
     }
+
+    // Check if already subscribed to this channel
+    if (currentState.subscriptions[channelId]) {
+      console.log('ℹ️ Already subscribed to channel:', channelId);
+      set({ activeChannelId: channelId });
+      return;
+    }
+
+    const subscribeAsync = async () => {
+      try {
+        console.log('📡 Subscribing to channel:', channelId, 'group:', groupId);
+
+        const client = getGlobalNIP29Client();
+
+        // Ensure connection is stable
+        if (!client.isConnected()) {
+          console.log('🔌 Message store: Connecting to relay...');
+          await client.connect();
+        }
+
+        const parts = groupId.split("'");
+        const localGroupId = parts.length === 2 ? parts[1] : groupId;
+
+        const now = Math.floor(Date.now() / 1000);
+
+        let subId: string;
+
+        try {
+          subId = client.subscribe(
+            [
+              {
+                kinds: [9],
+                '#h': [localGroupId],
+                since: now,
+              },
+            ],
+            (event: NostrEvent) => {
+            const eventChannelTag = event.tags.find(tag => tag[0] === 'channel');
+            const eventChannelId = eventChannelTag && eventChannelTag[1] ? eventChannelTag[1] : null;
+
+            if (eventChannelId && eventChannelId !== channelId) {
+              return;
+            }
+
+            const message: Message = {
+              id: event.id,
+              channelId,
+              authorPubkey: event.pubkey,
+              content: event.content,
+              createdAt: event.created_at * 1000,
+              updatedAt: event.created_at * 1000,
+            };
+
+            db.messages.put(message);
+            get().addMessage(channelId, message);
+
+            set((state) => {
+              const eventIds = state.recentEventIds[channelId] || [];
+              return {
+                recentEventIds: {
+                  ...state.recentEventIds,
+                  [channelId]: [...eventIds, event.id].slice(-10)
+                }
+              };
+            });
+
+            console.log('📨 New message received:', event.id);
+          }
+        );
+
+        set((state) => ({
+          subscriptions: {
+            ...state.subscriptions,
+            [channelId]: subId
+          },
+          activeChannelId: channelId
+        }));
+
+        console.log('📡 Subscribed to channel:', channelId);
+
+        } catch (subscribeError) {
+          console.error('❌ Failed to create subscription:', subscribeError);
+          throw subscribeError;
+        }
+
+      } catch (error) {
+        console.error('❌ Failed to subscribe to channel:', error);
+        // Don't throw here to prevent breaking the UI
+      }
+    };
+
+    // Run subscription in background, don't block
+    subscribeAsync();
   },
 
   unsubscribeFromChannel: (channelId) => {
-    const subId = get().subscriptions[channelId];
+    const currentState = get();
+    const subId = currentState.subscriptions[channelId];
     if (!subId) return;
 
     try {
@@ -340,12 +449,68 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
 
       set((state) => {
         const { [channelId]: _, ...restSubs } = state.subscriptions;
-        return { subscriptions: restSubs };
+        return {
+          subscriptions: restSubs,
+          activeChannelId: state.activeChannelId === channelId ? null : state.activeChannelId
+        };
       });
 
       console.log('🔌 Unsubscribed from channel:', channelId);
     } catch (error) {
       console.error('Failed to unsubscribe from channel:', error);
     }
+  },
+
+  clearAllSubscriptions: () => {
+    const currentState = get();
+    const client = getGlobalNIP29Client();
+
+    console.log(`🧹 Clearing ${Object.keys(currentState.subscriptions).length} message subscriptions`);
+
+    Object.entries(currentState.subscriptions).forEach(([channelId, subId]) => {
+      try {
+        client.unsubscribe(subId);
+        console.log(`🔌 Unsubscribed from channel: ${channelId}`);
+      } catch (error) {
+        console.error(`Failed to unsubscribe from channel ${channelId}:`, error);
+      }
+    });
+
+    set({
+      subscriptions: {},
+      activeChannelId: null
+    });
+
+    console.log('✅ All message subscriptions cleared');
+  },
+
+  isChannelLoading: (channelId) => {
+    return get().loadingChannels[channelId] || false;
+  },
+
+  isChannelLoaded: (channelId) => {
+    return get().loadedChannels[channelId] || false;
+  },
+
+  setChannelLoading: (channelId) => {
+    set((state) => ({
+      loadingChannels: {
+        ...state.loadingChannels,
+        [channelId]: true
+      }
+    }));
+  },
+
+  clearChannelMessages: (channelId) => {
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [channelId]: []
+      },
+      loadedChannels: {
+        ...state.loadedChannels,
+        [channelId]: false
+      }
+    }));
   },
 }));

@@ -1,7 +1,10 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useChatStore } from '@/lib/stores/chat-store';
+import { useMessageStore } from '@/lib/stores/message-store';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface ChannelLinkProps {
   channelId: string;
@@ -17,31 +20,36 @@ export function ChannelLink({
   shortcutNumber,
 }: ChannelLinkProps) {
   const { setCurrentChannel, currentWorkspaceId } = useChatStore();
+  const loading = useMessageStore((state) => state.loadingChannels[channelId] || false);
+  const router = useRouter();
   const isNavigatingRef = useRef(false);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0 && !isNavigatingRef.current) {
-      isNavigatingRef.current = true;
-      setCurrentChannel(channelId);
+  // Prefetch the route for instant navigation
+  useEffect(() => {
+    const url = `/app/w/${currentWorkspaceId}/c/${channelId}`;
+    router.prefetch(url);
+  }, [router, currentWorkspaceId, channelId]);
 
-      if (typeof window !== 'undefined') {
-        const url = `/w/${currentWorkspaceId}/c/${channelId}`;
-        window.history.pushState({}, '', url);
-      }
-
-      requestAnimationFrame(() => {
-        isNavigatingRef.current = false;
-      });
-    }
-  };
-
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-  };
+    e.stopPropagation();
+
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+
+    // Update store immediately - this is synchronous and instant
+    setCurrentChannel(channelId);
+
+    // Navigate using Next.js router - this should be fast
+    const url = `/app/w/${currentWorkspaceId}/c/${channelId}`;
+    router.push(url);
+
+    // Reset flag immediately
+    isNavigatingRef.current = false;
+  }, [channelId, currentWorkspaceId, setCurrentChannel, router]);
 
   return (
     <button
-      onMouseDown={handleMouseDown}
       onClick={handleClick}
       className={`
         flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors
@@ -54,11 +62,13 @@ export function ChannelLink({
     >
       <span className="flex-shrink-0 text-lg">#</span>
       <span className="flex-1 whitespace-nowrap text-left">{channelName}</span>
-      {shortcutNumber && (
+      {loading && isActive ? (
+        <LoadingSpinner size="sm" className="text-indigo-600" />
+      ) : shortcutNumber ? (
         <span className="text-xs text-gray-400 dark:text-gray-500">
           ⌘{shortcutNumber}
         </span>
-      )}
+      ) : null}
     </button>
   );
 }

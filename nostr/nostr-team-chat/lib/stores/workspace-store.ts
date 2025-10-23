@@ -294,6 +294,12 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         try {
           const client = getGlobalNIP29Client();
 
+          // Ensure connection before syncing
+          if (!client.isConnected()) {
+            console.log('🔌 Workspace store: Connecting to relay for sync...');
+            await client.connect();
+          }
+
           const parts = groupId.split("'");
           const localGroupId = parts.length === 2 ? parts[1] : groupId;
 
@@ -346,30 +352,50 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         }
       },
 
-      setCurrentWorkspace: (groupId) => {
+      setCurrentWorkspace: async (groupId) => {
         const workspace = get().workspaces.find((w) => w.groupId === groupId);
         if (workspace) {
+          // Set workspace immediately for responsive UI
           set({ currentWorkspace: workspace });
+
+          // Sync workspace data in background
+          console.log('🔄 Starting background sync for workspace:', groupId);
+
+          // Run sync operations in background without blocking
+          Promise.all([
+            get().syncWorkspace(groupId),
+            import('@/lib/hooks/use-channels').then(({ syncChannelsForWorkspace }) =>
+              syncChannelsForWorkspace(groupId)
+            )
+          ]).then(() => {
+            console.log('✅ Background workspace sync completed:', groupId);
+            // Subscribe to workspace updates after sync
+            get().subscribeToWorkspace(groupId);
+          }).catch(error => {
+            console.error('❌ Background workspace sync failed:', error);
+          });
         }
       },
 
       subscribeToWorkspace: (groupId) => {
-        const { subscriptionManager } = get();
+        const { subscriptionManager, currentWorkspace } = get();
         if (!subscriptionManager) return;
 
+        // Only subscribe to the current workspace to save quota
+        if (currentWorkspace && currentWorkspace.groupId !== groupId) {
+          console.log('🧹 Unsubscribing from previous workspace:', currentWorkspace.groupId);
+          subscriptionManager.unsubscribeFromGroup(currentWorkspace.groupId);
+        }
+
+        console.log('📡 Subscribing to workspace (metadata only):', groupId);
+
+        // Only subscribe to metadata to save quota - skip admins/members for now
         subscriptionManager.subscribeToGroupMetadata(groupId, (updates) => {
           get().updateWorkspaceLocal(groupId, updates);
         });
 
-        subscriptionManager.subscribeToGroupAdmins(groupId, (admins) => {
-          get().updateWorkspaceLocal(groupId, { admins });
-        });
-
-        subscriptionManager.subscribeToGroupMembers(groupId, (members) => {
-          get().updateWorkspaceLocal(groupId, { members });
-        });
-
-        console.log('📡 Subscribed to workspace:', groupId);
+        // We can fetch admins/members on-demand instead of subscribing
+        console.log('✅ Subscribed to workspace metadata:', groupId);
       },
 
       unsubscribeFromWorkspace: (groupId) => {
@@ -425,12 +451,17 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         try {
           console.log('🧹 Clearing all workspace data');
 
+          // Clear all NIP29 subscriptions
           const { subscriptionManager } = get();
           if (subscriptionManager) {
-            get().workspaces.forEach((w) => {
-              subscriptionManager.unsubscribeFromGroup(w.groupId);
-            });
+            console.log('🧹 Clearing workspace subscriptions');
+            subscriptionManager.unsubscribeAll();
           }
+
+          // Clear all message subscriptions
+          const { useMessageStore } = await import('./message-store');
+          const messageStore = useMessageStore.getState();
+          messageStore.clearAllSubscriptions();
 
           await db.nip29Workspaces.clear();
           await db.nip29Members.clear();

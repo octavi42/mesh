@@ -11,11 +11,19 @@ export function WorkspaceList() {
   const { currentWorkspaceId, setCurrentWorkspace } = useChatStore();
   const { workspaces } = useWorkspaceStore();
   const isNavigatingRef = useRef(false);
+  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   console.log('🔍 WorkspaceList render - workspaces:', workspaces, 'currentWorkspaceId:', currentWorkspaceId);
 
   const handleWorkspaceClick = async (workspaceId: string) => {
     console.log('🖱️ Workspace clicked:', workspaceId);
+
+    // Skip if already current workspace
+    if (currentWorkspaceId === workspaceId) {
+      console.log('ℹ️ Already on workspace:', workspaceId);
+      return;
+    }
+
     if (isNavigatingRef.current) {
       console.log('⚠️ Click ignored - already navigating');
       return;
@@ -23,11 +31,23 @@ export function WorkspaceList() {
 
     isNavigatingRef.current = true;
 
+    // Safety timeout to reset navigation flag
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+    navigationTimeoutRef.current = setTimeout(() => {
+      console.log('⏰ Navigation timeout - resetting flag');
+      isNavigatingRef.current = false;
+    }, 2000);
+
     try {
       const channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
       const firstChannel = channels[0];
 
       if (firstChannel) {
+        console.log('🔄 Setting workspace with first channel:', workspaceId, firstChannel.id);
+
+        // Set workspace immediately for responsive UI
         setCurrentWorkspace(workspaceId, firstChannel.id);
 
         if (typeof window !== 'undefined') {
@@ -35,6 +55,9 @@ export function WorkspaceList() {
           window.history.pushState({}, '', url);
         }
       } else {
+        console.log('🔄 Setting workspace without channel:', workspaceId);
+
+        // Set workspace immediately for responsive UI
         setCurrentWorkspace(workspaceId);
 
         if (typeof window !== 'undefined') {
@@ -45,9 +68,12 @@ export function WorkspaceList() {
     } catch (error) {
       console.error('Failed to handle workspace click:', error);
     } finally {
-      requestAnimationFrame(() => {
-        isNavigatingRef.current = false;
-      });
+      // Clear timeout and reset navigation flag immediately
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+        navigationTimeoutRef.current = null;
+      }
+      isNavigatingRef.current = false;
     }
   };
 
