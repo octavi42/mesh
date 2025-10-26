@@ -84,11 +84,13 @@ export function ChannelView({ channelId }: ChannelViewProps) {
       loadMessages(channelId, currentWorkspaceId),
       Promise.resolve(subscribeToChannel(channelId, currentWorkspaceId))
     ]).then(() => {
-      // Immediately stop initializing once loading completes
-      const currentMessages = useMessageStore.getState().messages[channelId] || [];
-      if (currentMessages.length > 0 || useMessageStore.getState().loadedChannels[channelId]) {
-        setIsInitializing(false);
-      }
+      // Small delay to ensure messages are rendered before hiding skeleton
+      setTimeout(() => {
+        const currentMessages = useMessageStore.getState().messages[channelId] || [];
+        if (currentMessages.length > 0 || useMessageStore.getState().loadedChannels[channelId]) {
+          setIsInitializing(false);
+        }
+      }, 50);
     }).catch(console.error);
 
     return () => {
@@ -133,25 +135,29 @@ export function ChannelView({ channelId }: ChannelViewProps) {
       </div>
 
       <div className="flex-1 relative">
-        {/* PRIORITY 1: Show skeleton if navigating (HIGHEST PRIORITY) */}
-        {isNavigating ? (
-          <MessageSkeletons count={3} />
-        ) : /* PRIORITY 2: Show skeleton if initializing */ isInitializing ? (
-          <MessageSkeletons count={3} />
-        ) : /* PRIORITY 3: Show skeleton if loading and no messages yet */ loading && messages.length === 0 ? (
-          <MessageSkeletons count={3} />
-        ) : /* PRIORITY 4: Show messages if we have them */ messages.length > 0 ? (
-          <MessageList messages={messages} currentUserPubkey={pubkey || undefined} />
-        ) : /* PRIORITY 5: Show empty state only if loaded and no messages */ loaded ? (
-          <div className="flex flex-1 items-center justify-center h-full">
-            <div className="text-center text-gray-500">
-              No messages yet. Start the conversation!
-            </div>
-          </div>
-        ) : (
-          /* FALLBACK: Show skeleton for any other loading state */
-          <MessageSkeletons count={3} />
-        )}
+        {(() => {
+          // Simplified logic with clear priorities to prevent flickering
+          const shouldShowSkeleton = isNavigating || isInitializing || (loading && messages.length === 0);
+          const hasMessages = messages.length > 0;
+          const isEmpty = loaded && messages.length === 0;
+
+          if (shouldShowSkeleton) {
+            return <MessageSkeletons count={3} />;
+          } else if (hasMessages) {
+            return <MessageList messages={messages} currentUserPubkey={pubkey || undefined} />;
+          } else if (isEmpty) {
+            return (
+              <div className="flex flex-1 items-center justify-center h-full">
+                <div className="text-center text-gray-500">
+                  No messages yet. Start the conversation!
+                </div>
+              </div>
+            );
+          } else {
+            // Fallback to skeleton
+            return <MessageSkeletons count={3} />;
+          }
+        })()}
       </div>
 
       <MessageInput
