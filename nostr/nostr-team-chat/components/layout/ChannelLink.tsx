@@ -41,12 +41,15 @@ export function ChannelLink({
 
     const messageStore = useMessageStore.getState();
 
-    // IMMEDIATELY clear the current channel's messages (if any) for instant visual feedback
+    // IMMEDIATELY clear ALL loading states to prevent conflicts
+    messageStore.clearAllLoadingStates();
+
+    // Clear current channel messages if switching channels
     if (currentChannelId && currentChannelId !== channelId) {
       messageStore.clearChannelMessages(currentChannelId);
     }
 
-    // Set loading state for the new channel
+    // Set loading state for the new channel ONLY
     messageStore.clearChannelMessages(channelId);
     messageStore.setChannelLoading(channelId);
 

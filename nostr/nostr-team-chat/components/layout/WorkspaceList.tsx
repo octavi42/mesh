@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useChannels } from '@/lib/hooks/use-channels';
 import { db } from '@/lib/db/schema';
@@ -10,20 +11,20 @@ import { useWorkspaceStore } from '@/lib/stores/workspace-store';
 export function WorkspaceList() {
   const { currentWorkspaceId, setCurrentWorkspace } = useChatStore();
   const { workspaces } = useWorkspaceStore();
+  const router = useRouter();
   const isNavigatingRef = useRef(false);
-  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   console.log('🔍 WorkspaceList render - workspaces:', workspaces, 'currentWorkspaceId:', currentWorkspaceId);
 
   const handleWorkspaceClick = async (workspaceId: string) => {
     console.log('🖱️ Workspace clicked:', workspaceId);
 
-    // Skip if already current workspace
+    // Allow clicking same workspace to go to first channel
     if (currentWorkspaceId === workspaceId) {
-      console.log('ℹ️ Already on workspace:', workspaceId);
-      return;
+      console.log('ℹ️ Clicking current workspace - will navigate to first channel:', workspaceId);
     }
 
+    // Prevent rapid successive clicks
     if (isNavigatingRef.current) {
       console.log('⚠️ Click ignored - already navigating');
       return;
@@ -31,17 +32,10 @@ export function WorkspaceList() {
 
     isNavigatingRef.current = true;
 
-    // Safety timeout to reset navigation flag
-    if (navigationTimeoutRef.current) {
-      clearTimeout(navigationTimeoutRef.current);
-    }
-    navigationTimeoutRef.current = setTimeout(() => {
-      console.log('⏰ Navigation timeout - resetting flag');
-      isNavigatingRef.current = false;
-    }, 2000);
-
     try {
+      console.log('🔍 Looking for channels in workspace:', workspaceId);
       const channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
+      console.log('📋 Found channels:', channels);
       const firstChannel = channels[0];
 
       if (firstChannel) {
@@ -50,29 +44,25 @@ export function WorkspaceList() {
         // Set workspace immediately for responsive UI
         setCurrentWorkspace(workspaceId, firstChannel.id);
 
-        if (typeof window !== 'undefined') {
-          const url = `/app/w/${workspaceId}/c/${firstChannel.id}`;
-          window.history.pushState({}, '', url);
-        }
+        // Navigate using Next.js router for proper page transitions
+        const url = `/app/w/${workspaceId}/c/${firstChannel.id}`;
+        console.log('🚀 Navigating to:', url);
+        router.push(url);
       } else {
         console.log('🔄 Setting workspace without channel:', workspaceId);
 
         // Set workspace immediately for responsive UI
         setCurrentWorkspace(workspaceId);
 
-        if (typeof window !== 'undefined') {
-          const url = `/app/w/${workspaceId}`;
-          window.history.pushState({}, '', url);
-        }
+        // Navigate using Next.js router for proper page transitions
+        const url = `/app/w/${workspaceId}`;
+        console.log('🚀 Navigating to:', url);
+        router.push(url);
       }
     } catch (error) {
       console.error('Failed to handle workspace click:', error);
     } finally {
-      // Clear timeout and reset navigation flag immediately
-      if (navigationTimeoutRef.current) {
-        clearTimeout(navigationTimeoutRef.current);
-        navigationTimeoutRef.current = null;
-      }
+      // Reset navigation flag immediately after operation
       isNavigatingRef.current = false;
     }
   };
@@ -85,7 +75,7 @@ export function WorkspaceList() {
         return (
           <button
             key={workspace.groupId}
-            onMouseDown={() => handleWorkspaceClick(workspace.groupId)}
+            onClick={() => handleWorkspaceClick(workspace.groupId)}
             className={`
               flex h-12 w-12 items-center justify-center rounded-xl text-2xl
               transition-all duration-200

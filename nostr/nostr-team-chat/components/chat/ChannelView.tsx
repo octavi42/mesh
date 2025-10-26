@@ -49,11 +49,6 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   useEffect(() => {
     console.log(`🔄 Channel changed to: ${channelId}, setting isInitializing=true`);
     setIsInitializing(true);
-    // Also immediately clear any existing messages for this channel to prevent flicker
-    const messageStore = useMessageStore.getState();
-    if (!messageStore.loadingChannels[channelId]) {
-      messageStore.clearChannelMessages(channelId);
-    }
   }, [channelId]);
 
   useEffect(() => {

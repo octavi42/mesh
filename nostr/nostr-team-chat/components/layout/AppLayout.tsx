@@ -41,7 +41,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleSidebar]);
 
-  if (!mounted || loading) {
+  if (!mounted || (loading && !isAuthenticated)) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#fafafa] dark:bg-[#0a0a0a]">
         <div className="text-center">

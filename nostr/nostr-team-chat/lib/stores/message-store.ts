@@ -23,6 +23,7 @@ interface MessageStore {
   isChannelLoaded: (channelId: string) => boolean;
   setChannelLoading: (channelId: string) => void;
   clearChannelMessages: (channelId: string) => void;
+  clearAllLoadingStates: () => void;
 }
 
 export const useMessageStore = create<MessageStore>((set, get) => ({
@@ -511,6 +512,12 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
         ...state.loadedChannels,
         [channelId]: false
       }
+    }));
+  },
+
+  clearAllLoadingStates: () => {
+    set((state) => ({
+      loadingChannels: {}
     }));
   },
 }));
