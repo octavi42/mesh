@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { startListeningForInvites, stopListeningForInvites } from '@/lib/nostr/invite-subscription';
 
 interface AuthState {
   pubkey: string | null;
@@ -30,10 +31,22 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: !!pubkey,
           loading: false,
         });
+
+        // Start listening for invites when user logs in
+        if (pubkey) {
+          console.log('🔔 Starting invite subscription for user:', pubkey);
+          startListeningForInvites(pubkey).catch(error => {
+            console.error('Failed to start invite subscription:', error);
+          });
+        }
       },
 
       clearAuth: () => {
         console.log('🧹 clearAuth called');
+
+        // Stop listening for invites when user logs out
+        stopListeningForInvites();
+
         set({
           pubkey: null,
           npub: null,

@@ -5,7 +5,8 @@ import { Sheet } from '@silk-hq/components';
 import { X, UserPlus, Search, CheckCircle, AlertCircle } from 'lucide-react';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
-import { sendDirectInvite, validatePublicKey } from '@/lib/nostr/invites';
+import { useWorkspaceStore } from '@/lib/stores/workspace-store';
+import { sendDirectInvite, sendRelayInvite, validatePublicKey } from '@/lib/nostr/invites';
 
 interface InviteUserSheetProps {
   trigger?: React.ReactNode;
@@ -19,9 +20,16 @@ export function InviteUserSheet({ trigger }: InviteUserSheetProps) {
   
   const { currentWorkspaceId } = useChatStore();
   const { pubkey } = useAuthStore();
+  const { workspaces } = useWorkspaceStore();
+
+  // Get current workspace info
+  const currentWorkspace = workspaces?.find(w => w.groupId === currentWorkspaceId);
 
   const handleInvite = async () => {
+    console.log('🎯 Invite button clicked:', { currentWorkspaceId, pubkey, searchQuery, currentWorkspace });
+
     if (!currentWorkspaceId || !pubkey) {
+      console.log('❌ Missing required data:', { currentWorkspaceId, pubkey });
       setStatus('error');
       setStatusMessage('No workspace selected or user not authenticated');
       return;
@@ -29,13 +37,16 @@ export function InviteUserSheet({ trigger }: InviteUserSheetProps) {
 
     // Check if currentWorkspaceId is a valid NIP-29 group ID
     if (!currentWorkspaceId.includes("'")) {
+      console.log('❌ Invalid workspace ID:', currentWorkspaceId);
       setStatus('error');
       setStatusMessage('Invalid workspace ID. Please create a workspace first or select a valid workspace.');
       return;
     }
 
     const validatedPubkey = validatePublicKey(searchQuery);
+    console.log('🔍 Pubkey validation:', { searchQuery, validatedPubkey });
     if (!validatedPubkey) {
+      console.log('❌ Invalid pubkey format:', searchQuery);
       setStatus('error');
       setStatusMessage('Invalid public key format. Please enter a valid npub or hex public key.');
       return;
@@ -45,20 +56,41 @@ export function InviteUserSheet({ trigger }: InviteUserSheetProps) {
     setStatus('idle');
 
     try {
-      const { inviteCode, inviteLink } = await sendDirectInvite(currentWorkspaceId, validatedPubkey, {
-        role: 'member',
-        expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+      console.log('🚀 Sending relay invite with data:', {
+        currentWorkspaceId,
+        validatedPubkey,
+        workspaceName: currentWorkspace?.name || 'Unknown Workspace'
       });
 
+      // Use relay-based invites for production
+      const { inviteCode, inviteLink, eventId } = await sendRelayInvite(currentWorkspaceId, validatedPubkey, {
+        role: 'member',
+        expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days
+        workspaceName: currentWorkspace?.name || 'Unknown Workspace',
+        inviterName: pubkey?.slice(0, 8) + '...' || 'Someone' // Use first 8 chars of pubkey as name
+      });
+
+      console.log('✅ Relay invite created successfully:', {
+        inviteCode,
+        inviteLink,
+        eventId,
+        userPubkey: validatedPubkey
+      });
       setStatus('success');
       setStatusMessage(`Invite created successfully! Share this link: ${inviteLink}`);
       setSearchQuery(''); // Clear the input
-      
-      console.log('✅ Invite created:', { inviteCode, inviteLink, userPubkey: validatedPubkey });
     } catch (error) {
-      console.error('Failed to send invite:', error);
+      console.error('❌ Failed to send invite:', error);
       setStatus('error');
-      setStatusMessage('Failed to send invite. Please try again.');
+
+      let errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Provide more helpful error message for group not found
+      if (errorMessage.includes('Group does not exist on relay')) {
+        errorMessage = `This workspace (${currentWorkspace?.name || currentWorkspaceId}) doesn't exist on the relay yet. Please create this workspace on the relay first through the workspace creation process.`;
+      }
+
+      setStatusMessage(`Failed to send invite: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +129,11 @@ export function InviteUserSheet({ trigger }: InviteUserSheetProps) {
                 Search for a user by their Nostr public key or npub
                 {currentWorkspaceId && (
                   <span className="block mt-2 text-xs">
-                    Current workspace: <code className="bg-slate-100 px-1 rounded">{currentWorkspaceId}</code>
+                    Current workspace: <code className="bg-slate-100 px-1 rounded">{currentWorkspace?.name || currentWorkspaceId}</code>
+                    <br />
+                    <span className="text-xs text-amber-600 mt-1 block">
+                      Note: You can only send invites from workspaces that exist on the relay
+                    </span>
                   </span>
                 )}
               </p>

@@ -6,6 +6,7 @@ import { X, User, Key, LogOut, Bell, UserX, Shield, Palette } from 'lucide-react
 import { SHEET_ANIMATIONS } from '@/lib/constants/sheet-animations';
 import { NotificationsSheet } from './notifications-sheet';
 import { PublicKeySheet } from './public-key-sheet';
+import { useNotificationStore } from '@/lib/stores/notification-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import './account-sheet.css';
 
@@ -24,12 +25,20 @@ interface AccountSheetProps {
 export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSheetProps) {
   console.log('AccountSheet rendering', { trigger, user, isCurrentUser });
   const { logout, pubkey: authPubkey, npub: authNpub } = useAuthStore();
+  const { notifications, unreadCount, loadNotifications } = useNotificationStore();
   const [showNotificationsSheet, setShowNotificationsSheet] = useState(false);
   const [showPublicKeySheet, setShowPublicKeySheet] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
   const publicKeyButtonRef = useRef<HTMLButtonElement>(null);
   const accountSheetRef = useRef<HTMLButtonElement>(null);
+
+  // Load notifications when user is available
+  useEffect(() => {
+    if (authPubkey) {
+      loadNotifications();
+    }
+  }, [authPubkey, loadNotifications]);
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark');
@@ -226,8 +235,20 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
                         onClick={handleNotificationsClick}
                         className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors text-left"
                       >
-                        <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        <div className="relative">
+                          <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                          {unreadCount > 0 && (
+                            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-medium">
+                              {unreadCount > 9 ? '9+' : unreadCount}
+                            </div>
+                          )}
+                        </div>
                         <span className="text-gray-900 dark:text-gray-100">Notifications</span>
+                        {unreadCount > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-1 font-medium">
+                            {unreadCount}
+                          </span>
+                        )}
                       </button>
 
                       <button

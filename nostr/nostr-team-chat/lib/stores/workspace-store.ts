@@ -91,10 +91,43 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const localId = generateLocalGroupId();
           const groupId = createGroupId(relayUrl.replace('wss://', ''), localId);
 
-          const event = await createGroupEvent(name, groupId, description, picture, isOpen);
+          // Extract local group ID for NIP-29 event (relay expects only the local part)
+          const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : localId;
+          console.log('🏗️ Creating group event:', { name, localGroupId, description, picture, isOpen });
+
+          const event = await createGroupEvent(name, localGroupId, description, picture, isOpen);
+          console.log('📤 Publishing group creation event:', {
+            kind: event.kind,
+            id: event.id,
+            tags: event.tags,
+            content: event.content
+          });
+
           await client.publishEvent(event);
 
           console.log('✅ Workspace creation event published:', event.id, 'groupId:', groupId);
+
+          // Wait a moment and verify the group was created on the relay
+          setTimeout(async () => {
+            try {
+              console.log('🔍 Verifying group creation on relay...');
+              const verifyEvents = await client.fetchEvents([
+                {
+                  kinds: [9007], // CreateGroup
+                  '#h': [localGroupId],
+                  limit: 1
+                }
+              ]);
+
+              if (verifyEvents.length > 0) {
+                console.log('✅ Group verified on relay:', verifyEvents[0].id);
+              } else {
+                console.log('❌ Group NOT found on relay after creation');
+              }
+            } catch (error) {
+              console.error('❌ Failed to verify group creation:', error);
+            }
+          }, 2000);
 
           // Skip AddUser step for now - your relay may not support it yet
           // The group creator is typically automatically considered an admin/member
@@ -486,10 +519,16 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     {
       name: 'workspace-storage',
       partialize: (state) => ({
-        workspaces: state.workspaces,
+        workspaces: state.workspaces || [],
         currentWorkspace: state.currentWorkspace,
         userPubkey: state.userPubkey,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Ensure arrays are initialized after rehydration
+        if (state) {
+          state.workspaces = state.workspaces || [];
+        }
+      },
     }
   )
 );

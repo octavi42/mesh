@@ -2,6 +2,7 @@ import { createInviteEvent, joinRequestEvent } from './nip29/events';
 import { getGlobalNIP29Client } from './nip29/client';
 import { NIP29EventKind } from './nip29/types';
 import type { NostrEvent, UnsignedNostrEvent } from './nip29/types';
+import { createInviteNotification } from '@/lib/stores/notification-store';
 
 export interface InviteOptions {
   expiresAt?: number;
@@ -265,24 +266,226 @@ export async function createWorkspaceInvite(
 }
 
 /**
- * Send a direct invite to a specific user (local system)
- * Since relay blocks most event kinds, we'll use a local invite system
+ * Check if a group exists on the relay
  */
-export async function sendDirectInvite(
+async function checkGroupExists(
+  groupId: string
+): Promise<boolean> {
+  const client = getGlobalNIP29Client();
+
+  // Ensure client is connected
+  if (!client.isConnected()) {
+    await client.connect();
+  }
+
+  // Extract local group ID for the h tag
+  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
+
+  try {
+    console.log('🔍 Checking if group exists on relay:', { groupId, localGroupId });
+
+    // First, let's try to get all groups to see what's available
+    console.log('🔍 Fetching all group creation events...');
+    const allGroupEvents = await client.fetchEvents([
+      {
+        kinds: [NIP29EventKind.CreateGroup],
+        limit: 10
+      }
+    ]);
+
+    console.log('📋 Found groups on relay:', allGroupEvents.map(e => ({
+      id: e.id,
+      tags: e.tags,
+      content: e.content.substring(0, 100)
+    })));
+
+    // Check if group exists by trying to fetch group metadata
+    const events = await client.fetchEvents([
+      {
+        kinds: [NIP29EventKind.CreateGroup],
+        '#h': [localGroupId],
+        limit: 1
+      }
+    ]);
+
+    if (events.length > 0) {
+      console.log('✅ Group exists on relay:', localGroupId, events[0]);
+      return true;
+    }
+
+    console.log('❌ Group does not exist on relay:', localGroupId);
+    return false;
+
+  } catch (error) {
+    console.error('❌ Failed to check if group exists:', error);
+    // If we can't verify due to auth issues, assume it might exist
+    if (error instanceof Error && error.message.includes('Authentication required')) {
+      console.warn('⚠️ Authentication issue during group check - assuming group might exist');
+      return true;
+    }
+    return false;
+  }
+}
+
+/**
+ * Send a relay-based invite using proper NIP-29 flow (PRODUCTION)
+ * Creates an invite code that can be used with kind 9021 join requests
+ */
+export async function sendRelayInvite(
   groupId: string,
   userPubkey: string,
-  options: InviteOptions = {}
-): Promise<{ inviteCode: string; inviteLink: string }> {
-  // Generate unique invite code
-  const inviteCode = generateInviteCode();
-  
+  options: InviteOptions & { workspaceName?: string; inviterName?: string } = {}
+): Promise<{ inviteCode: string; inviteLink: string; eventId: string }> {
+  const client = getGlobalNIP29Client();
+
+  // Ensure client is connected
+  if (!client.isConnected()) {
+    await client.connect();
+  }
+
+  // Check if the group exists on the relay (non-blocking for invites)
+  try {
+    const groupExists = await checkGroupExists(groupId);
+    if (!groupExists) {
+      console.warn(`⚠️ Group ${groupId} may not exist on relay, but proceeding with invite`);
+    }
+  } catch (error) {
+    console.warn(`⚠️ Could not verify group existence (${error}), but proceeding with invite`);
+  }
+
   // Get current user's pubkey
   if (!window.nostr) {
     throw new Error('Nostr extension not available');
   }
-  
+
   const pubkey = await window.nostr.getPublicKey();
-  
+  const inviteCode = generateInviteCode();
+
+  // Extract local group ID
+  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
+
+  // Store invite data locally (in production, this would be on a server)
+  // The invitee will use this code with a kind 9021 join request
+  const inviteData = {
+    inviteCode,
+    groupId: localGroupId,
+    fullGroupId: groupId,
+    groupName: options.workspaceName || 'Unknown Workspace',
+    inviterPubkey: pubkey,
+    inviterName: options.inviterName || 'Someone',
+    targetPubkey: userPubkey,
+    role: options.role || 'member',
+    expiresAt: options.expiresAt,
+    createdAt: Date.now(),
+    message: `You've been invited to join ${options.workspaceName || 'a workspace'}`
+  };
+
+  // Store in localStorage for development (use proper invite service in production)
+  const existingInvites = JSON.parse(localStorage.getItem('nip29_invites') || '[]');
+  existingInvites.push(inviteData);
+  localStorage.setItem('nip29_invites', JSON.stringify(existingInvites));
+
+  // Create invite link
+  const inviteLink = `${window.location.origin}/invite/${inviteCode}`;
+
+  console.log('📡 Created NIP-29 compatible invite:', {
+    inviteCode,
+    inviteLink,
+    localGroupId,
+    fullGroupId: groupId,
+    userPubkey,
+    inviteData
+  });
+
+  // Send relay-based invite notification using kind 1 events
+  try {
+    console.log('📤 Sending relay invite notification to user:', userPubkey);
+
+    const inviteNotificationEvent = {
+      kind: 1, // Text note
+      content: JSON.stringify({
+        type: 'invite',
+        title: 'Group Invitation',
+        message: `${options.inviterName || 'Someone'} invited you to join ${options.workspaceName || 'a workspace'}`,
+        inviteCode,
+        groupId: localGroupId,
+        fullGroupId: groupId,
+        inviterPubkey: pubkey,
+        role: options.role || 'member',
+        inviteLink: `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/invite/${inviteCode}`
+      }),
+      tags: [
+        ['p', userPubkey], // Tag the invited user
+        ['t', 'invite'], // Tag as invite
+        ['t', 'notification'], // Tag as notification
+        ['invite_code', inviteCode], // Include invite code
+        ['group_id', localGroupId] // Include group ID
+      ],
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey
+    };
+
+    // Sign and publish the invite notification
+    const signedNotification = await window.nostr.signEvent(inviteNotificationEvent);
+    await client.publishEvent(signedNotification);
+
+    console.log('📤 Published invite notification to relay:', {
+      eventId: signedNotification.id,
+      targetUser: userPubkey,
+      inviteCode
+    });
+  } catch (error) {
+    console.warn('⚠️ Failed to send relay notification:', error);
+
+    // Fallback to local notification
+    try {
+      const { useNotificationStore } = await import('@/lib/stores/notification-store');
+      const { addNotification } = useNotificationStore.getState();
+      await addNotification({
+        userId: userPubkey,
+        type: 'invite',
+        title: 'Group Invitation',
+        message: `${options.inviterName || 'Someone'} invited you to join ${options.workspaceName || 'a workspace'}`,
+        data: {
+          inviteCode,
+          groupId: localGroupId,
+          fullGroupId: groupId,
+          inviterPubkey: pubkey,
+          role: options.role || 'member'
+        }
+      });
+      console.log('📝 Created local notification as fallback');
+    } catch (fallbackError) {
+      console.warn('⚠️ Failed to create fallback notification:', fallbackError);
+    }
+  }
+
+  return {
+    inviteCode,
+    inviteLink,
+    eventId: `invite_${inviteCode}` // Fake event ID since we're not publishing
+  };
+}
+
+/**
+ * Send a direct invite to a specific user (local system - DEPRECATED)
+ * Use sendRelayInvite for production
+ */
+export async function sendDirectInvite(
+  groupId: string,
+  userPubkey: string,
+  options: InviteOptions & { workspaceName?: string; inviterName?: string } = {}
+): Promise<{ inviteCode: string; inviteLink: string }> {
+  // Generate unique invite code
+  const inviteCode = generateInviteCode();
+
+  // Get current user's pubkey
+  if (!window.nostr) {
+    throw new Error('Nostr extension not available');
+  }
+
+  const pubkey = await window.nostr.getPublicKey();
+
   // Create invite data
   const inviteData: InviteData = {
     code: inviteCode,
@@ -294,21 +497,36 @@ export async function sendDirectInvite(
     usedCount: 0,
     role: options.role || 'member'
   };
-  
+
   // Store invite locally in IndexedDB
   await storeInviteLocally(inviteData);
-  
+
+  // Create notification for the invited user
+  try {
+    await createInviteNotification(userPubkey, {
+      workspaceName: options.workspaceName || 'Unknown Workspace',
+      inviterName: options.inviterName || 'Someone',
+      inviteCode,
+      groupId,
+    });
+
+    console.log('📧 Created invite notification for user:', userPubkey);
+  } catch (error) {
+    console.warn('Failed to create invite notification:', error);
+    // Don't fail the invite creation if notification fails
+  }
+
   // Create invite link
   const inviteLink = `${window.location.origin}/invite/${inviteCode}`;
-  
-  console.log('📧 Created local invite:', { 
-    inviteCode, 
-    groupId, 
-    userPubkey, 
+
+  console.log('📧 Created local invite:', {
+    inviteCode,
+    groupId,
+    userPubkey,
     inviteLink,
-    options 
+    options
   });
-  
+
   return { inviteCode, inviteLink };
 }
 
@@ -388,7 +606,36 @@ export async function getInviteByCode(inviteCode: string): Promise<InviteData | 
 }
 
 /**
- * Join a workspace using an invite code
+ * Accept an invite via relay (PRODUCTION)
+ */
+export async function acceptRelayInvite(
+  groupId: string,
+  inviteCode: string,
+  message?: string
+): Promise<{ eventId: string }> {
+  const client = getGlobalNIP29Client();
+
+  // Ensure client is connected
+  if (!client.isConnected()) {
+    await client.connect();
+  }
+
+  // Extract local group ID for the h tag (relay expects only the local part)
+  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
+
+  // Create join request event
+  const joinEvent = await joinRequestEvent(localGroupId, inviteCode, message);
+
+  // Publish to relay
+  await client.publishEvent(joinEvent);
+
+  console.log('🤝 Sent relay join request:', { groupId, localGroupId, inviteCode, message, eventId: joinEvent.id });
+
+  return { eventId: joinEvent.id };
+}
+
+/**
+ * Join a workspace using an invite code (DEPRECATED - use acceptRelayInvite for production)
  */
 export async function joinWorkspaceWithInvite(
   groupId: string,
@@ -396,18 +643,18 @@ export async function joinWorkspaceWithInvite(
   message?: string
 ): Promise<void> {
   const client = getGlobalNIP29Client();
-  
+
   // Ensure client is connected
   if (!client.isConnected()) {
     await client.connect();
   }
-  
+
   // Create join request event
   const joinEvent = await joinRequestEvent(groupId, inviteCode, message);
-  
+
   // Publish to relay
   await client.publishEvent(joinEvent);
-  
+
   console.log('🤝 Sent join request:', { groupId, inviteCode, message });
 }
 

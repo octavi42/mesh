@@ -23,6 +23,25 @@ export interface NIP29Workspace {
   lastSyncedAt: number;
 }
 
+export interface NIP29Member {
+  groupId: string;
+  pubkey: string;
+  role: string;
+  joinedAt: number;
+  permissions?: string[];
+}
+
+export interface Notification {
+  id: string;
+  userId: string; // recipient pubkey
+  type: 'invite' | 'mention' | 'message' | 'join_request';
+  title: string;
+  message: string;
+  data: Record<string, unknown>; // JSON data (invite code, workspace info, etc.)
+  read: boolean;
+  createdAt: number;
+}
+
 export interface Invite {
   code: string;
   groupId: string;
@@ -58,8 +77,9 @@ const db = new Dexie('NostrTeamChat') as Dexie & {
   channels: EntityTable<Channel, 'id'>;
   messages: EntityTable<Message, 'id'>;
   nip29Workspaces: EntityTable<NIP29Workspace, 'groupId'>;
-  nip29Members: EntityTable<NIP29Member, 'groupId'>;
+  nip29Members: EntityTable<NIP29Member, '[groupId+pubkey]'>;
   invites: EntityTable<Invite, 'code'>;
+  notifications: EntityTable<Notification, 'id'>;
 };
 
 db.version(1).stores({
@@ -83,6 +103,16 @@ db.version(3).stores({
   nip29Workspaces: 'groupId, relayUrl, name, createdAt, lastSyncedAt',
   nip29Members: '[groupId+pubkey], groupId, pubkey, joinedAt',
   invites: 'code, groupId, createdBy, createdAt, expiresAt, isActive',
+});
+
+db.version(4).stores({
+  workspaces: 'id, name, createdAt',
+  channels: 'id, workspaceId, name, createdAt',
+  messages: 'id, channelId, authorPubkey, createdAt',
+  nip29Workspaces: 'groupId, relayUrl, name, createdAt, lastSyncedAt',
+  nip29Members: '[groupId+pubkey], groupId, pubkey, joinedAt',
+  invites: 'code, groupId, createdBy, createdAt, expiresAt, isActive',
+  notifications: 'id, userId, type, createdAt, read',
 });
 
 export { db };
