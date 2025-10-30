@@ -364,7 +364,8 @@ export class NIP29RelayClient {
   }
 
   async fetchEvents(
-    filters: SubscriptionFilter | SubscriptionFilter[]
+    filters: SubscriptionFilter | SubscriptionFilter[],
+    retryCount: number = 0
   ): Promise<NostrEvent[]> {
     // Ensure we're connected before fetching
     if (!this.isConnected()) {
@@ -419,6 +420,12 @@ export class NIP29RelayClient {
             if (reason.includes('auth-required')) {
               console.log('🔐 Authentication required for this request - trying to handle...');
 
+              // Prevent infinite retry loops
+              if (retryCount >= 2) {
+                reject(new Error('Authentication required but max retries exceeded'));
+                return;
+              }
+
               // Try to authenticate and retry the request
               // Generate a challenge if we don't have one
               if (!this.authChallenge) {
@@ -427,9 +434,11 @@ export class NIP29RelayClient {
 
               this.authenticateWithRelay()
                 .then(() => {
-                  // If auth succeeds, we could retry the request here
-                  // For now, just reject with a clearer message
-                  reject(new Error('Authentication required - please reconnect or try again'));
+                  console.log('🔐 Authentication successful, retrying fetch...');
+                  // Retry the original request after successful authentication
+                  this.fetchEvents(filters, retryCount + 1)
+                    .then(resolve)
+                    .catch(reject);
                 })
                 .catch((authError: any) => {
                   reject(new Error(`Authentication failed: ${authError?.message || 'Unknown auth error'}`));

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useChannel } from '@/lib/hooks/use-channels';
 import { UserAvatars } from '@/components/ui/user-avatars';
 import { MessageSkeletons } from '@/components/ui/message-skeleton';
@@ -9,27 +9,29 @@ import { MessageInput } from './MessageInput';
 import { useMessageStore } from '@/lib/stores/message-store';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useGroupMembers } from '@/lib/hooks/use-group-members';
 
 interface ChannelViewProps {
   channelId: string;
 }
 
-// Mock users data - replace with real workspace members later
-const mockUsers = [
-  { id: 1, name: 'Alice', image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice', pubkey: 'npub1alice123456789' },
-  { id: 2, name: 'Bob', image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob', pubkey: 'npub1bob123456789' },
-  { id: 3, name: 'Carol', image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Carol', pubkey: 'npub1carol123456789' },
-  { id: 4, name: 'David', image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David', pubkey: 'npub1david123456789' },
-  { id: 5, name: 'Eve', image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Eve', pubkey: 'npub1eve123456789' },
-  { id: 6, name: 'Frank', image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Frank', pubkey: 'npub1frank123456789' },
-  { id: 7, name: 'Grace', image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Grace', pubkey: 'npub1grace123456789' },
-  { id: 8, name: 'Henry', image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Henry', pubkey: 'npub1henry123456789' },
-];
 
 export function ChannelView({ channelId }: ChannelViewProps) {
   const channel = useChannel(channelId);
   const { currentWorkspaceId, isNavigating } = useChatStore();
   const { pubkey } = useAuthStore();
+
+  // Get group members for the current workspace
+  const {
+    getAvatarUsers,
+    loading: membersLoading,
+    isAdmin,
+    memberCount
+  } = useGroupMembers({
+    groupId: currentWorkspaceId || undefined,
+    autoRefresh: true,
+    refreshInterval: 60000 // Refresh every minute
+  });
   // Get static references to prevent re-renders
   const sendMessage = useMessageStore.getState().sendMessage;
   const loadMessages = useMessageStore.getState().loadMessages;
@@ -130,7 +132,32 @@ export function ChannelView({ channelId }: ChannelViewProps) {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <UserAvatars users={mockUsers} size={40} maxVisible={5} />
+          {memberCount > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {memberCount} member{memberCount !== 1 ? 's' : ''}
+              </span>
+              <UserAvatars
+                users={getAvatarUsers()}
+                size={40}
+                maxVisible={5}
+                isAdmin={isAdmin(pubkey || '')}
+              />
+            </div>
+          )}
+          {membersLoading && memberCount === 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Loading members...</span>
+              <div className="flex gap-1">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
