@@ -257,6 +257,10 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       const parts = groupId.split("'");
       const localGroupId = parts.length === 2 ? parts[1] : groupId;
 
+      // Get the channel name from the channel ID by looking it up in the database
+      const channel = await db.channels.get(channelId);
+      const channelName = channel?.name;
+
       const events = await client.fetchEvents({
         kinds: [9],
         '#h': [localGroupId],
@@ -265,11 +269,11 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
 
       const messages: Message[] = events
         .filter((event: NostrEvent) => {
-          const channelTag = event.tags.find(tag => tag[0] === 'channel');
-          if (channelTag && channelTag[1]) {
-            return channelTag[1] === channelId;
+          const channelTag = event.tags.find(tag => tag[0] === 'c');
+          if (channelTag && channelTag[1] && channelName) {
+            return channelTag[1] === channelName;
           }
-          return true;
+          return false; // Only include messages that have a proper channel tag
         })
         .map((event: NostrEvent) => ({
           id: event.id,
@@ -394,12 +398,18 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
                 since: now,
               },
             ],
-            (event: NostrEvent) => {
-            const eventChannelTag = event.tags.find(tag => tag[0] === 'channel');
-            const eventChannelId = eventChannelTag && eventChannelTag[1] ? eventChannelTag[1] : null;
+            async (event: NostrEvent) => {
+            const eventChannelTag = event.tags.find(tag => tag[0] === 'c');
+            const eventChannelName = eventChannelTag && eventChannelTag[1] ? eventChannelTag[1] : null;
 
-            if (eventChannelId && eventChannelId !== channelId) {
-              return;
+            if (eventChannelName) {
+              // Get the channel name for the current channelId
+              const channel = await db.channels.get(channelId);
+              const currentChannelName = channel?.name;
+
+              if (eventChannelName !== currentChannelName) {
+                return;
+              }
             }
 
             const message: Message = {
