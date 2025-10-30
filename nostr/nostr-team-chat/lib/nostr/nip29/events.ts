@@ -276,7 +276,11 @@ export async function sendMessageEvent(
   ensureNostrAvailable();
   const pubkey = await window.nostr!.getPublicKey();
 
-  const tags: string[][] = [['h', groupId]];
+  // Extract local group ID for the h tag (NIP-29 events use only the local part)
+  const parts = groupId.split("'");
+  const localGroupId = parts.length === 2 ? parts[1] : groupId;
+
+  const tags: string[][] = [['h', localGroupId]];
 
   if (channelName) {
     tags.push(['c', channelName]);

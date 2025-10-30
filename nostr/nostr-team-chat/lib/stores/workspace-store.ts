@@ -404,6 +404,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             console.log('✅ Background workspace sync completed:', groupId);
             // Subscribe to workspace updates after sync
             get().subscribeToWorkspace(groupId);
+
+            // Force additional channel refresh to ensure all channels are discovered
+            import('@/lib/hooks/use-channels').then(({ refreshChannelsForWorkspace }) =>
+              refreshChannelsForWorkspace(groupId)
+            ).catch(error => {
+              console.warn('❌ Additional channel refresh failed:', error);
+            });
           }).catch(error => {
             console.error('❌ Background workspace sync failed:', error);
           });

@@ -47,6 +47,12 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
   const { workspaces } = useWorkspaceStore();
   const workspace = groupId ? workspaces.find(w => w.groupId === groupId) : null;
 
+  // Simple cache to avoid refetching recently fetched data
+  const cacheTimeMs = 30000; // 30 seconds
+  const isCacheValid = useCallback(() => {
+    return Date.now() - lastFetched < cacheTimeMs;
+  }, [lastFetched]);
+
   // Generate avatar URL for users without profile pictures
   const generateAvatarUrl = useCallback((pubkey: string, name?: string) => {
     const seed = name || pubkey.slice(0, 8);
@@ -64,17 +70,12 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
         await client.connect();
       }
 
-      console.log('🔍 Fetching profiles for', pubkeys.length, 'users');
-
       // Fetch kind:0 (user metadata) events for all pubkeys
       const profileEvents = await client.fetchEvents({
         kinds: [0], // User metadata
         authors: pubkeys,
         limit: pubkeys.length * 2, // Allow for multiple profiles per user
       });
-
-      console.log('📋 Found', profileEvents.length, 'profile events for', pubkeys.length, 'pubkeys');
-      console.log('🔍 Profile events:', profileEvents.map(e => ({ pubkey: e.pubkey.slice(0, 8), created_at: e.created_at })));
 
       const profileMap = new Map<string, UserProfile>();
 
@@ -108,7 +109,7 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
 
           profileMap.set(pubkey, profile);
         } catch (parseError) {
-          console.warn('Failed to parse profile for', pubkey.slice(0, 8), ':', parseError);
+          // Skip invalid profile data
         }
       }
 
@@ -126,8 +127,6 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
 
       return profileMap;
     } catch (error) {
-      console.error('Failed to fetch user profiles:', error);
-
       // Return fallback profiles on error
       const fallbackMap = new Map<string, UserProfile>();
       for (const pubkey of pubkeys) {
@@ -156,182 +155,64 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
       const parts = targetGroupId.split("'");
       const localGroupId = parts.length === 2 ? parts[1] : targetGroupId;
 
-      console.log('👥 Fetching group members for:', localGroupId);
-
-      // First check if current user is a member by looking for add-user events (kind 9000)
-      const { useAuthStore } = await import('@/lib/stores/auth-store');
-      const currentUserPubkey = useAuthStore.getState().pubkey;
-
-      if (currentUserPubkey) {
-        console.log('🔍 Checking membership status for current user...');
-        try {
-          const membershipEvents = await client.fetchEvents({
-            kinds: [9000], // Add user events
-            '#h': [localGroupId],
-            '#p': [currentUserPubkey],
-            limit: 10
-          });
-
-          console.log('👤 Found', membershipEvents.length, 'membership events for current user');
-
-          if (membershipEvents.length === 0) {
-            console.log('⚠️ No membership confirmation found - user might not be recognized as member yet');
-            console.log('⚠️ This could explain why relay denies access to group events');
-          } else {
-            console.log('✅ User has membership confirmation events');
-          }
-        } catch (membershipError) {
-          console.warn('Failed to check membership status:', membershipError);
-        }
-      }
-
-      // Initialize member arrays
       let memberPubkeys: string[] = [];
       let adminPubkeys: string[] = [];
 
-      // Fetch member list directly using NIP-29 specification
-      // Kind 39002 contains the authoritative member list for authenticated users
-      console.log('🔍 Fetching Kind 39002 member list for authenticated user...');
-
+      // Primary: Fetch authoritative member and admin lists from NIP-29 events
       try {
-        const memberListEvents = await client.fetchEvents({
-          kinds: [39002], // NIP-29 member list - the authoritative source
-          '#h': [localGroupId],
-          limit: 1
-        });
-
-        console.log('📋 Found', memberListEvents.length, 'Kind 39002 member list events');
-
-        if (memberListEvents.length > 0) {
-          const memberEvent = memberListEvents[0];
-          console.log('✅ Successfully fetched member list event:', {
-            id: memberEvent.id.slice(0, 8),
-            pubkey: memberEvent.pubkey.slice(0, 8),
-            tags: memberEvent.tags
-          });
-
-          // Extract all member pubkeys from p tags - KIND_39002 contains all members
-          const allMemberPubkeys: string[] = [];
-
-          memberEvent.tags.forEach(tag => {
-            if (tag[0] === 'p') {
-              allMemberPubkeys.push(tag[1]);
-            }
-          });
-
-          console.log('👥 Extracted member pubkeys from KIND_39002:', allMemberPubkeys.map(pk => pk.slice(0, 8)));
-
-          // Set member list
-          memberPubkeys = allMemberPubkeys;
-
-          console.log('👥 Found', memberPubkeys.length, 'total members');
-
-        } else {
-          console.log('❌ No KIND_39002 member list events found');
-        }
-
-      } catch (error) {
-        console.error('❌ Failed to fetch KIND_39002 member list:', error);
-      }
-
-      // Now fetch admin list from KIND_39001 separately
-      if (memberPubkeys.length > 0) {
-        console.log('🔍 Fetching KIND_39001 admin list...');
-
-        try {
-          const adminListEvents = await client.fetchEvents({
+        const [memberListEvents, adminListEvents] = await Promise.all([
+          client.fetchEvents({
+            kinds: [39002], // NIP-29 member list
+            '#h': [localGroupId],
+            limit: 1
+          }),
+          client.fetchEvents({
             kinds: [39001], // NIP-29 admin list
             '#h': [localGroupId],
             limit: 1
+          })
+        ]);
+
+        // Extract member pubkeys
+        if (memberListEvents.length > 0) {
+          memberListEvents[0].tags.forEach(tag => {
+            if (tag[0] === 'p') {
+              memberPubkeys.push(tag[1]);
+            }
           });
-
-          if (adminListEvents.length > 0) {
-            const adminEvent = adminListEvents[0];
-            const adminPubkeysFromEvent: string[] = [];
-
-            adminEvent.tags.forEach(tag => {
-              if (tag[0] === 'p') {
-                adminPubkeysFromEvent.push(tag[1]);
-              }
-            });
-
-            adminPubkeys = adminPubkeysFromEvent;
-            console.log('👑 Found', adminPubkeys.length, 'admins:', adminPubkeys.map(pk => pk.slice(0, 8)));
-          } else {
-            console.log('❌ No KIND_39001 admin list events found');
-          }
-        } catch (error) {
-          console.error('❌ Failed to fetch KIND_39001 admin list:', error);
         }
+
+        // Extract admin pubkeys
+        if (adminListEvents.length > 0) {
+          adminListEvents[0].tags.forEach(tag => {
+            if (tag[0] === 'p') {
+              adminPubkeys.push(tag[1]);
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to fetch NIP-29 member/admin lists:', error);
       }
 
-      console.log('👥 Final member pubkeys:', memberPubkeys.map(pk => pk.slice(0, 8)));
-      console.log('👑 Final admin pubkeys:', adminPubkeys.map(pk => pk.slice(0, 8)));
-
-
-      // Continue with fallback logic if KIND_39002 didn't provide members
-
-      // Fallback to workspace data if relay doesn't provide member lists
+      // Fallback: Use workspace data if available
       if (memberPubkeys.length === 0 && workspace) {
-        console.log('📋 Using workspace fallback data');
         memberPubkeys = workspace.members || [];
         adminPubkeys = workspace.admins || [];
       }
 
-      // Emergency fallback: if still no members, try to find ANY events related to this group
+      // Final fallback: Current user only
       if (memberPubkeys.length === 0) {
-        console.log('🚨 EMERGENCY FALLBACK: No members found from any source!');
-        console.log('🔍 Searching for ANY events related to group:', localGroupId);
-
-        try {
-          // Search for any events with h tag matching the group
-          const anyEvents = await client.fetchEvents({
-            '#h': [localGroupId],
-            limit: 100
-          });
-
-          console.log('🔍 Found', anyEvents.length, 'total events with h tag:', localGroupId);
-
-          if (anyEvents.length > 0) {
-            console.log('🔍 Event breakdown by kind:');
-            const eventsByKind = anyEvents.reduce((acc, event) => {
-              acc[event.kind] = (acc[event.kind] || 0) + 1;
-              return acc;
-            }, {} as Record<number, number>);
-            console.log('🔍 Events by kind:', eventsByKind);
-
-            // Extract unique pubkeys from all these events
-            const allPubkeys = [...new Set(anyEvents.map(e => e.pubkey))];
-            console.log('🔍 All unique pubkeys from events:', allPubkeys.map(pk => pk.slice(0, 8)));
-
-            if (allPubkeys.length > 0) {
-              memberPubkeys = allPubkeys;
-              console.log('🚨 Using emergency fallback - all pubkeys from group events');
-            }
-          }
-        } catch (error) {
-          console.error('Emergency fallback failed:', error);
-        }
-
-        // Final fallback: add current user if still nothing
-        if (memberPubkeys.length === 0) {
-          console.log('⚠️ Even emergency fallback failed - adding current user only');
-          const { useAuthStore } = await import('@/lib/stores/auth-store');
-          const currentUserPubkey = useAuthStore.getState().pubkey;
-          if (currentUserPubkey) {
-            console.log('🆔 Adding current user as final fallback:', currentUserPubkey.slice(0, 8));
-            memberPubkeys = [currentUserPubkey];
-          }
+        const { useAuthStore } = await import('@/lib/stores/auth-store');
+        const currentUserPubkey = useAuthStore.getState().pubkey;
+        if (currentUserPubkey) {
+          memberPubkeys = [currentUserPubkey];
         }
       }
-
-      console.log('👥 Found', memberPubkeys.length, 'members and', adminPubkeys.length, 'admins');
 
       // Combine all unique pubkeys
       const allPubkeys = [...new Set([...memberPubkeys, ...adminPubkeys])];
 
       if (allPubkeys.length === 0) {
-        console.log('⚠️ No members found for group');
         return [];
       }
 
@@ -363,7 +244,6 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
         return (a.name || '').localeCompare(b.name || '');
       });
 
-      console.log('✅ Successfully fetched', groupMembers.length, 'group members');
       setLastFetched(Date.now());
       return groupMembers;
 
@@ -375,8 +255,13 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
   }, [workspace, fetchUserProfiles, generateAvatarUrl]);
 
   // Refresh members data
-  const refreshMembers = useCallback(async () => {
+  const refreshMembers = useCallback(async (force = false) => {
     if (!groupId) return;
+
+    // Skip if cache is valid and not forcing refresh
+    if (!force && isCacheValid() && members.length > 0) {
+      return;
+    }
 
     setLoading(true);
     try {
@@ -385,7 +270,7 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [groupId, fetchGroupMembers]);
+  }, [groupId, fetchGroupMembers, isCacheValid, members.length]);
 
   // Auto-refresh effect
   useEffect(() => {
@@ -435,6 +320,7 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
     error,
     lastFetched,
     refreshMembers,
+    forceRefresh: () => refreshMembers(true),
     getMember,
     isAdmin,
     isMember,

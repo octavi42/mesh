@@ -13,6 +13,16 @@ export function useChannels(workspaceId: string | null) {
   );
 }
 
+// Force refresh channels for a workspace (useful after switching accounts)
+export async function refreshChannelsForWorkspace(workspaceId: string): Promise<void> {
+  try {
+    console.log('🔄 Force refreshing channels for workspace:', workspaceId);
+    await syncChannelsForWorkspace(workspaceId);
+  } catch (error) {
+    console.error('❌ Failed to refresh channels:', error);
+  }
+}
+
 export function useChannel(channelId: string | null) {
   return useLiveQuery(
     () => {
@@ -29,38 +39,91 @@ export async function syncChannelsForWorkspace(workspaceId: string): Promise<voi
   try {
     console.log('🔄 Syncing channels for workspace:', workspaceId);
 
-    // For now, we'll create default channels if none exist
-    // In a full implementation, you'd fetch from relay
-    const existingChannels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
-
-    if (existingChannels.length === 0) {
-      console.log('📝 Creating default channels for workspace:', workspaceId);
-
-      const defaultChannels: Channel[] = [
-        {
-          id: `channel-${Date.now()}`,
-          workspaceId,
-          name: 'general',
-          description: 'General discussion',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
-        {
-          id: `channel-${Date.now() + 1}`,
-          workspaceId,
-          name: 'random',
-          description: 'Random conversations',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
-      ];
-
-      await db.channels.bulkAdd(defaultChannels);
-      console.log('✅ Created', defaultChannels.length, 'default channels');
-    } else {
-      console.log('ℹ️ Found', existingChannels.length, 'existing channels');
+    const client = getGlobalNIP29Client();
+    if (!client.isConnected()) {
+      await client.connect();
     }
+
+    // Extract local group ID for querying
+    const parts = workspaceId.split("'");
+    const localGroupId = parts.length === 2 ? parts[1] : workspaceId;
+
+    console.log('🔍 Fetching messages for localGroupId:', localGroupId);
+
+    // Fetch all messages from the group to extract unique channel names
+    const messages = await client.fetchEvents({
+      kinds: [9], // GroupChatMessage
+      '#h': [localGroupId],
+      limit: 1000
+    });
+
+    console.log('📨 Found', messages.length, 'messages from relay');
+    if (messages.length > 0) {
+      console.log('📨 Sample message tags:', messages[0].tags);
+      console.log('📨 Sample message content preview:', messages[0].content.substring(0, 50));
+    }
+
+    // Extract unique channel names from message 'c' tags
+    const channelNames = new Set<string>();
+
+    // Always include default channels
+    channelNames.add('general');
+    channelNames.add('random');
+
+    // Extract channels from existing messages
+    for (const message of messages) {
+      const channelTag = message.tags.find(([tag]) => tag === 'c');
+      if (channelTag && channelTag[1]) {
+        console.log('📋 Found channel in message:', channelTag[1]);
+        channelNames.add(channelTag[1]);
+      }
+    }
+
+    console.log('📋 All discovered channels:', Array.from(channelNames));
+
+    // Get existing channels from local DB
+    const existingChannels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
+    const existingChannelNames = new Set(existingChannels.map(c => c.name));
+
+    // Add missing channels to local DB
+    const channelsToAdd: Channel[] = [];
+    const now = Date.now();
+
+    for (const channelName of channelNames) {
+      if (!existingChannelNames.has(channelName)) {
+        // Create deterministic IDs based on workspace and channel name
+        const channelId = `${workspaceId}-${channelName}`;
+
+        channelsToAdd.push({
+          id: channelId,
+          workspaceId,
+          name: channelName,
+          description: getDefaultChannelDescription(channelName),
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+
+    if (channelsToAdd.length > 0) {
+      await db.channels.bulkAdd(channelsToAdd);
+      console.log('✅ Added', channelsToAdd.length, 'new channels:', channelsToAdd.map(c => c.name));
+    }
+
+    console.log('✅ Channel sync completed for workspace:', workspaceId);
   } catch (error) {
     console.error('❌ Failed to sync channels:', error);
+  }
+}
+
+// Helper function to get default descriptions for channels
+function getDefaultChannelDescription(channelName: string): string {
+  switch (channelName) {
+    case 'general':
+      return 'General discussion';
+    case 'random':
+      return 'Random conversations';
+    default:
+      return `Discussion in #${channelName}`;
   }
 }

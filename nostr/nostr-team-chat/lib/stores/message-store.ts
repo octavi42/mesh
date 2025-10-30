@@ -81,10 +81,24 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       const parts = groupId.split("'");
       const localGroupId = parts.length === 2 ? parts[1] : groupId;
 
+      // Get the channel name from the channel ID by looking it up in the database
+      const { db } = await import('@/lib/db/schema');
+      const channel = await db.channels.get(channelId);
+      const channelName = channel?.name;
+
+      console.log('📋 Channel lookup:', { channelId, channelName, channel });
+
       const tags: string[][] = [
         ['h', localGroupId],
-        ['channel', channelId]
       ];
+
+      // Add channel tag using NIP-29 'c' format if we have a channel name
+      if (channelName) {
+        tags.push(['c', channelName]);
+        console.log('✅ Added channel tag:', ['c', channelName]);
+      } else {
+        console.warn('⚠️ No channel name found for channelId:', channelId);
+      }
 
       const recentEvents = get().recentEventIds[channelId] || [];
       recentEvents.slice(-3).forEach(eventId => {

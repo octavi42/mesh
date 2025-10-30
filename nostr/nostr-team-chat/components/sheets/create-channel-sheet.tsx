@@ -24,9 +24,21 @@ export function CreateChannelSheet({ trigger, workspaceId }: CreateChannelSheetP
 
     setIsCreating(true);
     try {
-      const channelId = `channel-${Date.now()}`;
       const sanitizedName = channelName.toLowerCase().replace(/[^a-z0-9-_]/g, '-');
+      // Create deterministic channel ID based on workspace and channel name
+      const channelId = `${workspaceId}-${sanitizedName}`;
 
+      // Check if channel already exists
+      const existingChannel = await db.channels.get(channelId);
+      if (existingChannel) {
+        console.log('Channel already exists:', sanitizedName);
+        setCurrentChannel(channelId);
+        setChannelName('');
+        setChannelDescription('');
+        return;
+      }
+
+      // Add channel to local DB
       await db.channels.add({
         id: channelId,
         workspaceId,
@@ -36,19 +48,37 @@ export function CreateChannelSheet({ trigger, workspaceId }: CreateChannelSheetP
         updatedAt: Date.now(),
       });
 
+      // Send a welcome message to establish the channel on the relay
+      // This creates the channel implicitly via the 'c' tag
       const client = getGlobalNIP29Client();
+      console.log('📤 Creating welcome message for channel:', sanitizedName, 'in workspace:', workspaceId);
+
       const welcomeMessage = await sendMessageEvent(
         workspaceId,
         `Channel #${sanitizedName} created!`,
         sanitizedName
       );
+
+      console.log('📝 Welcome message created:', {
+        kind: welcomeMessage.kind,
+        tags: welcomeMessage.tags,
+        content: welcomeMessage.content
+      });
+
       await client.publishEvent(welcomeMessage);
 
       setCurrentChannel(channelId);
       setChannelName('');
       setChannelDescription('');
 
-      console.log('✅ Channel created:', sanitizedName);
+      console.log('✅ Channel created and published to relay:', sanitizedName);
+
+      // Force refresh channels after a short delay to pick up the new channel
+      setTimeout(async () => {
+        const { refreshChannelsForWorkspace } = await import('@/lib/hooks/use-channels');
+        await refreshChannelsForWorkspace(workspaceId);
+        console.log('🔄 Triggered channel refresh after creation');
+      }, 1000);
     } catch (error) {
       console.error('Failed to create channel:', error);
     } finally {
