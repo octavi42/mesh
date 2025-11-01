@@ -60,28 +60,41 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="flex h-screen w-full overflow-hidden bg-[#fafafa] dark:bg-[#0a0a0a]">
       <button
         onClick={toggleSidebar}
-        className="fixed left-4 top-4 z-50 flex h-9 w-9 items-center justify-center rounded-lg bg-white/80 backdrop-blur-sm text-gray-700 border border-gray-200 transition-all hover:bg-white hover:border-gray-300 dark:bg-gray-950/80 dark:text-gray-300 dark:border-gray-800 dark:hover:bg-gray-900 dark:hover:border-gray-700"
+        className="fixed z-50 flex h-12 w-4 items-center justify-center text-gray-600 transition-all duration-300 ease-in-out hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 group bg-white dark:bg-black"
         style={{
-          transform: sidebarOpen ? 'translateX(336px)' : 'translateX(0)',
-          transition: 'transform 300ms ease-in-out',
+          left: sidebarOpen ? '336px' : '12px',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          transition: 'all 300ms ease-in-out',
         }}
         aria-label="Toggle sidebar"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="3" x2="21" y1="6" y2="6" />
-          <line x1="3" x2="21" y1="12" y2="12" />
-          <line x1="3" x2="21" y1="18" y2="18" />
-        </svg>
+        <div className="relative w-4 h-4 flex items-center justify-center">
+          <div className="relative w-3 h-3">
+            <div
+              className={`absolute w-0.5 h-1.5 bg-current transition-all duration-300 ease-in-out origin-bottom ${
+                sidebarOpen
+                  ? 'group-hover:rotate-45'
+                  : 'group-hover:rotate-[-45deg]'
+              }`}
+              style={{
+                top: '0px',
+                left: '6px',
+              }}
+            />
+            <div
+              className={`absolute w-0.5 h-1.5 bg-current transition-all duration-300 ease-in-out origin-top ${
+                sidebarOpen
+                  ? 'group-hover:rotate-[-45deg]'
+                  : 'group-hover:rotate-45'
+              }`}
+              style={{
+                top: '6px',
+                left: '6px',
+              }}
+            />
+          </div>
+        </div>
       </button>
 
       <div className="fixed right-4 top-4 z-50">
