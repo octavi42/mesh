@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, KeyboardEvent } from 'react';
+import { useState, KeyboardEvent, useRef, useEffect } from 'react';
 import { Send } from 'lucide-react';
 
 interface MessageInputProps {
@@ -12,6 +12,7 @@ interface MessageInputProps {
 export function MessageInput({ channelName, onSend, disabled }: MessageInputProps) {
   const [content, setContent] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSend = async () => {
     if (!content.trim() || isSending || disabled) return;
@@ -35,11 +36,49 @@ export function MessageInput({ channelName, onSend, disabled }: MessageInputProp
     }
   };
 
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      // Don't auto-focus if the input is disabled
+      if (disabled || isSending) return;
+
+      // Don't auto-focus if any input, textarea, or contenteditable element is focused
+      const activeElement = document.activeElement;
+      if (
+        activeElement &&
+        (activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.hasAttribute('contenteditable'))
+      ) {
+        return;
+      }
+
+      // Don't auto-focus for modifier keys, function keys, or special keys
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        e.key.startsWith('F') ||
+        ['Escape', 'Tab', 'Enter', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)
+      ) {
+        return;
+      }
+
+      // Focus the input for printable characters
+      if (e.key.length === 1 && inputRef.current) {
+        inputRef.current.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [disabled, isSending]);
+
   return (
     <div className="p-4 bg-white/70 dark:bg-gray-900/70 backdrop-blur-lg">
       <div className="flex items-end gap-3">
         <div className="flex-1 relative">
           <input
+            ref={inputRef}
             type="text"
             value={content}
             onChange={(e) => setContent(e.target.value)}
