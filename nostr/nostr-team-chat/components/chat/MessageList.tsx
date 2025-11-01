@@ -12,6 +12,7 @@ interface MessageListProps {
 export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -77,33 +78,79 @@ export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
                   <div className="space-y-0.5">
                     {group.messages.map((message, msgIndex) => {
                       const isLastInGroup = msgIndex === group.messages.length - 1;
+                      const messageRef = useRef<HTMLDivElement>(null);
+                      const [hoverWidth, setHoverWidth] = useState('100%');
+
+                      useEffect(() => {
+                        if (messageRef.current && isOwnMessage) {
+                          const messageWidth = messageRef.current.scrollWidth; // Actual content width
+                          const containerWidth = messageRef.current.offsetWidth; // Available width
+
+                          // Calculate hover width inversely proportional to message width
+                          // Narrower messages (less width) get wider hover areas
+                          // Wider messages (more width) get narrower hover areas
+                          const maxHoverWidth = 100; // Full width for narrow messages
+                          const minHoverWidth = 20; // Minimum width for very wide messages
+
+                          // Calculate how much of the available width the content uses
+                          const widthRatio = Math.min(messageWidth / containerWidth, 1);
+
+                          // Inverse relationship: wider content = smaller hover area
+                          const calculatedWidth = maxHoverWidth - (widthRatio * 70);
+                          const finalWidth = Math.max(minHoverWidth, Math.min(maxHoverWidth, calculatedWidth));
+
+                          setHoverWidth(`${finalWidth}%`);
+                        }
+                      }, [message.content, isOwnMessage]);
 
                       return (
                         <div
                           key={message.id}
-                          className={`flex ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 group/message relative`}
+                          className={`flex ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 relative`}
                           onMouseLeave={() => {
                             if (activeMessageId === message.id) {
                               setActiveMessageId(null);
                             }
                           }}
                         >
-                          <div
-                            className={`rounded-2xl px-4 py-2.5 shadow-sm relative ${isOwnMessage ? 'transition-all duration-300 ease-out' : ''} ${isOwnMessage ? (activeMessageId === message.id ? '-translate-x-20' : 'group-hover/message:-translate-x-12') : ''} ${
-                              isOwnMessage
-                                ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-md hover:shadow-md'
-                                : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md hover:border-gray-300 dark:hover:border-gray-600'
-                            }`}
-                          >
-                            <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{message.content}</p>
-                          </div>
+                          <div className="relative">
+                            <div
+                              ref={messageRef}
+                              className={`rounded-2xl px-4 py-2.5 shadow-sm relative ${isOwnMessage ? 'transition-all duration-300 ease-out' : ''} ${isOwnMessage ? (activeMessageId === message.id ? '-translate-x-20' : hoveredMessageId === message.id ? '-translate-x-12' : '') : ''} ${
+                                isOwnMessage
+                                  ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-md'
+                                  : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md hover:border-gray-300 dark:hover:border-gray-600'
+                              }`}
+                            >
+                              <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{message.content}</p>
+                            </div>
 
-                          {/* Animated hover component - slides from right and fades in - only for own messages */}
-                          {isOwnMessage && (
+                            {/* Proportional Hover Area - only for own messages */}
+                            {isOwnMessage && (
+                              <div
+                                className="absolute inset-y-0 right-0 group/message"
+                                style={{
+                                  width: hoverWidth,
+                                  zIndex: 2
+                                }}
+                                onMouseEnter={() => {
+                                  setHoveredMessageId(message.id);
+                                }}
+                                onMouseLeave={() => {
+                                  setHoveredMessageId(null);
+                                }}
+                              >
+                              </div>
+                            )}
+
+                            {/* Animated hover component - slides from right and fades in - only for own messages */}
+                            {isOwnMessage && (
                             <div className={`absolute top-1/2 -translate-y-1/2 -right-2 transition-all duration-300 ease-out ${
                               activeMessageId === message.id
                                 ? 'opacity-100 translate-x-0'
-                                : 'opacity-0 translate-x-16 group-hover/message:opacity-100 group-hover/message:translate-x-0'
+                                : hoveredMessageId === message.id
+                                ? 'opacity-100 translate-x-0'
+                                : 'opacity-0 translate-x-16'
                             }`}>
                               {/* Edit and Delete buttons - base layer */}
                               <div className={`flex items-center gap-1 transition-opacity duration-300 ${
@@ -145,10 +192,11 @@ export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
                                 <span>•••</span>
                               </div>
                             </div>
-                          )}
+                            )}
+                          </div>
 
                           {isLastInGroup && (
-                            <span className={`text-[11px] text-gray-400 dark:text-gray-500 opacity-0 group-hover/messagegroup:opacity-100 transition-all duration-300 ease-out ${isOwnMessage ? (activeMessageId === message.id ? '-translate-x-20' : 'group-hover/message:-translate-x-12') : ''} mb-1 whitespace-nowrap`}>
+                            <span className={`text-[11px] text-gray-400 dark:text-gray-500 opacity-0 group-hover/messagegroup:opacity-100 transition-all duration-300 ease-out ${isOwnMessage ? (activeMessageId === message.id ? '-translate-x-20' : hoveredMessageId === message.id ? '-translate-x-12' : '') : ''} mb-1 whitespace-nowrap`}>
                               {new Date(lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           )}
