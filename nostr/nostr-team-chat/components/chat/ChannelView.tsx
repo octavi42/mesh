@@ -116,8 +116,8 @@ export function ChannelView({ channelId }: ChannelViewProps) {
 
   return (
     <div className="flex h-full flex-col bg-white dark:bg-black">
-      {/* Header with channel name and user avatars */}
-      <div className="flex h-16 items-center justify-between border-b border-gray-100 pl-6 pr-20 dark:border-gray-900 relative z-10">
+      {/* Header with channel name and user avatars - Fixed */}
+      <div className="flex-shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg z-20">
         <div className="flex items-center gap-2">
           <span className="text-lg text-gray-400">#</span>
           <div className="flex items-center gap-2">
@@ -161,7 +161,8 @@ export function ChannelView({ channelId }: ChannelViewProps) {
         </div>
       </div>
 
-      <div className="flex-1 relative">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
         {(() => {
           // Simplified logic with clear priorities to prevent flickering
           const shouldShowSkeleton = isNavigating || isInitializing || (loading && messages.length === 0);
@@ -174,7 +175,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
             return <MessageList messages={messages} currentUserPubkey={pubkey || undefined} />;
           } else if (isEmpty) {
             return (
-              <div className="flex flex-1 items-center justify-center h-full">
+              <div className="flex items-center justify-center h-full">
                 <div className="text-center text-gray-500">
                   No messages yet. Start the conversation!
                 </div>
@@ -187,11 +188,14 @@ export function ChannelView({ channelId }: ChannelViewProps) {
         })()}
       </div>
 
-      <MessageInput
-        channelName={channel.name}
-        onSend={handleSendMessage}
-        disabled={!currentWorkspaceId || !pubkey || loading}
-      />
+      {/* Fixed Footer */}
+      <div className="flex-shrink-0 z-20">
+        <MessageInput
+          channelName={channel.name}
+          onSend={handleSendMessage}
+          disabled={!currentWorkspaceId || !pubkey || loading}
+        />
+      </div>
     </div>
   );
 }

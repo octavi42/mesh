@@ -48,7 +48,7 @@ export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
   }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto p-6">
+    <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden p-6" style={{ minHeight: 0 }}>
       {messageGroups.map((group) => {
         const firstMessage = group.messages[0];
         const lastMessage = group.messages[group.messages.length - 1];
