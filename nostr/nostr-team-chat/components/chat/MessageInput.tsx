@@ -22,6 +22,7 @@ export function MessageInput({ channelName, onSend, disabled }: MessageInputProp
       setContent('');
     } catch (error) {
       console.error('Failed to send message:', error);
+      // Error handling is now done in the message store with toasts
     } finally {
       setIsSending(false);
     }

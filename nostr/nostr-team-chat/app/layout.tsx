@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import { GlobalConfirmationDialog } from "@/components/ui/global-confirmation-dialog";
+import { Toaster } from "sonner";
 import "./globals.css";
 import "./silk.css";
 
@@ -47,6 +48,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <GlobalConfirmationDialog />
+          <Toaster position="top-right" richColors />
         </Providers>
       </body>
     </html>

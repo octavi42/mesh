@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { db, type Message } from '@/lib/db/schema';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29';
 import type { NostrEvent } from '@/lib/nostr/nip29/types';
+import { toast } from 'sonner';
 
 interface MessageStore {
   messages: Record<string, Message[]>;
@@ -14,6 +15,7 @@ interface MessageStore {
   getMessages: (channelId: string) => Message[];
   sendMessage: (groupId: string, channelId: string, content: string) => Promise<void>;
   addMessage: (channelId: string, message: Message) => void;
+  removeMessage: (channelId: string, messageId: string) => void;
   loadMessages: (channelId: string, groupId: string) => Promise<void>;
   subscribeToChannel: (channelId: string, groupId: string) => void;
   unsubscribeFromChannel: (channelId: string) => void;
@@ -41,23 +43,48 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
   sendMessage: async (groupId, channelId, content) => {
     if (!content.trim()) return;
 
-    try {
-      console.log('🔍 Checking window.nostr availability...');
-      console.log('window.nostr:', window.nostr);
+    // Step 1: Immediately display the message optimistically for instant UX
+    let tempMessage: Message;
+    let pubkey: string;
 
+    try {
+      // Get pubkey first for the optimistic message
       if (!window.nostr) {
-        console.error('❌ window.nostr is not available');
-        alert('Nostr signer not available. Please make sure you are logged in.');
-        throw new Error('Nostr extension not available. Please install a Nostr extension like Alby or nos2x.');
+        toast.error('Nostr extension not available. Please install a Nostr extension like Alby or nos2x.');
+        throw new Error('Nostr extension not available');
       }
 
-      console.log('✅ window.nostr is available');
+      pubkey = await window.nostr.getPublicKey();
+
+      // Create and immediately show optimistic message
+      tempMessage = {
+        id: `temp-${Date.now()}`,
+        channelId,
+        authorPubkey: pubkey,
+        content: content.trim(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      // Add to UI immediately for instant feedback
+      get().addMessage(channelId, tempMessage);
+      console.log('✅ Optimistic message displayed:', tempMessage.id);
+
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to send message: ${errorMsg}`);
+      throw error;
+    }
+
+    // Step 2: Handle all the background processing
+    try {
+      console.log('🔍 Starting background message processing...');
 
       const localNsec = localStorage.getItem('nostr-login-local-key');
       if (localNsec) {
-        console.log('✅ Using LOCAL nsec key - signs instantly, no windows needed!');
+        console.log('✅ Using LOCAL nsec key - signs instantly');
       } else {
-        console.log('⚠️ Using remote signer - may need external app/tab open');
+        console.log('⚠️ Using remote signer - may need external app');
       }
 
       const client = getGlobalNIP29Client();
@@ -67,35 +94,20 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
         await client.connect();
       }
 
-      console.log('🔑 Getting pubkey from window.nostr...');
-      let pubkey: string;
-      try {
-        pubkey = await window.nostr.getPublicKey();
-        console.log('✅ Got pubkey:', pubkey.substring(0, 8));
-      } catch (error) {
-        console.error('❌ Failed to get pubkey:', error);
-        alert('Failed to access your Nostr keys. Please check your signer app.');
-        throw new Error('Failed to access Nostr keys. Please check your extension.');
-      }
-
       const parts = groupId.split("'");
       const localGroupId = parts.length === 2 ? parts[1] : groupId;
 
-      // Get the channel name from the channel ID by looking it up in the database
+      // Get the channel name
       const { db } = await import('@/lib/db/schema');
       const channel = await db.channels.get(channelId);
       const channelName = channel?.name;
-
-      console.log('📋 Channel lookup:', { channelId, channelName, channel });
 
       const tags: string[][] = [
         ['h', localGroupId],
       ];
 
-      // Add channel tag using NIP-29 'c' format if we have a channel name
       if (channelName) {
         tags.push(['c', channelName]);
-        console.log('✅ Added channel tag:', ['c', channelName]);
       } else {
         console.warn('⚠️ No channel name found for channelId:', channelId);
       }
@@ -114,48 +126,34 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       };
 
       console.log('📝 Signing event...');
-      console.log('Unsigned event:', unsignedEvent);
 
       let signedEvent;
       try {
-        console.log('⏳ Attempting to sign with window.nostr...');
-
         signedEvent = await Promise.race([
-          window.nostr.signEvent(unsignedEvent),
+          window.nostr!.signEvent(unsignedEvent),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Signing timeout after 60 seconds')), 60000)
           )
-        ]);
+        ]) as NostrEvent;
 
         console.log('✅ Event signed successfully!');
-        console.log('Signed event:', signedEvent);
       } catch (error) {
         console.error('❌ Failed to sign event:', error);
         const errorMsg = error instanceof Error ? error.message : String(error);
 
         if (errorMsg.includes('timeout')) {
-          alert('Signing timed out. Please:\n\n1. Open nsec.app in another tab: https://nsec.app\n2. Make sure you see the signing request popup\n3. Approve the signature\n4. Try sending the message again');
+          toast.error('Signing timed out. Please check your signer app and try again.');
         } else {
-          alert('Failed to sign message:\n\n' + errorMsg + '\n\nTry:\n1. Opening nsec.app in another tab\n2. Logging out and back in\n3. Making sure nsec.app has permission for kind 9 events');
+          toast.error(`Failed to sign message: ${errorMsg}`);
         }
-        throw new Error('Failed to sign message: ' + errorMsg);
+        throw error;
       }
-
-      const tempMessage: Message = {
-        id: `temp-${Date.now()}`,
-        channelId,
-        authorPubkey: pubkey,
-        content: content.trim(),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-
-      get().addMessage(channelId, tempMessage);
 
       console.log('📡 Publishing event to relay...');
       await client.publishEvent(signedEvent);
       console.log('✅ Event published to relay!');
 
+      // Step 3: Replace temporary message with confirmed one
       const confirmedMessage: Message = {
         id: signedEvent.id,
         channelId,
@@ -185,9 +183,18 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
         };
       });
 
-      console.log('✅ Message sent:', signedEvent.id);
+      console.log('✅ Message confirmed and updated:', signedEvent.id);
+
     } catch (error) {
-      console.error('Failed to send message:', error);
+      // Step 4: On any error, remove the optimistic message and show error toast
+      console.error('❌ Failed to send message:', error);
+
+      // Remove the temporary message from UI
+      get().removeMessage(channelId, tempMessage.id);
+
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to send message: ${errorMsg}`);
+
       throw error;
     }
   },
@@ -202,6 +209,20 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
         messages: {
           ...state.messages,
           [channelId]: [...channelMessages, message].sort((a, b) => a.createdAt - b.createdAt)
+        }
+      };
+    });
+  },
+
+  removeMessage: (channelId, messageId) => {
+    set((state) => {
+      const channelMessages = state.messages[channelId] || [];
+      const filteredMessages = channelMessages.filter(m => m.id !== messageId);
+
+      return {
+        messages: {
+          ...state.messages,
+          [channelId]: filteredMessages
         }
       };
     });
