@@ -271,8 +271,15 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           loadedChannels: {
             ...state.loadedChannels,
             [channelId]: true
+          },
+          loadingChannels: {
+            ...state.loadingChannels,
+            [channelId]: false
           }
         }));
+
+        // Early return if we have local messages to show immediately
+        console.log('✅ Loaded', localMessages.length, 'local messages immediately for channel:', channelId);
       }
 
       const parts = groupId.split("'");

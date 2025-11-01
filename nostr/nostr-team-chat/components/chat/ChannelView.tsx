@@ -47,6 +47,13 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   // Local state to force skeleton on component mount - always start as true when component mounts
   const [isInitializing, setIsInitializing] = useState(true);
 
+  // Set initializing to false when we have messages or when loading is complete
+  useEffect(() => {
+    if (messages.length > 0 || (loaded && !loading)) {
+      setIsInitializing(false);
+    }
+  }, [messages.length, loaded, loading]);
+
   // Reset initializing state whenever channelId changes - this should run immediately
   useEffect(() => {
     console.log(`🔄 Channel changed to: ${channelId}, setting isInitializing=true`);
@@ -74,7 +81,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
 
     if (!isAlreadyLoading) {
       // Only set loading state if not already set (for direct navigation cases)
-      messageStore.clearChannelMessages(channelId);
+      // Don't clear messages immediately - let loadMessages handle it for better UX
       messageStore.setChannelLoading(channelId);
       console.log('🔄 ChannelView: Set loading state for channel', channelId);
     } else {
@@ -82,18 +89,8 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     }
 
     // Start loading and subscribing immediately in background - don't block UI
-    Promise.all([
-      loadMessages(channelId, currentWorkspaceId),
-      Promise.resolve(subscribeToChannel(channelId, currentWorkspaceId))
-    ]).then(() => {
-      // Small delay to ensure messages are rendered before hiding skeleton
-      setTimeout(() => {
-        const currentMessages = useMessageStore.getState().messages[channelId] || [];
-        if (currentMessages.length > 0 || useMessageStore.getState().loadedChannels[channelId]) {
-          setIsInitializing(false);
-        }
-      }, 50);
-    }).catch(console.error);
+    loadMessages(channelId, currentWorkspaceId).catch(console.error);
+    subscribeToChannel(channelId, currentWorkspaceId);
 
     return () => {
       initializingRef.current = null;
