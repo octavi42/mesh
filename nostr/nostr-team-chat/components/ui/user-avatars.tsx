@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState, KeyboardEvent } from "react";
 import { UserInfoSheet } from "@/components/sheets/user-info-sheet";
 import { AllUsersSheet } from "@/components/sheets/all-users-sheet";
+import { Users } from "lucide-react";
 
 interface User {
   id: string | number;
@@ -22,6 +23,7 @@ interface UserAvatarsProps {
   overlap?: number;
   focusScale?: number;
   isAdmin?: boolean;
+  showUsersButton?: boolean;
 }
 
 export const UserAvatars = ({
@@ -32,6 +34,7 @@ export const UserAvatars = ({
   overlap = 60,
   focusScale = 1.2,
   isAdmin = false,
+  showUsersButton = true,
 }: UserAvatarsProps) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -45,12 +48,17 @@ export const UserAvatars = ({
   const slicedUsers = users.slice(0, displayLimit);
   const hiddenCount = users.length - slicedUsers.length;
 
-  const allUsersToRender = shouldShowPlusBubble
+  let allUsersToRender = shouldShowPlusBubble
     ? [...slicedUsers, { id: 'plus-bubble', name: undefined, image: '' }]
     : slicedUsers;
 
+  // Add users button if enabled
+  if (showUsersButton) {
+    allUsersToRender = [...allUsersToRender, { id: 'users-bubble', name: undefined, image: '' }];
+  }
+
   const handleKeyEnter = (e: KeyboardEvent<HTMLButtonElement>, user: User) => {
-    if ((e.key === "Enter" || e.key === " ") && user.id !== 'plus-bubble') {
+    if ((e.key === "Enter" || e.key === " ") && user.id !== 'plus-bubble' && user.id !== 'users-bubble') {
       const triggerElement = (e.target as HTMLElement).nextElementSibling as HTMLElement;
       triggerElement?.click();
     }
@@ -61,6 +69,7 @@ export const UserAvatars = ({
       {allUsersToRender.map((user, index) => {
         const isHoveredOne = hoveredIndex === index;
         const isLengthBubble = user.id === 'plus-bubble';
+        const isUsersBubble = user.id === 'users-bubble';
 
         const diff = 1 - safeOverlap / 100;
         const zIndex = isHoveredOne ? allUsersToRender.length : index;
@@ -71,6 +80,46 @@ export const UserAvatars = ({
         const baseGap = safeSize * (safeOverlap / 100);
         const neededGap = (safeSize * (1 + safeFocusScale)) / 2;
         const shift = Math.max(0, neededGap - baseGap);
+
+        if (isUsersBubble) {
+          return (
+            <AllUsersSheet
+              key={user.id}
+              users={users}
+              isAdmin={isAdmin}
+              trigger={
+                <motion.div
+                  role="img"
+                  aria-label="Show all users"
+                  className="relative cursor-pointer outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 rounded-full bg-white dark:bg-gray-900"
+                  style={{
+                    width: safeSize,
+                    height: safeSize,
+                    zIndex,
+                    marginLeft: index === 0 ? 0 : -safeSize * diff,
+                    padding: '3px',
+                  }}
+                  tabIndex={0}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  onFocus={() => setHoveredIndex(index)}
+                  onBlur={() => setHoveredIndex(null)}
+                  animate={{
+                    scale: shouldScale ? safeFocusScale : 1,
+                    x: shouldShift ? shift : 0,
+                  }}
+                  transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                >
+                  <div className="w-full h-full rounded-full overflow-hidden shadow-lg">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-500 to-cyan-600 text-white">
+                      <Users className="w-4 h-4" />
+                    </div>
+                  </div>
+                </motion.div>
+              }
+            />
+          );
+        }
 
         if (isLengthBubble) {
           return (
