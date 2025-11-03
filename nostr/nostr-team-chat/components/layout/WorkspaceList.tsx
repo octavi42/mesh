@@ -4,9 +4,9 @@ import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useChannels } from '@/lib/hooks/use-channels';
-import { db } from '@/lib/db/schema';
+import { db, type Channel } from '@/lib/db/schema';
 import { CreateWorkspaceSheet } from '@/components/sheets/create-workspace-sheet';
-import { useWorkspaceStore } from '@/lib/stores/workspace-store';
+import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 
 export function WorkspaceList() {
   const { currentWorkspaceId, setCurrentWorkspace } = useChatStore();
@@ -34,8 +34,43 @@ export function WorkspaceList() {
 
     try {
       console.log('🔍 Looking for channels in workspace:', workspaceId);
-      const channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
+      let channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
       console.log('📋 Found channels:', channels);
+
+      // If no channels exist, create default channels for the workspace
+      if (channels.length === 0) {
+        console.log('📋 No channels found, creating default channels for workspace:', workspaceId);
+
+        const now = Date.now();
+        const defaultChannels: Channel[] = [
+          {
+            id: `${workspaceId}-general`,
+            workspaceId,
+            name: 'general',
+            description: 'General discussion',
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: `${workspaceId}-random`,
+            workspaceId,
+            name: 'random',
+            description: 'Random conversations',
+            createdAt: now,
+            updatedAt: now,
+          }
+        ];
+
+        try {
+          await db.channels.bulkAdd(defaultChannels);
+          console.log('✅ Created default channels:', defaultChannels.map(c => c.name));
+          channels = defaultChannels;
+        } catch (error) {
+          console.error('❌ Failed to create default channels:', error);
+          // Continue anyway, we can navigate to workspace without channels
+        }
+      }
+
       const firstChannel = channels[0];
 
       if (firstChannel) {
@@ -70,12 +105,12 @@ export function WorkspaceList() {
   return (
     <div className="flex flex-col items-center gap-2 py-4">
       {workspaces.map((workspace) => {
-        const isActive = currentWorkspaceId === workspace.groupId;
+        const isActive = currentWorkspaceId === workspace.id;
 
         return (
           <button
-            key={workspace.groupId}
-            onClick={() => handleWorkspaceClick(workspace.groupId)}
+            key={workspace.id}
+            onClick={() => handleWorkspaceClick(workspace.id)}
             className={`
               flex h-12 w-12 items-center justify-center rounded-xl text-2xl
               transition-all duration-200

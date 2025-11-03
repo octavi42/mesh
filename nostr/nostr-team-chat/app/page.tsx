@@ -46,7 +46,12 @@ export default function HomePage() {
             You&apos;re already authenticated. Ready to continue?
           </p>
           <button
-            onClick={() => router.push('/app')}
+            onClick={() => {
+              console.log('🚀 NAVIGATION: "Go to App" button clicked');
+              console.log('🔐 Current auth state before navigation:', { isAuthenticated, loading });
+              console.log('📍 About to navigate to /app');
+              router.push('/app');
+            }}
             className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors shadow-lg hover:shadow-xl"
           >
             Go to App

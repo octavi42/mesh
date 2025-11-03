@@ -7,6 +7,7 @@ interface AuthState {
   npub: string | null;
   isAuthenticated: boolean;
   loading: boolean;
+  hasHydrated: boolean;
   setPubkey: (pubkey: string, npub?: string) => void;
   clearAuth: () => void;
   checkAuth: () => Promise<void>;
@@ -22,6 +23,7 @@ export const useAuthStore = create<AuthState>()(
       npub: null,
       isAuthenticated: false,
       loading: true,
+      hasHydrated: false,
 
       setPubkey: (pubkey: string, npub?: string) => {
         console.log('🔑 setPubkey called:', { pubkey, npub });
@@ -126,13 +128,18 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => {
-        console.log('💧 Zustand starting to hydrate from localStorage...');
+        console.log('💧 Auth store: Starting hydration from localStorage...');
         console.log('📦 localStorage value:', localStorage.getItem('nostr-auth'));
         return (state, error) => {
           if (error) {
-            console.error('❌ Hydration error:', error);
+            console.error('❌ Auth store hydration error:', error);
           } else {
-            console.log('✅ Zustand hydrated with state:', state);
+            console.log('✅ Auth store hydrated with state:', state);
+            // Mark as hydrated after successful hydration
+            if (state) {
+              state.hasHydrated = true;
+              console.log('🏁 Auth store: hasHydrated set to true');
+            }
           }
         };
       },

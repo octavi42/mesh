@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import { GlobalConfirmationDialog } from "@/components/ui/global-confirmation-dialog";
 import { Toaster } from "sonner";
+import Hydration from "@/components/hydration";
 import "./globals.css";
 import "./silk.css";
 
@@ -45,6 +46,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <Hydration />
         <Providers>
           {children}
           <GlobalConfirmationDialog />

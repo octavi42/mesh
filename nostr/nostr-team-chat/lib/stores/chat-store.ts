@@ -28,11 +28,13 @@ export const useChatStore = create<ChatState>()(
         }));
 
         // Sync with workspace store in background (don't block UI)
-        import('./workspace-store').then(({ useWorkspaceStore }) => {
+        import('./workspace-store-clean').then(({ useWorkspaceStore }) => {
           const workspaceStore = useWorkspaceStore.getState();
-          workspaceStore.setCurrentWorkspace(id).catch(error => {
-            console.error('Failed to sync workspace in background:', error);
-          });
+          if (workspaceStore.setCurrentWorkspace) {
+            workspaceStore.setCurrentWorkspace(id);
+          }
+        }).catch(error => {
+          console.error('Failed to sync workspace in background:', error);
         });
       },
 

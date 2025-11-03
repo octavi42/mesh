@@ -43,10 +43,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
       initializeClient: async () => {
         try {
+          console.log('🔧 WorkspaceStore.initializeClient: Starting...');
+
           const { pubkey: currentPubkey } = useAuthStore.getState();
+          console.log('🔐 Current pubkey:', currentPubkey?.substring(0, 8));
 
           if (!currentPubkey) {
-            console.warn('No authenticated user, cannot initialize workspace');
+            console.warn('❌ No authenticated user, cannot initialize workspace');
             return;
           }
 
@@ -56,24 +59,44 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             await get().clearAllData();
           }
 
+          console.log('📝 Setting loading state and user pubkey');
           set({ isLoading: true, error: null, userPubkey: currentPubkey });
 
+          console.log('🌐 Getting global NIP-29 client...');
           const client = getGlobalNIP29Client();
 
+          console.log('🔌 Checking client connection...');
           if (!client.isConnected()) {
+            console.log('📡 Connecting to relay...');
             await client.connect();
+            console.log('✅ Connected to relay');
+          } else {
+            console.log('✅ Client already connected');
           }
 
+          console.log('📋 Creating subscription manager...');
           const subManager = new NIP29SubscriptionManager(client);
           set({ subscriptionManager: subManager });
 
+          console.log('📂 Fetching workspaces from local DB...');
           await get().fetchWorkspaces();
 
+          console.log('🔍 Discovering groups from relay...');
           await get().discoverMyGroups();
 
+          // Additional check after discovery to ensure we have data
+          const finalState = get();
+          console.log('📊 Final state after initialization:', {
+            workspacesCount: finalState.workspaces.length,
+            currentWorkspace: finalState.currentWorkspace?.groupId,
+            hasSubscriptionManager: !!finalState.subscriptionManager
+          });
+
+          console.log('✅ Workspace initialization complete');
           set({ isLoading: false });
         } catch (error) {
-          console.error('Failed to initialize NIP-29 client:', error);
+          console.error('❌ Failed to initialize NIP-29 client:', error);
+          console.error('Error details:', error.message, error.stack);
           set({ error: 'Failed to connect to relay', isLoading: false });
         }
       },
@@ -174,43 +197,63 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
       fetchWorkspaces: async () => {
         try {
+          console.log('📂 fetchWorkspaces: Reading from local DB...');
           const workspaces = await db.nip29Workspaces.toArray();
+          console.log('📂 fetchWorkspaces: Found', workspaces.length, 'workspaces in DB');
+          console.log('📂 Workspace details:', workspaces.map(w => ({
+            groupId: w.groupId,
+            name: w.name,
+            createdAt: new Date(w.createdAt).toISOString()
+          })));
+
           set({ workspaces });
 
           if (workspaces.length > 0 && !get().currentWorkspace) {
             const firstWorkspace = workspaces[0];
+            console.log('📂 Setting current workspace to first:', firstWorkspace.groupId);
             set({ currentWorkspace: firstWorkspace });
-            
+
             // Sync with chat store
+            console.log('📂 Syncing with chat store...');
             const { useChatStore } = await import('./chat-store');
             const chatStore = useChatStore.getState();
             if (!chatStore.currentWorkspaceId || chatStore.currentWorkspaceId === 'workspace-1') {
               chatStore.setCurrentWorkspace(firstWorkspace.groupId);
-              console.log('🔄 Synced chat store with workspace:', firstWorkspace.groupId);
+              console.log('✅ Synced chat store with workspace:', firstWorkspace.groupId);
+            } else {
+              console.log('ℹ️ Chat store already has workspace:', chatStore.currentWorkspaceId);
             }
+          } else if (workspaces.length === 0) {
+            console.log('⚠️ No workspaces found in local DB');
+          } else {
+            console.log('ℹ️ Current workspace already set:', get().currentWorkspace?.groupId);
           }
         } catch (error) {
-          console.error('Failed to fetch workspaces:', error);
+          console.error('❌ Failed to fetch workspaces:', error);
+          console.error('Error details:', error.message, error.stack);
         }
       },
 
       discoverMyGroups: async () => {
         try {
+          console.log('🔍 discoverMyGroups: Starting group discovery...');
           const { pubkey: myPubkey } = useAuthStore.getState();
 
           if (!myPubkey) {
-            console.warn('User not authenticated, skipping group discovery');
+            console.warn('❌ User not authenticated, skipping group discovery');
             return;
           }
+
+          console.log('🔍 Discovering groups for pubkey:', myPubkey.substring(0, 8));
 
           const client = getGlobalNIP29Client();
 
           if (!client.isConnected()) {
-            console.warn('Client not connected, skipping group discovery');
+            console.warn('❌ Client not connected, skipping group discovery');
             return;
           }
 
-          console.log('🔍 Discovering groups for pubkey:', myPubkey);
+          console.log('✅ Client is connected, proceeding with discovery');
 
           console.log('🔎 Querying with filter:', {
             kinds: [NIP29EventKind.GroupMembers],

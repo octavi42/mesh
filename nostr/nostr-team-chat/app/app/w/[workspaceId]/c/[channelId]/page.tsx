@@ -2,32 +2,48 @@
 
 import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { ChannelView } from '@/components/chat/ChannelView';
+import { useChannel } from '@/lib/hooks/use-channels';
+import { useChannelMessages } from '@/lib/hooks/use-channel-messages';
 import { useChatStore } from '@/lib/stores/chat-store';
-import { useSecureAuth } from '@/lib/hooks/use-secure-auth';
+import { ChannelView } from '@/components/channels/ChannelView';
 
-export default function WorkspaceChannelPage() {
+export default function ChannelPage() {
   const params = useParams();
   const workspaceId = params.workspaceId as string;
   const channelId = params.channelId as string;
-  const { isAuthenticated, loading } = useSecureAuth({ redirectOnUnauth: true });
-  const { setCurrentWorkspace, setCurrentChannel } = useChatStore();
 
+  const channel = useChannel(channelId);
+  const { setCurrentChannel } = useChatStore();
+  const { messages, isLoading, sendMessage } = useChannelMessages(channelId);
+
+  // Set current channel when component mounts
   useEffect(() => {
-    if (workspaceId && channelId) {
-      setCurrentWorkspace(workspaceId);
+    if (channelId) {
+      console.log('🔄 Setting current channel from URL:', channelId);
       setCurrentChannel(channelId);
     }
-  }, [workspaceId, channelId, setCurrentWorkspace, setCurrentChannel]);
+  }, [channelId, setCurrentChannel]);
 
-  if (loading || !isAuthenticated) {
-    return null;
+  if (!channel) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <h1 className="text-xl font-bold text-red-600">Channel Not Found</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            The channel "{channelId}" could not be found.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <AppLayout>
-      <ChannelView key={channelId} channelId={channelId} />
-    </AppLayout>
+    <ChannelView
+      channel={channel}
+      workspaceId={workspaceId}
+      messages={messages}
+      isLoading={isLoading}
+      onSendMessage={sendMessage}
+    />
   );
 }
