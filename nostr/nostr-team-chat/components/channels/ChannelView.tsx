@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import type { Channel } from '@/lib/stores/channel-store';
+import type { Channel } from '@/lib/db/schema';
 import type { Message } from '@/lib/hooks/use-channel-messages';
 
 interface ChannelViewProps {
@@ -22,6 +22,21 @@ export function ChannelView({
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Debug logging for messages
+  useEffect(() => {
+    console.log('🖥️ ChannelView render update:', {
+      channelId: channel.id,
+      channelName: channel.name,
+      messagesCount: messages.length,
+      isLoading,
+      messages: messages.map(m => ({
+        id: m.id?.slice(0, 8),
+        content: m.content?.slice(0, 30),
+        author: m.authorPubkey?.slice(0, 8)
+      }))
+    });
+  }, [channel.id, messages.length, isLoading]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -62,15 +77,9 @@ export function ChannelView({
       <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-3">
           <div className="flex-shrink-0">
-            {channel.isPrivate ? (
-              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            ) : (
-              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-              </svg>
-            )}
+            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+            </svg>
           </div>
           <div>
             <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
