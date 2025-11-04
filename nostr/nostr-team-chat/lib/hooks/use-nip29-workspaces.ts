@@ -5,10 +5,20 @@ import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { NDKKind } from '@nostr-dev-kit/ndk';
 import type { Workspace } from '@/lib/stores/workspace-store-clean';
 
+// Define content kinds that can contain group information (matching groups_relay app)
+const hTaggedContentKinds: NDKKind[] = [
+  9009, // CreateInvite - invites use h tags
+  9021, // JoinRequest - join requests use h tags
+  9000, // PutUser - user management uses h tags
+  9001, // RemoveUser - user removal uses h tags
+  9,    // Chat message ⭐ KEY for discovering groups!
+  11,   // DM
+];
+
 export function useNIP29Workspaces() {
   const { ndk, isConnected } = useNDK();
   const { pubkey } = useAuthStore();
-  const { addWorkspace, setLoading, setError } = useWorkspaceStore();
+  const { addWorkspace, setLoading, setError, clearWorkspaces } = useWorkspaceStore();
   const subscriptionActiveRef = useRef(false);
 
   useEffect(() => {
@@ -33,311 +43,340 @@ export function useNIP29Workspaces() {
       return;
     }
 
-    console.log('🔍 Starting NIP-29 workspace subscription for user:', pubkey.slice(0, 8));
+    console.log('🔍 Starting NIP-29 workspace data fetching for user:', pubkey.slice(0, 8));
     subscriptionActiveRef.current = true;
     setLoading(true);
+    clearWorkspaces(); // Clear existing data
 
-    try {
-      // Based on relay analysis: subscribe to group metadata events (39000) and group creation events (9007)
+    // Track processed groups to avoid duplicates
+    const processedGroups = new Set<string>();
+    const groupAdmins = new Map<string, string[]>(); // groupId -> admin pubkeys
+    const groupMembers = new Map<string, string[]>(); // groupId -> member pubkeys
 
-      // Track processed groups to avoid duplicates
-      const processedGroups = new Set<string>();
+    const processEvent = (event: any, isLive = false) => {
+      try {
+        const logPrefix = isLive ? '🔴 LIVE' : '📜 HISTORICAL';
 
-      // 1. Subscribe to group metadata events (kind 39000) - this contains the actual group data
-      const metadataSubscription = ndk.subscribe({
-        kinds: [39000 as NDKKind], // KIND_GROUP_METADATA_39000 from relay
-        limit: 50
-      });
-
-      if (!metadataSubscription) {
-        console.warn('⚠️ Could not create metadata subscription - NDK not ready');
-        return;
-      }
-
-      metadataSubscription.on('event', (event) => {
-        try {
-          console.log('📦 Received group metadata event (39000):', {
+        if (event.kind === 39000) {
+          // Group metadata
+          console.log(`${logPrefix} Group metadata event (39000):`, {
             id: event.id?.slice(0, 8),
-            kind: event.kind,
-            pubkey: event.pubkey?.slice(0, 8),
-            relay: event.relay?.url,
-            tags: event.tags
-          });
-
-          // Extract group ID from 'd' tag (addressable event identifier)
-          const groupId = event.tags.find(tag => tag[0] === 'd')?.[1];
-
-          console.log('🔍 Raw group ID extracted from d tag:', {
-            dTag: event.tags.find(tag => tag[0] === 'd'),
-            groupId,
+            tags: event.tags,
+            content: event.content?.slice(0, 100),
             relay: event.relay?.url
           });
 
+          const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
+          console.log(`${logPrefix} Extracted group ID: "${groupId}" from tags:`, event.tags);
+
           if (!groupId) {
-            console.warn('⚠️ Group metadata event missing group ID (d tag)');
+            console.warn('⚠️ Missing group ID in metadata event - tags:', event.tags);
             return;
           }
 
-          // Sanitize group ID - ensure it's clean and doesn't contain URL parts
-          const sanitizedGroupId = groupId.trim();
-          if (sanitizedGroupId !== groupId) {
-            console.warn('⚠️ Group ID had whitespace, sanitized:', { original: groupId, sanitized: sanitizedGroupId });
-          }
-
-          // Validate group ID format - should be alphanumeric
-          if (!/^[a-zA-Z0-9_-]+$/.test(sanitizedGroupId)) {
-            console.warn('⚠️ Invalid group ID format, skipping:', sanitizedGroupId);
-            return;
-          }
-
-          if (processedGroups.has(sanitizedGroupId)) {
-            console.log('🔄 Group already processed, skipping:', sanitizedGroupId);
-            return;
-          }
-
-          // Parse group metadata from tags (relay stores metadata as tags, not content)
           let groupName = 'Unnamed Group';
           let about: string | undefined;
           let picture: string | undefined;
-          let isPrivate = true; // Default private
-          let isClosed = true; // Default closed
-          let isBroadcast = false; // Default not broadcast
+          let isPrivate = true;
+          let isClosed = true;
+          let isBroadcast = false;
 
-          // Process tags to extract metadata
           for (const tag of event.tags) {
             const [tagType, value] = tag;
             switch (tagType) {
-              case 'name':
-                groupName = value || groupName;
-                break;
-              case 'about':
-                about = value;
-                break;
-              case 'picture':
-                picture = value;
-                break;
-              case 'private':
-                isPrivate = true;
-                break;
-              case 'public':
-                isPrivate = false;
-                break;
-              case 'open':
-                isClosed = false;
-                break;
-              case 'closed':
-                isClosed = true;
-                break;
-              case 'broadcast':
-                isBroadcast = true;
-                break;
-              case 'nonbroadcast':
-                isBroadcast = false;
-                break;
+              case 'name': groupName = value || groupName; break;
+              case 'about': about = value; break;
+              case 'picture': picture = value; break;
+              case 'private': isPrivate = true; break;
+              case 'public': isPrivate = false; break;
+              case 'open': isClosed = false; break;
+              case 'closed': isClosed = true; break;
+              case 'broadcast': isBroadcast = true; break;
+              case 'nonbroadcast': isBroadcast = false; break;
             }
           }
 
-          // Create workspace object with relay-accurate mapping
           const workspace: Workspace = {
-            id: sanitizedGroupId,
+            id: groupId,
             name: groupName,
             description: about,
             picture: picture,
-            isPublic: !isPrivate, // Invert: relay uses "private", we use "isPublic"
+            isPublic: !isPrivate,
             isClosed: isClosed,
             isBroadcast: isBroadcast,
             relay: event.relay?.url,
             createdAt: event.created_at ? event.created_at * 1000 : Date.now(),
             updatedAt: Date.now(),
-            scope: 'Default' // Most groups are in default scope
-          };
-
-          console.log('✅ Processed group metadata workspace:', {
-            id: workspace.id,
-            name: workspace.name,
-            isPublic: workspace.isPublic,
-            isClosed: workspace.isClosed,
-            relay: workspace.relay
-          });
-
-          console.log('🔍 About to add workspace with ID:', workspace.id, 'Type:', typeof workspace.id);
-
-          processedGroups.add(sanitizedGroupId);
-          addWorkspace(workspace);
-        } catch (error) {
-          console.error('❌ Failed to process group metadata event:', error);
-        }
-      });
-
-      metadataSubscription.on('eose', () => {
-        console.log('✅ Group metadata subscription EOSE - metadata sync complete');
-      });
-
-      // 2. Subscribe to group creation events (kind 9007) to catch new groups
-      const creationSubscription = ndk.subscribe({
-        kinds: [9007 as NDKKind], // KIND_GROUP_CREATE_9007 from relay
-        limit: 30
-      });
-
-      if (!creationSubscription) {
-        console.warn('⚠️ Could not create creation subscription - NDK not ready');
-        return;
-      }
-
-      creationSubscription.on('event', (event) => {
-        try {
-          console.log('🆕 Received group creation event (9007):', {
-            id: event.id?.slice(0, 8),
-            kind: event.kind,
-            content: event.content?.slice(0, 100),
-            relay: event.relay?.url
-          });
-
-          // Extract group ID from 'h' tag (NIP-29 group ID)
-          const groupId = event.tags.find(tag => tag[0] === 'h')?.[1];
-
-          console.log('🔍 Raw group ID extracted from h tag (creation):', {
-            hTag: event.tags.find(tag => tag[0] === 'h'),
-            groupId,
-            relay: event.relay?.url
-          });
-
-          if (!groupId) {
-            return; // Skip if no ID
-          }
-
-          // Sanitize group ID
-          const sanitizedGroupId = groupId.trim();
-          if (!/^[a-zA-Z0-9_-]+$/.test(sanitizedGroupId)) {
-            console.warn('⚠️ Invalid group ID format in creation event, skipping:', sanitizedGroupId);
-            return;
-          }
-
-          if (processedGroups.has(sanitizedGroupId)) {
-            return; // Skip if already processed
-          }
-
-          // Parse creation event content for initial metadata
-          let metadata: any = {};
-          try {
-            metadata = event.content ? JSON.parse(event.content) : {};
-          } catch (error) {
-            console.log('Creation event content not JSON, using default');
-          }
-
-          const workspace: Workspace = {
-            id: sanitizedGroupId,
-            name: metadata.name || 'New Group',
-            description: metadata.about,
-            picture: metadata.picture,
-            isPublic: metadata.public === true || metadata.visibility === 'public',
-            isClosed: metadata.closed !== false, // Default closed unless explicitly open
-            isBroadcast: metadata.broadcast === true,
-            relay: event.relay?.url,
-            createdAt: event.created_at ? event.created_at * 1000 : Date.now(),
-            updatedAt: Date.now(),
+            adminCount: groupAdmins.get(groupId)?.length || 0,
+            memberCount: groupMembers.get(groupId)?.length || 0,
             scope: 'Default'
           };
 
-          console.log('✅ Processed group creation workspace:', {
+          console.log(`${logPrefix} Processed workspace:`, {
             id: workspace.id,
             name: workspace.name,
             isPublic: workspace.isPublic,
-            relay: workspace.relay
+            adminCount: workspace.adminCount,
+            memberCount: workspace.memberCount
           });
 
-          processedGroups.add(sanitizedGroupId);
+          processedGroups.add(groupId);
           addWorkspace(workspace);
-        } catch (error) {
-          console.error('❌ Failed to process group creation event:', error);
-        }
-      });
 
-      creationSubscription.on('eose', () => {
-        console.log('✅ Group creation subscription EOSE - creation events sync complete');
-        setLoading(false);
-      });
-
-      // 3. Also subscribe to group messages (kind 9) to discover groups through activity
-      const messagesSubscription = ndk.subscribe({
-        kinds: [9 as NDKKind], // Group chat messages
-        limit: 30
-      });
-
-      if (!messagesSubscription) {
-        console.warn('⚠️ Could not create messages subscription - NDK not ready');
-        return;
-      }
-
-      messagesSubscription.on('event', (event) => {
-        try {
-          const groupId = event.tags.find(tag => tag[0] === 'h')?.[1];
-
-          console.log('🔍 Raw group ID extracted from h tag (message discovery):', {
-            hTag: event.tags.find(tag => tag[0] === 'h'),
-            groupId,
-            relay: event.relay?.url
+        } else if (event.kind === 39001) {
+          // Group admins
+          console.log(`${logPrefix} Group admins event (39001):`, {
+            id: event.id?.slice(0, 8),
+            tags: event.tags
           });
 
-          if (!groupId) {
-            return;
+          const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
+          if (groupId) {
+            const adminPubkeys = event.tags
+              .filter((tag: string[]) => tag[0] === 'p')
+              .map((tag: string[]) => tag[1])
+              .filter(Boolean);
+
+            groupAdmins.set(groupId, adminPubkeys);
+            console.log(`${logPrefix} Updated admins for group ${groupId}:`, adminPubkeys.length);
           }
 
-          // Sanitize group ID
-          const sanitizedGroupId = groupId.trim();
-          if (!/^[a-zA-Z0-9_-]+$/.test(sanitizedGroupId)) {
-            console.warn('⚠️ Invalid group ID format in message discovery, skipping:', sanitizedGroupId);
-            return;
+        } else if (event.kind === 39002) {
+          // Group members
+          console.log(`${logPrefix} Group members event (39002):`, {
+            id: event.id?.slice(0, 8),
+            tags: event.tags
+          });
+
+          const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
+          if (groupId) {
+            const memberPubkeys = event.tags
+              .filter((tag: string[]) => tag[0] === 'p')
+              .map((tag: string[]) => tag[1])
+              .filter(Boolean);
+
+            groupMembers.set(groupId, memberPubkeys);
+            console.log(`${logPrefix} Updated members for group ${groupId}:`, memberPubkeys.length);
           }
 
-          if (!processedGroups.has(sanitizedGroupId)) {
-            console.log('💬 Discovered group through message activity:', {
-              groupId: sanitizedGroupId.slice(0, 8),
-              relay: event.relay?.url
-            });
+        } else if (event.kind === 9007) {
+          // Group creation
+          console.log(`${logPrefix} Group creation event (9007):`, {
+            id: event.id?.slice(0, 8),
+            tags: event.tags
+          });
 
-            // Create minimal workspace from message discovery
+          const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
+          if (!groupId) return;
+
+          if (!processedGroups.has(groupId)) {
+            let metadata: any = {};
+            try {
+              metadata = event.content ? JSON.parse(event.content) : {};
+            } catch (error) {
+              console.log('Creation event content not JSON, using default');
+            }
+
             const workspace: Workspace = {
-              id: sanitizedGroupId,
-              name: `Group ${sanitizedGroupId.slice(0, 8)}`, // Temporary name
-              isPublic: false, // Assume private until metadata loads
+              id: groupId,
+              name: metadata.name || 'New Group',
+              description: metadata.about,
+              picture: metadata.picture,
+              isPublic: metadata.public === true,
+              isClosed: metadata.closed !== false,
+              isBroadcast: metadata.broadcast === true,
               relay: event.relay?.url,
-              createdAt: Date.now(),
+              createdAt: event.created_at ? event.created_at * 1000 : Date.now(),
               updatedAt: Date.now(),
               scope: 'Default'
             };
 
-            processedGroups.add(sanitizedGroupId);
+            processedGroups.add(groupId);
             addWorkspace(workspace);
           }
-        } catch (error) {
-          console.log('Error processing group message for discovery:', error);
-        }
-      });
+        } else if (event.kind === 9 || event.kind === 11 || event.kind === 9000 || event.kind === 9001) {
+          // Content events - create workspace if not exists
+          console.log(`${logPrefix} Content event (${event.kind}):`, {
+            id: event.id?.slice(0, 8),
+            tags: event.tags
+          });
 
-      messagesSubscription.on('eose', () => {
-        console.log('✅ Group messages subscription EOSE');
-      });
+          const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
+          if (!groupId) return;
 
-      // Cleanup function
-      return () => {
-        console.log('🛑 Stopping NIP-29 workspace subscriptions');
-        subscriptionActiveRef.current = false;
-        try {
-          metadataSubscription.stop();
-          creationSubscription.stop();
-          messagesSubscription.stop();
-        } catch (error) {
-          console.log('Error stopping subscriptions:', error);
+          if (!processedGroups.has(groupId)) {
+            // Create workspace from content discovery (no metadata available)
+            const workspace: Workspace = {
+              id: groupId,
+              name: groupId.includes("'") ? groupId.split("'")[1] || 'Chat Group' : 'Chat Group',
+              description: 'Group discovered through chat messages',
+              picture: undefined,
+              isPublic: false, // Default to private since we don't have metadata
+              isClosed: true,
+              isBroadcast: false,
+              relay: event.relay?.url,
+              createdAt: event.created_at ? event.created_at * 1000 : Date.now(),
+              updatedAt: Date.now(),
+              scope: 'Default'
+            };
+
+            console.log(`${logPrefix} Creating workspace from content for group: ${groupId}`, workspace);
+            processedGroups.add(groupId);
+            addWorkspace(workspace);
+          }
         }
+      } catch (error) {
+        console.error('❌ Failed to process event:', error);
+      }
+    };
+
+    const initializeWorkspaces = async () => {
+      try {
+        // PHASE 1: HISTORICAL DATA FETCH (like working test app)
+        console.log('📜 PHASE 1: Fetching historical workspace data...');
+
+        // Wait for relay authentication like working test app does
+        const pool = ndk.pool;
+        const allRelays = Array.from(pool.relays.values());
+        console.log('📡 Relay status check before fetch:', {
+          totalRelays: allRelays.length,
+          relayStates: allRelays.map(r => ({
+            url: r.url,
+            status: r.status,
+            connectivity: r.connectivity,
+            hasAuth: r.hasAuth,
+            statusName: ['disconnected', 'connecting', 'connected', 'reconnecting', 'error', 'authenticated', 'connected_readonly'][r.status] || `unknown_${r.status}`
+          }))
+        });
+
+        // Check if we have properly connected/authenticated relays
+        const connectedRelays = allRelays.filter(r => r.status === 2 || r.status === 5 || r.status === 6);
+        if (connectedRelays.length === 0) {
+          console.warn('📡 No connected/authenticated relays available, waiting...');
+          // Wait a bit for authentication
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          const relaysAfterWait = Array.from(pool.relays.values());
+          console.log('📡 Relay status after wait:', relaysAfterWait.map(r => ({
+            url: r.url,
+            status: r.status,
+            hasAuth: r.hasAuth
+          })));
+        }
+
+        // PHASE 1: METADATA DISCOVERY (existing approach)
+        console.log('📜 PHASE 1: Fetching group metadata events...');
+        const metadataFilter = {
+          kinds: [39000, 39001, 39002, 9007] as NDKKind[]
+        };
+        console.log('📜 Metadata filter:', metadataFilter);
+        const historicalEvents = await ndk.fetchEvents(metadataFilter);
+        console.log(`📜 PHASE 1 result: ${historicalEvents.size} metadata events found`);
+
+        // PHASE 2: CONTENT DISCOVERY (new - matches groups_relay app)
+        console.log('📜 PHASE 2: Discovering groups through content events...');
+        const contentFilter = {
+          kinds: hTaggedContentKinds,
+          limit: 500 // Reasonable limit for content discovery
+        };
+        console.log('📜 Content filter:', contentFilter);
+        const contentEvents = await ndk.fetchEvents(contentFilter);
+        console.log(`📜 PHASE 2 result: ${contentEvents.size} content events found`);
+
+        // Combine both event sets
+        const combinedEvents = new Set([...historicalEvents, ...contentEvents]);
+        console.log(`📜 COMBINED: ${combinedEvents.size} total events (${historicalEvents.size} metadata + ${contentEvents.size} content)`);
+
+        // Use combined events for processing
+        const historicalEventsToProcess = combinedEvents;
+
+        // DETAILED DEBUGGING: Log group IDs discovered from all events
+        const discoveredGroupIds = new Set<string>();
+        if (historicalEventsToProcess.size > 0) {
+          console.log(`📜 Processing ${historicalEventsToProcess.size} events to discover groups...`);
+
+          Array.from(historicalEventsToProcess).forEach((e, index) => {
+            const groupId = e.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
+            if (groupId) {
+              discoveredGroupIds.add(groupId);
+              if (index < 10) { // Log first 10 events for debugging
+                console.log(`📜 Event ${index + 1}:`, {
+                  id: e.id?.slice(0, 8),
+                  kind: e.kind,
+                  extractedGroupId: groupId,
+                  source: historicalEvents.has(e) ? 'metadata' : 'content',
+                  relay: e.relay?.url
+                });
+              }
+            }
+          });
+
+          console.log(`📜 Discovered ${discoveredGroupIds.size} unique group IDs:`, Array.from(discoveredGroupIds));
+        } else {
+          console.log('📜 No events found from either metadata or content discovery');
+        }
+
+        let latestTimestamp = 0;
+
+        // Process all combined events (metadata + content)
+        historicalEventsToProcess.forEach((event) => {
+          processEvent(event, false);
+          if (event.created_at && event.created_at > latestTimestamp) {
+            latestTimestamp = event.created_at;
+          }
+        });
+
+        console.log('📜 Historical data processing complete');
+
+        // PHASE 3: LIVE SUBSCRIPTION for both metadata and content (enhanced)
+        console.log('🔴 PHASE 3: Starting live subscription for metadata and content...');
+
+        const allKinds = [...new Set([39000, 39001, 39002, 9007, ...hTaggedContentKinds])];
+        const liveSubscription = ndk.subscribe({
+          kinds: allKinds as NDKKind[],
+          since: latestTimestamp + 1 // Only new events after historical data
+        });
+
+        console.log('🔴 Live subscription kinds:', allKinds);
+
+        if (!liveSubscription) {
+          console.warn('⚠️ Could not create live subscription - NDK not ready');
+          setLoading(false);
+          return;
+        }
+
+        // Handle live events
+        liveSubscription.on('event', (event) => {
+          processEvent(event, true);
+        });
+
+        liveSubscription.on('eose', () => {
+          console.log('✅ Live subscription EOSE - real-time updates active');
+          setLoading(false);
+        });
+
+        // Cleanup function
+        return () => {
+          console.log('🛑 Stopping NIP-29 workspace subscriptions');
+          subscriptionActiveRef.current = false;
+          try {
+            liveSubscription.stop();
+          } catch (error) {
+            console.log('Error stopping subscription:', error);
+          }
+          setLoading(false);
+        };
+
+      } catch (error) {
+        console.error('❌ Failed to fetch workspace data:', error);
+        setError(error instanceof Error ? error.message : 'Data fetching failed');
         setLoading(false);
-      };
+      }
+    };
 
-    } catch (error) {
-      console.error('❌ Failed to create NIP-29 workspace subscription:', error);
-      setError(error instanceof Error ? error.message : 'Subscription failed');
-      setLoading(false);
-    }
+    // Start the two-phase initialization
+    initializeWorkspaces();
+
   }, [ndk, pubkey, isConnected]); // Removed function dependencies to prevent unnecessary re-runs
 }
 

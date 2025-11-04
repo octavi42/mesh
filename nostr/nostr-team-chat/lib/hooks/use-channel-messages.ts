@@ -30,188 +30,184 @@ export function useChannelMessages(channelId: string) {
       return;
     }
 
-    console.log('💬 Starting channel messages subscription for channel:', channelId);
+    console.log('💬 Starting channel messages fetching for channel:', channelId);
     setIsLoading(true);
     setMessages([]); // Clear previous messages
 
-    try {
-      // Parse channel ID to extract workspace (group) ID and channel name
-      // Format: "workspaceId-channelName" e.g. "x6i0xmzzxui-general"
-      const parts = channelId.split('-');
-      if (parts.length < 2) {
-        console.error('❌ Invalid channel ID format:', channelId);
-        setIsLoading(false);
-        return;
-      }
+    // Parse channel ID to extract workspace (group) ID and channel name
+    // Format: "workspaceId-channelName" e.g. "x6i0xmzzxui-general"
+    const parts = channelId.split('-');
+    if (parts.length < 2) {
+      console.error('❌ Invalid channel ID format:', channelId);
+      setIsLoading(false);
+      return;
+    }
 
-      const workspaceId = parts[0]; // This is the group ID from NIP-29
-      const channelName = parts.slice(1).join('-'); // Channel name (rejoin in case of multiple dashes)
+    const workspaceId = parts[0]; // This is the group ID from NIP-29
+    const channelName = parts.slice(1).join('-'); // Channel name (rejoin in case of multiple dashes)
 
-      console.log('💬 Parsed channel info:', { workspaceId, channelName });
+    console.log('💬 Parsed channel info:', { workspaceId, channelName });
 
-      // Subscribe to ALL group messages (kind 9) and filter client-side
-      // This matches the working test implementation
-      const subscription = ndk.subscribe({
-        kinds: [9 as NDKKind], // All group messages (kind 9)
-        limit: 100 // Get recent messages
-      });
+    const processMessage = (event: any, isLive = false) => {
+      try {
+        const logPrefix = isLive ? '🔴 LIVE MSG' : '📜 HISTORICAL MSG';
 
-      if (!subscription) {
-        console.warn('⚠️ Could not create messages subscription - NDK not ready');
-        setIsLoading(false);
-        return;
-      }
+        console.log(`${logPrefix} Received message event:`, {
+          id: event.id?.slice(0, 8),
+          kind: event.kind,
+          groupId: event.tags.find((tag: string[]) => tag[0] === 'h')?.[1],
+          channelName: event.tags.find((tag: string[]) => tag[0] === 'c')?.[1],
+          author: event.pubkey?.slice(0, 8),
+          content: event.content?.slice(0, 50),
+          relay: event.relay?.url
+        });
 
-      subscription.on('event', (event) => {
-        try {
-          console.log('💬 Received message event:', {
-            id: event.id?.slice(0, 8),
-            kind: event.kind,
-            groupId: event.tags.find(tag => tag[0] === 'h')?.[1],
-            channelName: event.tags.find(tag => tag[0] === 'c')?.[1],
-            author: event.pubkey?.slice(0, 8),
-            content: event.content?.slice(0, 50),
-            tags: event.tags,
-            relay: event.relay?.url
-          });
+        // Extract group ID and channel name from tags
+        const messageGroupId = event.tags.find((tag: string[]) => tag[0] === 'h')?.[1];
+        const messageChannelName = event.tags.find((tag: string[]) => tag[0] === 'c')?.[1] || 'general';
 
-          // Extract group ID and channel name from tags
-          const messageGroupId = event.tags.find(tag => tag[0] === 'h')?.[1];
-          const messageChannelName = event.tags.find(tag => tag[0] === 'c')?.[1] || 'general'; // Default to general if no channel
-
-          // Only process messages for our specific group
-          if (messageGroupId !== workspaceId) {
-            console.log('⏭️ Message not for current group, skipping:', {
-              messageGroup: messageGroupId,
-              expectedGroup: workspaceId
-            });
-            return;
-          }
-
-          // For channel filtering: if we're looking for 'general' channel, accept messages with no channel tag OR 'general' tag
-          // For other channels, require exact match
-          const isCorrectChannel = channelName === 'general'
-            ? (messageChannelName === 'general' || messageChannelName === undefined)
-            : messageChannelName === channelName;
-
-          if (!isCorrectChannel) {
-            console.log('⏭️ Message not for current channel, skipping:', {
-              messageChannel: messageChannelName,
-              expectedChannel: channelName,
-              isGeneral: channelName === 'general'
-            });
-            return;
-          }
-
-          // Extract reply-to from 'e' tags (if any)
-          const replyToTag = event.tags.find(tag => tag[0] === 'e');
-          const replyTo = replyToTag ? replyToTag[1] : undefined;
-
+        // Filter messages for this specific group and channel
+        if (messageGroupId === workspaceId && messageChannelName === channelName) {
           const message: Message = {
-            id: event.id!,
-            channelId: channelId, // Use our combined channel ID
+            id: event.id || `${Date.now()}-${Math.random()}`,
+            channelId: channelId,
             content: event.content || '',
-            authorPubkey: event.pubkey!,
+            authorPubkey: event.pubkey || '',
             createdAt: event.created_at ? event.created_at * 1000 : Date.now(),
-            replyTo
+            replyTo: event.tags.find((tag: string[]) => tag[0] === 'e')?.[1]
           };
+
+          console.log(`${logPrefix} Adding message to channel:`, {
+            messageId: message.id.slice(0, 8),
+            channelId: message.channelId,
+            author: message.authorPubkey.slice(0, 8),
+            content: message.content.slice(0, 30)
+          });
 
           setMessages(prev => {
             // Avoid duplicates
-            const exists = prev.some(m => m.id === message.id);
-            if (exists) {
-              console.log('💬 Message already exists, skipping duplicate');
-              return prev;
-            }
+            const exists = prev.find(m => m.id === message.id);
+            if (exists) return prev;
 
-            // Insert in chronological order
-            const newMessages = [...prev, message];
-            const sortedMessages = newMessages.sort((a, b) => a.createdAt - b.createdAt);
-            console.log('💬 Updated messages array:', {
-              previousCount: prev.length,
-              newCount: sortedMessages.length,
-              newMessage: {
-                id: message.id?.slice(0, 8),
-                content: message.content?.slice(0, 50),
-                author: message.authorPubkey?.slice(0, 8)
-              }
-            });
-            return sortedMessages;
+            // Add and sort by timestamp
+            const updated = [...prev, message].sort((a, b) => a.createdAt - b.createdAt);
+            return updated;
           });
-        } catch (error) {
-          console.error('❌ Failed to process message event:', error);
         }
-      });
+      } catch (error) {
+        console.error('❌ Failed to process message event:', error);
+      }
+    };
 
-      subscription.on('eose', () => {
-        console.log('✅ Channel messages subscription EOSE');
+    const initializeMessages = async () => {
+      try {
+        // PHASE 1: HISTORICAL MESSAGES FETCH (like working test app)
+        console.log('📜 PHASE 1: Fetching historical messages...');
+
+        const historicalMessages = await ndk.fetchEvents({
+          kinds: [1, 11] as NDKKind[], // TextNote and EncryptedDM (standard message kinds)
+          "#h": [workspaceId], // Filter by group ID
+          limit: 250 // Match working test app limit
+        });
+
+        console.log(`📜 Fetched ${historicalMessages.size} historical messages for group ${workspaceId}`);
+
+        let latestTimestamp = 0;
+
+        // Process historical messages
+        historicalMessages.forEach((event) => {
+          processMessage(event, false);
+          if (event.created_at && event.created_at > latestTimestamp) {
+            latestTimestamp = event.created_at;
+          }
+        });
+
+        console.log('📜 Historical messages processing complete');
+
+        // PHASE 2: LIVE SUBSCRIPTION (like working test app)
+        console.log('🔴 PHASE 2: Starting live message subscription...');
+
+        const liveSubscription = ndk.subscribe({
+          kinds: [1, 11] as NDKKind[], // TextNote and EncryptedDM
+          "#h": [workspaceId], // Filter by group ID
+          since: latestTimestamp + 1 // Only new messages after historical data
+        });
+
+        if (!liveSubscription) {
+          console.warn('⚠️ Could not create live message subscription - NDK not ready');
+          setIsLoading(false);
+          return;
+        }
+
+        // Handle live messages
+        liveSubscription.on('event', (event) => {
+          processMessage(event, true);
+        });
+
+        liveSubscription.on('eose', () => {
+          console.log('✅ Live message subscription EOSE - real-time messages active');
+          setIsLoading(false);
+        });
+
+        // Cleanup function
+        return () => {
+          console.log('🛑 Stopping message subscriptions for channel:', channelId);
+          try {
+            liveSubscription.stop();
+          } catch (error) {
+            console.log('Error stopping message subscription:', error);
+          }
+        };
+
+      } catch (error) {
+        console.error('❌ Failed to fetch messages:', error);
         setIsLoading(false);
-        setLoadingChannel(false); // Clear global loading state
-      });
+      }
+    };
 
-      subscription.on('close', () => {
-        console.log('🔌 Channel messages subscription closed');
-        setIsLoading(false);
-        setLoadingChannel(false); // Clear global loading state
-      });
+    // Start the two-phase message initialization
+    initializeMessages();
 
-      // Cleanup function
-      return () => {
-        console.log('🛑 Stopping channel messages subscription');
-        subscription.stop();
-        setIsLoading(false);
-      };
-
-    } catch (error) {
-      console.error('❌ Failed to create channel messages subscription:', error);
-      setIsLoading(false);
-    }
+    // Return empty cleanup since initializeMessages handles its own cleanup
+    return () => {
+      console.log('🛑 Cleanup triggered for channel:', channelId);
+    };
   }, [ndk, channelId, isConnected]);
 
-  const sendMessage = async (content: string, replyToId?: string) => {
-    if (!ndk || !pubkey || !channelId) {
-      throw new Error('Cannot send message: missing requirements');
+  const sendMessage = async (content: string, replyTo?: string) => {
+    if (!ndk || !pubkey) {
+      throw new Error('NDK or user not available');
     }
 
-    console.log('📤 Sending message to channel:', channelId);
+    // Parse channel ID to get workspace and channel
+    const parts = channelId.split('-');
+    if (parts.length < 2) {
+      throw new Error('Invalid channel ID format');
+    }
+
+    const workspaceId = parts[0];
+    const channelName = parts.slice(1).join('-');
+
+    console.log('📤 Sending message:', { workspaceId, channelName, content: content.slice(0, 30) });
 
     try {
-      // Parse channel ID to extract workspace (group) ID and channel name
-      const parts = channelId.split('-');
-      if (parts.length < 2) {
-        throw new Error('Invalid channel ID format');
-      }
-
-      const workspaceId = parts[0]; // This is the group ID from NIP-29
-      const channelName = parts.slice(1).join('-'); // Channel name
-
       const { NDKEvent } = await import('@nostr-dev-kit/ndk');
-
       const messageEvent = new NDKEvent(ndk);
-      messageEvent.kind = 9; // Standard group chat message (kind 9)
+      messageEvent.kind = 1; // TextNote
       messageEvent.content = content;
       messageEvent.tags = [
-        ['h', workspaceId], // NIP-29 group ID (h tag)
+        ['h', workspaceId], // Group ID
+        ['c', channelName]  // Channel name
       ];
 
-      // Add channel tag only if not the default 'general' channel
-      if (channelName !== 'general') {
-        messageEvent.tags.push(['c', channelName]); // Channel name (c tag)
+      if (replyTo) {
+        messageEvent.tags.push(['e', replyTo]);
       }
 
-      // Add reply-to tag if this is a reply
-      if (replyToId) {
-        messageEvent.tags.push(['e', replyToId]); // Reply reference
-      }
+      await messageEvent.sign();
+      await messageEvent.publish();
 
-      await publish(messageEvent);
-
-      console.log('✅ Message sent successfully:', {
-        id: messageEvent.id,
-        workspaceId,
-        channelName,
-        replyTo: replyToId
-      });
+      console.log('✅ Message sent successfully');
     } catch (error) {
       console.error('❌ Failed to send message:', error);
       throw error;
