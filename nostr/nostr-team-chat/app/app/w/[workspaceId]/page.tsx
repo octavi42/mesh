@@ -18,28 +18,13 @@ export default function WorkspacePage() {
   const workspace = getWorkspaceById(workspaceId);
   const isLoading = isLoadingWorkspace; // Show loading when workspace is being set
 
-  // Check for corrupted workspace ID and redirect if needed
+  // Note: Removed "corrupted" workspace ID validation as NIP-29 group IDs
+  // can contain dots and quotes (e.g., "groups.contextio.app'dlpnklmeoft")
+  // and are valid - we should not clear workspace data for valid group IDs
+
+  // Set current workspace from URL params
   useEffect(() => {
-    const isCorruptedWorkspaceId = workspaceId.includes('.') || workspaceId.includes("'") || !/^[a-zA-Z0-9_-]+$/.test(workspaceId);
-
-    if (isCorruptedWorkspaceId) {
-      console.warn('🚨 Detected corrupted workspace ID, redirecting to home:', workspaceId);
-
-      // Clear corrupted stores
-      clearWorkspaces();
-      resetChatStore();
-
-      // Redirect to home to start fresh
-      router.replace('/app');
-      return;
-    }
-  }, [workspaceId, router, clearWorkspaces]);
-
-  // Set current workspace from URL params (only if valid)
-  useEffect(() => {
-    const isValidWorkspaceId = /^[a-zA-Z0-9_-]+$/.test(workspaceId);
-
-    if (workspaceId && isValidWorkspaceId) {
+    if (workspaceId) {
       console.log('🔄 Setting current workspace from URL:', workspaceId);
       setCurrentWorkspace(workspaceId);
     }

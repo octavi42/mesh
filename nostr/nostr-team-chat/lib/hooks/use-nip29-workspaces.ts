@@ -15,38 +15,46 @@ const hTaggedContentKinds: NDKKind[] = [
   11,   // DM
 ];
 
+// Global flag to ensure workspace fetching happens only once per session
+let workspacesFetched = false;
+
+// Function to reset the session (call on user logout)
+export function resetWorkspaceSession() {
+  workspacesFetched = false;
+  console.log('🔄 Workspace session reset - will fetch on next mount');
+}
+
 export function useNIP29Workspaces() {
   const { ndk, isConnected } = useNDK();
   const { pubkey } = useAuthStore();
-  const { addWorkspace, setLoading, setError, clearWorkspaces } = useWorkspaceStore();
-  const subscriptionActiveRef = useRef(false);
+  const { addWorkspace, setLoading, setError, workspaces } = useWorkspaceStore();
 
   useEffect(() => {
     console.log('🔍 useNIP29Workspaces effect triggered:', {
       hasNdk: !!ndk,
       hasPubkey: !!pubkey,
       isConnected,
-      pubkey: pubkey?.slice(0, 8)
+      pubkey: pubkey?.slice(0, 8),
+      workspacesFetched,
+      existingWorkspaces: workspaces.length
     });
 
-    if (!ndk || !pubkey || !isConnected) {
-      console.log('⏭️ Skipping NIP-29 workspace subscription: missing requirements');
-      console.log('  - NDK status:', ndk ? 'available' : 'missing');
-      console.log('  - Pubkey status:', pubkey ? 'available' : 'missing');
-      console.log('  - Connection status:', isConnected ? 'connected' : 'not connected');
-      subscriptionActiveRef.current = false;
+    // Only run once per session - never during navigation
+    if (workspacesFetched) {
+      console.log('⏭️ Workspaces already fetched this session, skipping');
       return;
     }
 
-    if (subscriptionActiveRef.current) {
-      console.log('⏭️ Subscription already active, skipping duplicate');
+    if (!ndk || !pubkey || !isConnected) {
+      console.log('⏭️ Skipping NIP-29 workspace subscription: missing requirements');
       return;
     }
 
     console.log('🔍 Starting NIP-29 workspace data fetching for user:', pubkey.slice(0, 8));
-    subscriptionActiveRef.current = true;
+    workspacesFetched = true; // Mark as fetched immediately
     setLoading(true);
-    clearWorkspaces(); // Clear existing data
+
+    // CRITICAL: Never clear existing workspaces - only add new ones like groups_relay
 
     // Track processed groups to avoid duplicates
     const processedGroups = new Set<string>();
@@ -375,9 +383,20 @@ export function useNIP29Workspaces() {
     };
 
     // Start the two-phase initialization
-    initializeWorkspaces();
+    let cleanupFn: (() => void) | undefined;
 
-  }, [ndk, pubkey, isConnected]); // Removed function dependencies to prevent unnecessary re-runs
+    initializeWorkspaces().then((cleanup) => {
+      cleanupFn = cleanup;
+    });
+
+    // Return cleanup function for useEffect
+    return () => {
+      if (cleanupFn) {
+        cleanupFn();
+      }
+    };
+
+  }, [ndk, pubkey, isConnected]); // Run when auth/connection is ready, but only once per session
 }
 
 // Hook to create a new workspace

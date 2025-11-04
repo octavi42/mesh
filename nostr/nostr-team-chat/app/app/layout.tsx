@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useAppInitialization } from '@/lib/hooks/use-app-initialization-clean';
+import { useNIP29Workspaces } from '@/lib/hooks/use-nip29-workspaces';
 import { AppLayout } from '@/components/layout/AppLayout';
 
 export default function ProtectedLayout({
@@ -14,6 +15,9 @@ export default function ProtectedLayout({
   const router = useRouter();
   const { isAuthenticated, loading, hasHydrated } = useAuthStore();
   const { isInitialized, isInitializing, error } = useAppInitialization();
+
+  // Initialize workspaces once per authenticated session - persists during navigation
+  useNIP29Workspaces();
 
   // Redirect to home if not authenticated
   useEffect(() => {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useNDK } from './use-ndk';
-import { useNIP29Workspaces } from './use-nip29-workspaces';
 import { useRelayTest } from './use-relay-test';
 
 interface AppInitState {
@@ -19,8 +18,7 @@ export function useAppInitialization() {
     error: null
   });
 
-  // Start NIP-29 subscriptions (this hook manages its own lifecycle)
-  useNIP29Workspaces();
+  // NOTE: NIP-29 workspace initialization moved to protected layout for persistence
 
   // Add relay connectivity test
   useRelayTest();

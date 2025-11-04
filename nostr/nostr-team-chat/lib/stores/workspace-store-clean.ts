@@ -34,6 +34,7 @@ interface WorkspaceState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearWorkspaces: () => void;
+  resetWorkspaces: () => void;
 
   // Getters
   getCurrentWorkspace: () => Workspace | null;
@@ -114,11 +115,28 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           error: null
         });
 
-        // Also clear from localStorage to prevent corruption
+        // NOTE: Don't clear localStorage here to preserve data across connection issues
+        // Only clear localStorage on explicit user logout or significant auth changes
+        console.log('🧹 Cleared workspace memory (preserved localStorage)');
+      },
+
+      // Method to completely reset including localStorage (for user logout)
+      resetWorkspaces: () => {
+        console.log('🗑️ Completely resetting workspaces (including localStorage)');
+
+        // Clear from memory
+        set({
+          workspaces: [],
+          currentWorkspaceId: null,
+          isLoading: false,
+          error: null
+        });
+
+        // Also clear from localStorage for complete reset
         if (typeof window !== 'undefined') {
           try {
             localStorage.removeItem('workspace-store-clean');
-            console.log('🧹 Cleared workspace localStorage');
+            console.log('🗑️ Cleared workspace localStorage completely');
           } catch (error) {
             console.warn('⚠️ Failed to clear localStorage:', error);
           }

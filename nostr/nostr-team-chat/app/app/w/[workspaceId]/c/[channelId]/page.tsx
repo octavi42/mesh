@@ -18,36 +18,19 @@ export default function ChannelPage() {
   const channel = useChannel(channelId);
   const { setCurrentChannel, reset: resetChatStore } = useChatStore();
 
-  // Check for corrupted workspace ID and redirect if needed
-  useEffect(() => {
-    const isCorruptedWorkspaceId = workspaceId.includes('.') || workspaceId.includes("'") || !/^[a-zA-Z0-9_-]+$/.test(workspaceId);
-    const isCorruptedChannelId = channelId.includes("'") || channelId.includes('groups.contextio.app');
-
-    if (isCorruptedWorkspaceId || isCorruptedChannelId) {
-      console.warn('🚨 Detected corrupted workspace/channel ID, redirecting to home:', { workspaceId, channelId });
-
-      // Clear corrupted stores
-      clearWorkspaces();
-      resetChatStore();
-
-      // Redirect to home to start fresh
-      router.replace('/app');
-      return;
-    }
-  }, [workspaceId, channelId, router, clearWorkspaces]);
+  // Note: Removed "corrupted" workspace/channel ID validation as NIP-29 group IDs
+  // can contain dots and quotes (e.g., "groups.contextio.app'dlpnklmeoft")
+  // and are valid - we should not clear workspace data for valid group IDs
 
   const { messages, isLoading, sendMessage } = useChannelMessages(channelId);
 
-  // Set current channel when component mounts (only if IDs are valid)
+  // Set current channel when component mounts
   useEffect(() => {
-    const isValidWorkspaceId = /^[a-zA-Z0-9_-]+$/.test(workspaceId);
-    const isValidChannelId = /^[a-zA-Z0-9_-]+$/.test(channelId);
-
-    if (channelId && isValidWorkspaceId && isValidChannelId) {
+    if (channelId) {
       console.log('🔄 Setting current channel from URL:', channelId);
       setCurrentChannel(channelId);
     }
-  }, [channelId, workspaceId, setCurrentChannel]);
+  }, [channelId, setCurrentChannel]);
 
   if (!channel) {
     return (

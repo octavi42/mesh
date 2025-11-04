@@ -16,6 +16,16 @@ export function WorkspaceList() {
 
   console.log('🔍 WorkspaceList render - workspaces:', workspaces, 'currentWorkspaceId:', currentWorkspaceId);
 
+  // Helper function to sanitize workspace ID for URL
+  const sanitizeWorkspaceIdForUrl = (workspaceId: string): string => {
+    // Remove domain prefix and special characters for URL-safe routing
+    if (workspaceId.includes("'")) {
+      // Extract the part after the single quote (e.g., "groups.contextio.app'dlpnklmeoft" -> "dlpnklmeoft")
+      return workspaceId.split("'")[1] || workspaceId;
+    }
+    return workspaceId;
+  };
+
   const handleWorkspaceClick = async (workspaceId: string) => {
     console.log('🖱️ Workspace clicked:', workspaceId);
 
@@ -34,7 +44,10 @@ export function WorkspaceList() {
     isNavigatingRef.current = true;
 
     try {
-      console.log('🔍 Looking for channels in workspace:', workspaceId);
+      // Use sanitized workspace ID for URL but keep original for internal tracking
+      const urlSafeWorkspaceId = sanitizeWorkspaceIdForUrl(workspaceId);
+      console.log('🔍 Looking for channels in workspace:', workspaceId, 'URL-safe ID:', urlSafeWorkspaceId);
+
       let channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
       console.log('📋 Found channels:', channels);
 
@@ -77,21 +90,21 @@ export function WorkspaceList() {
       if (firstChannel) {
         console.log('🔄 Setting workspace with first channel:', workspaceId, firstChannel.id);
 
-        // Set workspace immediately for responsive UI
+        // Set workspace immediately for responsive UI (use original ID)
         setCurrentWorkspace(workspaceId, firstChannel.id);
 
-        // Navigate using Next.js router for proper page transitions
-        const url = `/app/w/${workspaceId}/c/${firstChannel.id}`;
+        // Navigate using Next.js router with URL-safe IDs
+        const url = `/app/w/${encodeURIComponent(urlSafeWorkspaceId)}/c/${encodeURIComponent(firstChannel.id)}`;
         console.log('🚀 Navigating to:', url);
         router.push(url);
       } else {
         console.log('🔄 Setting workspace without channel:', workspaceId);
 
-        // Set workspace immediately for responsive UI
+        // Set workspace immediately for responsive UI (use original ID)
         setCurrentWorkspace(workspaceId);
 
-        // Navigate using Next.js router for proper page transitions
-        const url = `/app/w/${workspaceId}`;
+        // Navigate using Next.js router with URL-safe ID
+        const url = `/app/w/${encodeURIComponent(urlSafeWorkspaceId)}`;
         console.log('🚀 Navigating to:', url);
         router.push(url);
       }
