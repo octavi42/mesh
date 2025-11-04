@@ -105,7 +105,7 @@ export function useChannelMessages(channelId: string) {
         console.log('📜 PHASE 1: Fetching historical messages...');
 
         const historicalMessages = await ndk.fetchEvents({
-          kinds: [1, 11] as NDKKind[], // TextNote and EncryptedDM (standard message kinds)
+          kinds: [9, 11] as NDKKind[], // GroupChatMessage (NIP-29) and EncryptedDM
           "#h": [workspaceId], // Filter by group ID
           limit: 250 // Match working test app limit
         });
@@ -128,7 +128,7 @@ export function useChannelMessages(channelId: string) {
         console.log('🔴 PHASE 2: Starting live message subscription...');
 
         const liveSubscription = ndk.subscribe({
-          kinds: [1, 11] as NDKKind[], // TextNote and EncryptedDM
+          kinds: [9, 11] as NDKKind[], // GroupChatMessage (NIP-29) and EncryptedDM
           "#h": [workspaceId], // Filter by group ID
           since: latestTimestamp + 1 // Only new messages after historical data
         });
@@ -193,7 +193,7 @@ export function useChannelMessages(channelId: string) {
     try {
       const { NDKEvent } = await import('@nostr-dev-kit/ndk');
       const messageEvent = new NDKEvent(ndk);
-      messageEvent.kind = 1; // TextNote
+      messageEvent.kind = 9; // GroupChatMessage (NIP-29)
       messageEvent.content = content;
       messageEvent.tags = [
         ['h', workspaceId], // Group ID
