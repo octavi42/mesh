@@ -56,6 +56,12 @@ export function useChannelMessages(channelId: string) {
         limit: 100 // Get recent messages
       });
 
+      if (!subscription) {
+        console.warn('⚠️ Could not create messages subscription - NDK not ready');
+        setIsLoading(false);
+        return;
+      }
+
       subscription.on('event', (event) => {
         try {
           console.log('💬 Received message event:', {

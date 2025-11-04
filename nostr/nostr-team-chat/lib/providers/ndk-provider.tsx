@@ -11,7 +11,7 @@ interface NDKContextValue {
   user: NDKUser | null;
   attachSigner: (signer: NDKSigner) => Promise<void>;
   publish: (event: NDKEvent) => Promise<void>;
-  subscribe: (filters: any) => NDKSubscription;
+  subscribe: (filters: any) => NDKSubscription | null;
 }
 
 const NDKContext = createContext<NDKContextValue | null>(null);
@@ -108,7 +108,8 @@ export function NDKProvider({
 
   const attachSigner = async (signer: NDKSigner) => {
     if (!ndk) {
-      throw new Error('NDK not initialized');
+      console.warn('⚠️ NDK not initialized yet, cannot attach signer');
+      return;
     }
 
     console.log('🔑 Attaching signer to NDK');
@@ -155,10 +156,12 @@ export function NDKProvider({
 
   const publish = async (event: NDKEvent) => {
     if (!ndk) {
+      console.warn('⚠️ NDK not initialized yet, cannot publish event');
       throw new Error('NDK not initialized');
     }
 
     if (!ndk.signer) {
+      console.warn('⚠️ No signer attached to NDK, cannot publish event');
       throw new Error('No signer attached to NDK');
     }
 
@@ -173,9 +176,10 @@ export function NDKProvider({
     }
   };
 
-  const subscribe = (filters: any): NDKSubscription => {
+  const subscribe = (filters: any): NDKSubscription | null => {
     if (!ndk) {
-      throw new Error('NDK not initialized');
+      console.warn('⚠️ NDK not initialized yet, cannot create subscription');
+      return null;
     }
 
     console.log('📡 Creating NDK subscription with filters:', filters);

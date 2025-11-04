@@ -49,6 +49,11 @@ export function useNIP29Workspaces() {
         limit: 50
       });
 
+      if (!metadataSubscription) {
+        console.warn('⚠️ Could not create metadata subscription - NDK not ready');
+        return;
+      }
+
       metadataSubscription.on('event', (event) => {
         try {
           console.log('📦 Received group metadata event (39000):', {
@@ -174,6 +179,11 @@ export function useNIP29Workspaces() {
         limit: 30
       });
 
+      if (!creationSubscription) {
+        console.warn('⚠️ Could not create creation subscription - NDK not ready');
+        return;
+      }
+
       creationSubscription.on('event', (event) => {
         try {
           console.log('🆕 Received group creation event (9007):', {
@@ -253,6 +263,11 @@ export function useNIP29Workspaces() {
         kinds: [9 as NDKKind], // Group chat messages
         limit: 30
       });
+
+      if (!messagesSubscription) {
+        console.warn('⚠️ Could not create messages subscription - NDK not ready');
+        return;
+      }
 
       messagesSubscription.on('event', (event) => {
         try {
