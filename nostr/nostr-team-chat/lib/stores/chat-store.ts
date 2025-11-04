@@ -5,9 +5,13 @@ interface ChatState {
   currentWorkspaceId: string;
   currentChannelId: string | null;
   isNavigating: boolean;
+  isLoadingWorkspace: boolean;
+  isLoadingChannel: boolean;
   setCurrentWorkspace: (id: string, channelId?: string) => void;
   setCurrentChannel: (id: string) => void;
   setNavigating: (navigating: boolean) => void;
+  setLoadingWorkspace: (loading: boolean) => void;
+  setLoadingChannel: (loading: boolean) => void;
   navigate: (workspaceId: string, channelId: string) => void;
   reset: () => void;
 }
@@ -18,13 +22,18 @@ export const useChatStore = create<ChatState>()(
       currentWorkspaceId: '', // Start empty, will be set by workspace store
       currentChannelId: null,
       isNavigating: false,
+      isLoadingWorkspace: false,
+      isLoadingChannel: false,
 
       setCurrentWorkspace: (id, channelId) => {
         console.log('🔄 Chat store: Setting workspace', id, 'channel', channelId);
 
+        // Show loading immediately when switching workspace
         set((state) => ({
           currentWorkspaceId: id,
           currentChannelId: channelId ?? null,
+          isLoadingWorkspace: true,
+          isLoadingChannel: !!channelId, // Show channel loading if channel is being set
         }));
 
         // Sync with workspace store in background (don't block UI)
@@ -43,8 +52,13 @@ export const useChatStore = create<ChatState>()(
 
         const previousChannelId = get().currentChannelId;
 
-        // Set new channel immediately for responsive UI - this is synchronous
-        set({ currentChannelId: id, isNavigating: false });
+        // Set new channel with loading state immediately for responsive UI
+        set({
+          currentChannelId: id,
+          isNavigating: false,
+          isLoadingChannel: true, // Show loading when switching channels
+          isLoadingWorkspace: false // Clear workspace loading
+        });
 
         // Clean up previous channel subscriptions in background (non-blocking)
         if (previousChannelId && previousChannelId !== id) {
@@ -63,10 +77,20 @@ export const useChatStore = create<ChatState>()(
         set({ isNavigating: navigating });
       },
 
+      setLoadingWorkspace: (loading) => {
+        set({ isLoadingWorkspace: loading });
+      },
+
+      setLoadingChannel: (loading) => {
+        set({ isLoadingChannel: loading });
+      },
+
       navigate: (workspaceId, channelId) => {
         set({
           currentWorkspaceId: workspaceId,
           currentChannelId: channelId,
+          isLoadingWorkspace: true,
+          isLoadingChannel: true,
         });
       },
 
@@ -75,6 +99,8 @@ export const useChatStore = create<ChatState>()(
           currentWorkspaceId: '',
           currentChannelId: null,
           isNavigating: false,
+          isLoadingWorkspace: false,
+          isLoadingChannel: false,
         });
       },
     }),

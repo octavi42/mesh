@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { Channel } from '@/lib/stores/channel-store';
 
 interface ChannelListProps {
@@ -9,13 +10,40 @@ interface ChannelListProps {
 }
 
 export function ChannelList({ channels, workspaceId }: ChannelListProps) {
+  const pathname = usePathname();
+
+  console.log('🔍 ChannelList render:', { pathname, workspaceId, channelsCount: channels.length });
+
   return (
     <div className="p-4 space-y-2">
-      {channels.map((channel) => (
+      {channels.map((channel) => {
+        const channelPath = `/app/w/${workspaceId}/c/${channel.id}`;
+        const isCurrentChannel = pathname === channelPath;
+
+        console.log('🔍 Channel comparison:', {
+          channelId: channel.id,
+          channelPath,
+          pathname,
+          isCurrentChannel
+        });
+
+        return (
         <Link
           key={channel.id}
-          href={`/app/w/${workspaceId}/c/${channel.id}`}
-          className="block p-3 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          href={channelPath}
+          className={`
+            block p-3 rounded-md transition-colors
+            ${isCurrentChannel
+              ? 'bg-indigo-100 dark:bg-indigo-900 pointer-events-none cursor-default'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
+            }
+          `}
+          onClick={(e) => {
+            if (isCurrentChannel) {
+              e.preventDefault();
+              console.log('⏭️ Already in channel, ignoring click:', channel.id);
+            }
+          }}
         >
           <div className="flex items-center space-x-3">
             <div className="flex-shrink-0">
@@ -49,7 +77,8 @@ export function ChannelList({ channels, workspaceId }: ChannelListProps) {
             </div>
           </div>
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }

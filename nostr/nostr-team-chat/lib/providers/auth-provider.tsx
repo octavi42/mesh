@@ -3,6 +3,7 @@
 import { useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useNDK } from '@/lib/hooks/use-ndk';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -11,6 +12,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter();
   const { setPubkey, clearAuth, checkAuth } = useAuthStore();
+  const { attachSigner } = useNDK();
 
   useEffect(() => {
     console.log('🚀 AuthProvider mounted - setting up auth listeners');
@@ -72,8 +74,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
             const pubkey = await window.nostr.getPublicKey();
             console.log('🔑 Setting pubkey from nlAuth:', pubkey);
             setPubkey(pubkey);
+
+            // Now attach the signer to NDK since window.nostr is available
+            console.log('🔗 Attaching signer to NDK after nostr-login authentication');
+            const { NDKNip07Signer } = await import('@nostr-dev-kit/ndk');
+            const signer = new NDKNip07Signer();
+            await attachSigner(signer);
+            console.log('✅ NDK signer attached successfully after nostr-login');
           } catch (error) {
-            console.error('❌ Failed to get pubkey after auth:', error);
+            console.error('❌ Failed to get pubkey or attach signer after auth:', error);
           }
         }
       } else if (authType === 'logout') {

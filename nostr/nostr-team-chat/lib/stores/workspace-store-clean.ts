@@ -55,10 +55,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       addWorkspace: (workspace) => {
         console.log('➕ Adding workspace:', workspace.name, workspace.id);
+        console.log('🔍 Workspace ID details:', {
+          id: workspace.id,
+          type: typeof workspace.id,
+          length: workspace.id?.length,
+          charCodes: workspace.id?.split('').map(c => c.charCodeAt(0))
+        });
         console.log('📊 Current workspaces before adding:', get().workspaces.length);
         set((state) => {
           const newWorkspaces = [...state.workspaces.filter(w => w.id !== workspace.id), workspace];
           console.log('📊 New workspaces count after adding:', newWorkspaces.length);
+          console.log('📋 All workspace IDs after adding:', newWorkspaces.map(w => w.id));
           return {
             workspaces: newWorkspaces,
             error: null
@@ -98,12 +105,24 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       clearWorkspaces: () => {
         console.log('🧹 Clearing all workspaces');
         console.trace('Workspace clear called from:'); // Show stack trace
+
+        // Clear from memory
         set({
           workspaces: [],
           currentWorkspaceId: null,
           isLoading: false,
           error: null
         });
+
+        // Also clear from localStorage to prevent corruption
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem('workspace-store-clean');
+            console.log('🧹 Cleared workspace localStorage');
+          } catch (error) {
+            console.warn('⚠️ Failed to clear localStorage:', error);
+          }
+        }
       },
 
       // Getters

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useChannels } from '@/lib/hooks/use-channels';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
+import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelList } from '@/components/channels/ChannelList';
 
 export default function WorkspacePage() {
@@ -12,13 +13,33 @@ export default function WorkspacePage() {
   const workspaceId = params.workspaceId as string;
 
   const channels = useChannels(workspaceId);
-  const { setCurrentWorkspace, getWorkspaceById } = useWorkspaceStore();
+  const { setCurrentWorkspace, getWorkspaceById, clearWorkspaces } = useWorkspaceStore();
+  const { isLoadingWorkspace, reset: resetChatStore } = useChatStore();
   const workspace = getWorkspaceById(workspaceId);
-  const isLoading = false; // Database queries are immediate
+  const isLoading = isLoadingWorkspace; // Show loading when workspace is being set
 
-  // Set current workspace from URL params
+  // Check for corrupted workspace ID and redirect if needed
   useEffect(() => {
-    if (workspaceId) {
+    const isCorruptedWorkspaceId = workspaceId.includes('.') || workspaceId.includes("'") || !/^[a-zA-Z0-9_-]+$/.test(workspaceId);
+
+    if (isCorruptedWorkspaceId) {
+      console.warn('🚨 Detected corrupted workspace ID, redirecting to home:', workspaceId);
+
+      // Clear corrupted stores
+      clearWorkspaces();
+      resetChatStore();
+
+      // Redirect to home to start fresh
+      router.replace('/app');
+      return;
+    }
+  }, [workspaceId, router, clearWorkspaces]);
+
+  // Set current workspace from URL params (only if valid)
+  useEffect(() => {
+    const isValidWorkspaceId = /^[a-zA-Z0-9_-]+$/.test(workspaceId);
+
+    if (workspaceId && isValidWorkspaceId) {
       console.log('🔄 Setting current workspace from URL:', workspaceId);
       setCurrentWorkspace(workspaceId);
     }

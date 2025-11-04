@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useChatStore } from '@/lib/stores/chat-store';
 import type { Channel } from '@/lib/db/schema';
 import type { Message } from '@/lib/hooks/use-channel-messages';
 
@@ -22,6 +23,7 @@ export function ChannelView({
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { isLoadingChannel } = useChatStore();
 
   // Debug logging for messages
   useEffect(() => {
@@ -96,7 +98,7 @@ export function ChannelView({
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {isLoading && messages.length === 0 && (
+        {(isLoadingChannel || (isLoading && messages.length === 0)) && (
           <div className="flex items-center justify-center h-32">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2" />
@@ -105,7 +107,7 @@ export function ChannelView({
           </div>
         )}
 
-        {!isLoading && messages.length === 0 && (
+        {!isLoadingChannel && !isLoading && messages.length === 0 && (
           <div className="flex items-center justify-center h-32">
             <div className="text-center">
               <p className="text-gray-500 dark:text-gray-400">

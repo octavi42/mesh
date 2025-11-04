@@ -33,6 +33,12 @@ export function ChannelLink({
     e.preventDefault();
     e.stopPropagation();
 
+    // Prevent clicking on the current active channel
+    if (isActive) {
+      console.log('⏭️ Already in channel, ignoring click:', channelId);
+      return;
+    }
+
     if (isNavigatingRef.current) return;
     isNavigatingRef.current = true;
 
@@ -67,14 +73,16 @@ export function ChannelLink({
   return (
     <button
       onClick={handleClick}
+      disabled={isActive}
       className={`
         flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors
         ${
           isActive
-            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 cursor-default pointer-events-none'
+            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 cursor-pointer'
         }
       `}
+      title={isActive ? `Current channel: ${channelName}` : `Switch to ${channelName}`}
     >
       <span className="flex-shrink-0 text-lg">#</span>
       <span className="flex-1 whitespace-nowrap text-left">{channelName}</span>

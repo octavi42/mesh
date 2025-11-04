@@ -62,13 +62,31 @@ export function useNIP29Workspaces() {
           // Extract group ID from 'd' tag (addressable event identifier)
           const groupId = event.tags.find(tag => tag[0] === 'd')?.[1];
 
+          console.log('🔍 Raw group ID extracted from d tag:', {
+            dTag: event.tags.find(tag => tag[0] === 'd'),
+            groupId,
+            relay: event.relay?.url
+          });
+
           if (!groupId) {
             console.warn('⚠️ Group metadata event missing group ID (d tag)');
             return;
           }
 
-          if (processedGroups.has(groupId)) {
-            console.log('🔄 Group already processed, skipping:', groupId);
+          // Sanitize group ID - ensure it's clean and doesn't contain URL parts
+          const sanitizedGroupId = groupId.trim();
+          if (sanitizedGroupId !== groupId) {
+            console.warn('⚠️ Group ID had whitespace, sanitized:', { original: groupId, sanitized: sanitizedGroupId });
+          }
+
+          // Validate group ID format - should be alphanumeric
+          if (!/^[a-zA-Z0-9_-]+$/.test(sanitizedGroupId)) {
+            console.warn('⚠️ Invalid group ID format, skipping:', sanitizedGroupId);
+            return;
+          }
+
+          if (processedGroups.has(sanitizedGroupId)) {
+            console.log('🔄 Group already processed, skipping:', sanitizedGroupId);
             return;
           }
 
@@ -116,7 +134,7 @@ export function useNIP29Workspaces() {
 
           // Create workspace object with relay-accurate mapping
           const workspace: Workspace = {
-            id: groupId,
+            id: sanitizedGroupId,
             name: groupName,
             description: about,
             picture: picture,
@@ -137,7 +155,9 @@ export function useNIP29Workspaces() {
             relay: workspace.relay
           });
 
-          processedGroups.add(groupId);
+          console.log('🔍 About to add workspace with ID:', workspace.id, 'Type:', typeof workspace.id);
+
+          processedGroups.add(sanitizedGroupId);
           addWorkspace(workspace);
         } catch (error) {
           console.error('❌ Failed to process group metadata event:', error);
@@ -166,8 +186,25 @@ export function useNIP29Workspaces() {
           // Extract group ID from 'h' tag (NIP-29 group ID)
           const groupId = event.tags.find(tag => tag[0] === 'h')?.[1];
 
-          if (!groupId || processedGroups.has(groupId)) {
-            return; // Skip if no ID or already processed
+          console.log('🔍 Raw group ID extracted from h tag (creation):', {
+            hTag: event.tags.find(tag => tag[0] === 'h'),
+            groupId,
+            relay: event.relay?.url
+          });
+
+          if (!groupId) {
+            return; // Skip if no ID
+          }
+
+          // Sanitize group ID
+          const sanitizedGroupId = groupId.trim();
+          if (!/^[a-zA-Z0-9_-]+$/.test(sanitizedGroupId)) {
+            console.warn('⚠️ Invalid group ID format in creation event, skipping:', sanitizedGroupId);
+            return;
+          }
+
+          if (processedGroups.has(sanitizedGroupId)) {
+            return; // Skip if already processed
           }
 
           // Parse creation event content for initial metadata
@@ -179,7 +216,7 @@ export function useNIP29Workspaces() {
           }
 
           const workspace: Workspace = {
-            id: groupId,
+            id: sanitizedGroupId,
             name: metadata.name || 'New Group',
             description: metadata.about,
             picture: metadata.picture,
@@ -199,7 +236,7 @@ export function useNIP29Workspaces() {
             relay: workspace.relay
           });
 
-          processedGroups.add(groupId);
+          processedGroups.add(sanitizedGroupId);
           addWorkspace(workspace);
         } catch (error) {
           console.error('❌ Failed to process group creation event:', error);
@@ -221,16 +258,33 @@ export function useNIP29Workspaces() {
         try {
           const groupId = event.tags.find(tag => tag[0] === 'h')?.[1];
 
-          if (groupId && !processedGroups.has(groupId)) {
+          console.log('🔍 Raw group ID extracted from h tag (message discovery):', {
+            hTag: event.tags.find(tag => tag[0] === 'h'),
+            groupId,
+            relay: event.relay?.url
+          });
+
+          if (!groupId) {
+            return;
+          }
+
+          // Sanitize group ID
+          const sanitizedGroupId = groupId.trim();
+          if (!/^[a-zA-Z0-9_-]+$/.test(sanitizedGroupId)) {
+            console.warn('⚠️ Invalid group ID format in message discovery, skipping:', sanitizedGroupId);
+            return;
+          }
+
+          if (!processedGroups.has(sanitizedGroupId)) {
             console.log('💬 Discovered group through message activity:', {
-              groupId: groupId.slice(0, 8),
+              groupId: sanitizedGroupId.slice(0, 8),
               relay: event.relay?.url
             });
 
             // Create minimal workspace from message discovery
             const workspace: Workspace = {
-              id: groupId,
-              name: `Group ${groupId.slice(0, 8)}`, // Temporary name
+              id: sanitizedGroupId,
+              name: `Group ${sanitizedGroupId.slice(0, 8)}`, // Temporary name
               isPublic: false, // Assume private until metadata loads
               relay: event.relay?.url,
               createdAt: Date.now(),
@@ -238,7 +292,7 @@ export function useNIP29Workspaces() {
               scope: 'Default'
             };
 
-            processedGroups.add(groupId);
+            processedGroups.add(sanitizedGroupId);
             addWorkspace(workspace);
           }
         } catch (error) {

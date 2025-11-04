@@ -9,7 +9,7 @@ import { CreateWorkspaceSheet } from '@/components/sheets/create-workspace-sheet
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 
 export function WorkspaceList() {
-  const { currentWorkspaceId, setCurrentWorkspace } = useChatStore();
+  const { currentWorkspaceId, setCurrentWorkspace, isLoadingWorkspace } = useChatStore();
   const { workspaces } = useWorkspaceStore();
   const router = useRouter();
   const isNavigatingRef = useRef(false);
@@ -19,9 +19,10 @@ export function WorkspaceList() {
   const handleWorkspaceClick = async (workspaceId: string) => {
     console.log('🖱️ Workspace clicked:', workspaceId);
 
-    // Allow clicking same workspace to go to first channel
+    // Prevent clicking on the same workspace
     if (currentWorkspaceId === workspaceId) {
-      console.log('ℹ️ Clicking current workspace - will navigate to first channel:', workspaceId);
+      console.log('⏭️ Already in workspace, ignoring click:', workspaceId);
+      return;
     }
 
     // Prevent rapid successive clicks
@@ -106,23 +107,29 @@ export function WorkspaceList() {
     <div className="flex flex-col items-center gap-2 py-4">
       {workspaces.map((workspace) => {
         const isActive = currentWorkspaceId === workspace.id;
+        const isLoading = isLoadingWorkspace && isActive;
 
         return (
           <button
             key={workspace.id}
             onClick={() => handleWorkspaceClick(workspace.id)}
+            disabled={isLoading || isActive}
             className={`
               flex h-12 w-12 items-center justify-center rounded-xl text-2xl
-              transition-all duration-200
+              transition-all duration-200 relative
               ${isActive
-                ? 'bg-indigo-600 text-white shadow-lg scale-110'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-105 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                ? 'bg-indigo-600 text-white shadow-lg scale-110 cursor-default'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-105 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 cursor-pointer'
               }
+              ${isLoading ? 'opacity-75' : ''}
+              ${isActive ? 'pointer-events-none' : ''}
             `}
             aria-label={workspace.name}
-            title={workspace.name}
+            title={isActive ? `Current workspace: ${workspace.name}` : workspace.name}
           >
-            {workspace.picture ? (
+            {isLoading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : workspace.picture ? (
               <img src={workspace.picture} alt={workspace.name} className="w-12 h-12 rounded-xl object-cover" />
             ) : (
               workspace.name[0]?.toUpperCase() || '?'

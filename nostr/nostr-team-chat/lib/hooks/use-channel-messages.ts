@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNDK } from './use-ndk';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useChatStore } from '@/lib/stores/chat-store';
 import { NDKKind } from '@nostr-dev-kit/ndk';
 
 export interface Message {
@@ -13,14 +14,19 @@ export interface Message {
 }
 
 export function useChannelMessages(channelId: string) {
-  const { ndk, publish } = useNDK();
+  const { ndk, publish, isConnected } = useNDK();
   const { pubkey } = useAuthStore();
+  const { setLoadingChannel } = useChatStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!ndk || !channelId) {
-      console.log('⏭️ Skipping channel messages subscription: missing ndk or channelId');
+    if (!ndk || !channelId || !isConnected) {
+      console.log('⏭️ Skipping channel messages subscription: missing requirements', {
+        hasNdk: !!ndk,
+        hasChannelId: !!channelId,
+        isConnected
+      });
       return;
     }
 
@@ -134,11 +140,13 @@ export function useChannelMessages(channelId: string) {
       subscription.on('eose', () => {
         console.log('✅ Channel messages subscription EOSE');
         setIsLoading(false);
+        setLoadingChannel(false); // Clear global loading state
       });
 
       subscription.on('close', () => {
         console.log('🔌 Channel messages subscription closed');
         setIsLoading(false);
+        setLoadingChannel(false); // Clear global loading state
       });
 
       // Cleanup function
@@ -152,7 +160,7 @@ export function useChannelMessages(channelId: string) {
       console.error('❌ Failed to create channel messages subscription:', error);
       setIsLoading(false);
     }
-  }, [ndk, channelId]);
+  }, [ndk, channelId, isConnected]);
 
   const sendMessage = async (content: string, replyToId?: string) => {
     if (!ndk || !pubkey || !channelId) {

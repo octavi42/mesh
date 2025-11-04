@@ -1,28 +1,53 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useChannel } from '@/lib/hooks/use-channels';
 import { useChannelMessages } from '@/lib/hooks/use-channel-messages';
 import { useChatStore } from '@/lib/stores/chat-store';
+import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { ChannelView } from '@/components/channels/ChannelView';
 
 export default function ChannelPage() {
   const params = useParams();
+  const router = useRouter();
   const workspaceId = params.workspaceId as string;
   const channelId = params.channelId as string;
 
+  const { workspaces, clearWorkspaces } = useWorkspaceStore();
   const channel = useChannel(channelId);
-  const { setCurrentChannel } = useChatStore();
+  const { setCurrentChannel, reset: resetChatStore } = useChatStore();
+
+  // Check for corrupted workspace ID and redirect if needed
+  useEffect(() => {
+    const isCorruptedWorkspaceId = workspaceId.includes('.') || workspaceId.includes("'") || !/^[a-zA-Z0-9_-]+$/.test(workspaceId);
+    const isCorruptedChannelId = channelId.includes("'") || channelId.includes('groups.contextio.app');
+
+    if (isCorruptedWorkspaceId || isCorruptedChannelId) {
+      console.warn('🚨 Detected corrupted workspace/channel ID, redirecting to home:', { workspaceId, channelId });
+
+      // Clear corrupted stores
+      clearWorkspaces();
+      resetChatStore();
+
+      // Redirect to home to start fresh
+      router.replace('/app');
+      return;
+    }
+  }, [workspaceId, channelId, router, clearWorkspaces]);
+
   const { messages, isLoading, sendMessage } = useChannelMessages(channelId);
 
-  // Set current channel when component mounts
+  // Set current channel when component mounts (only if IDs are valid)
   useEffect(() => {
-    if (channelId) {
+    const isValidWorkspaceId = /^[a-zA-Z0-9_-]+$/.test(workspaceId);
+    const isValidChannelId = /^[a-zA-Z0-9_-]+$/.test(channelId);
+
+    if (channelId && isValidWorkspaceId && isValidChannelId) {
       console.log('🔄 Setting current channel from URL:', channelId);
       setCurrentChannel(channelId);
     }
-  }, [channelId, setCurrentChannel]);
+  }, [channelId, workspaceId, setCurrentChannel]);
 
   if (!channel) {
     return (
