@@ -47,7 +47,47 @@ export function NDKProvider({
         // Set up event listeners
         ndkInstance.pool.on('relay:connect', (relay) => {
           console.log('✅ NDK connected to relay:', relay.url);
-          setIsConnected(true);
+
+          // Set up explicit auth policy like the working groups_relay implementation
+          relay.authPolicy = async (relay, challenge) => {
+            try {
+              console.log('🔐 Custom auth policy triggered for:', relay.url, 'challenge:', challenge?.slice(0, 16));
+
+              // Get the signer from the NDK instance
+              const signer = ndkInstance.signer;
+              if (!signer) {
+                console.warn('⚠️ No signer available for auth yet - auth will be retried when signer is attached');
+                throw new Error("No signer available");
+              }
+
+              console.log('🔐 Signer found, creating auth event...');
+
+              // Create an auth event
+              const { NDKEvent } = await import('@nostr-dev-kit/ndk');
+              const authEvent = new NDKEvent(ndkInstance);
+              authEvent.kind = 22242;
+
+              // Remove trailing slash from relay URL to match server expectations
+              const cleanRelayUrl = relay.url.replace(/\/$/, '');
+
+              authEvent.tags = [
+                ["relay", cleanRelayUrl],
+                ["challenge", challenge]
+              ];
+              authEvent.created_at = Math.floor(Date.now() / 1000);
+
+              // Sign the event
+              await authEvent.sign(signer);
+
+              console.log('🔐 Auth event created and signed:', authEvent.id?.slice(0, 8));
+
+              // Return the signed event
+              return authEvent;
+            } catch (error) {
+              console.error("❌ Auth policy error:", error);
+              throw error;
+            }
+          };
         });
 
         ndkInstance.pool.on('relay:disconnect', (relay) => {
@@ -71,8 +111,8 @@ export function NDKProvider({
             hasSocket: !!relay.socket
           });
 
-          // Let NDK handle AUTH automatically - just log the process
-          console.log('🔐 Letting NDK handle AUTH automatically...');
+          // Auth policy should handle this automatically now
+          console.log('🔐 Auth policy should handle authentication...');
 
           // Check if auth was successful
           setTimeout(() => {
@@ -121,35 +161,96 @@ export function NDKProvider({
 
     console.log('✅ Signer attached, user:', userFromSigner.pubkey.slice(0, 8));
 
-    // Now connect to relays with authentication capability (simplified like test)
+    // Now connect to relays with authentication capability
     console.log('🔌 Connecting to relays with authentication...');
     console.log('🔐 Signer check before connect:', !!ndk.signer);
     console.log('🔐 User check before connect:', !!userFromSigner);
 
     try {
-      await ndk.connect(); // Simplified connection like the working test
+      await ndk.connect();
 
-      // Give NDK time to establish connections (like working test)
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      // Check if we have any connected relays
-      const allRelays = Array.from(ndk.pool.relays.values());
-      console.log('📊 All relays in pool:', allRelays.map(r => ({ url: r.url, status: r.status })));
-
-      const connectedRelay = allRelays.find(relay => relay.status === 1);
-
-      if (connectedRelay) {
-        setIsConnected(true);
-        console.log('✅ Connected to relay:', connectedRelay.url, 'Status:', connectedRelay.status);
-      } else {
-        // Don't throw error, just log and continue (like working test)
-        console.log('⚠️ No relays with status 1, but continuing anyway...');
-        setIsConnected(true); // Set as connected to test
+      // Force reconnection to trigger auth with signer now available
+      console.log('🔐 Forcing relay reconnection with signer available...');
+      const relays = Array.from(ndk.pool.relays.values());
+      for (const relay of relays) {
+        if (relay.status !== 1) { // Not connected
+          try {
+            console.log('🔄 Reconnecting to relay:', relay.url);
+            await relay.connect();
+          } catch (error) {
+            console.warn('⚠️ Failed to reconnect to relay:', relay.url, error);
+          }
+        }
       }
 
-      console.log('✅ Connected to relays with authentication');
+      // Wait for actual authentication, not just connection
+      console.log('🔐 Waiting for relay authentication...');
+
+      const authPromise = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          console.error('❌ Authentication timeout after 10 seconds');
+          reject(new Error('Authentication timeout'));
+        }, 10000);
+
+        const checkAuth = () => {
+          const allRelays = Array.from(ndk.pool.relays.values());
+          console.log('🔍 Checking relay authentication status:', allRelays.map(r => ({
+            url: r.url,
+            status: r.status,
+            authenticated: r.authenticated
+          })));
+
+          // Look for authenticated relay (status 5 = READY/authenticated)
+          const authRelay = allRelays.find(r => r.status === 5);
+
+          if (authRelay) {
+            console.log('✅ Relay authenticated successfully:', authRelay.url, 'Status:', authRelay.status);
+            clearTimeout(timeout);
+            resolve();
+          }
+        };
+
+        // Listen for authentication events
+        ndk.pool.on('relay:auth', () => {
+          console.log('🔐 Auth event received, checking status...');
+          setTimeout(checkAuth, 100); // Small delay to let status update
+        });
+
+        // Also listen for direct authentication success
+        ndk.pool.on('relay:authed', (relay) => {
+          console.log('🔐 Relay authenticated event:', relay.url);
+          clearTimeout(timeout);
+          resolve();
+        });
+
+        // Check immediately in case already authenticated
+        checkAuth();
+
+        // Also check periodically during the timeout period
+        const checkInterval = setInterval(() => {
+          checkAuth();
+        }, 500);
+
+        // Clear interval when done
+        const originalResolve = resolve;
+        const originalReject = reject;
+        resolve = (...args) => {
+          clearInterval(checkInterval);
+          originalResolve(...args);
+        };
+        reject = (...args) => {
+          clearInterval(checkInterval);
+          originalReject(...args);
+        };
+      });
+
+      await authPromise;
+      setIsConnected(true);
+      console.log('✅ Successfully connected and authenticated to relays');
+
     } catch (error) {
-      console.error('❌ Failed to connect to relays:', error);
+      console.error('❌ Failed to connect or authenticate to relays:', error);
+      setIsConnected(false);
       throw error;
     }
   };

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client';
 import { NIP29EventKind } from '@/lib/nostr/nip29/types';
-import { useWorkspaceStore } from '@/lib/stores/workspace-store';
+import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 
 export interface GroupMember {
   pubkey: string;
@@ -45,7 +45,7 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
   const [lastFetched, setLastFetched] = useState<number>(0);
 
   const { workspaces } = useWorkspaceStore();
-  const workspace = groupId ? workspaces.find(w => w.groupId === groupId) : null;
+  const workspace = groupId ? workspaces.find(w => w.id === groupId) : null;
 
   // Simple cache to avoid refetching recently fetched data
   const cacheTimeMs = 30000; // 30 seconds

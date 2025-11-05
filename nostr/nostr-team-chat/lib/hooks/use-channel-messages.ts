@@ -21,6 +21,13 @@ export function useChannelMessages(channelId: string) {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    console.log('🔧 useChannelMessages effect triggered:', {
+      channelId,
+      hasNdk: !!ndk,
+      isConnected,
+      ndkStatus: ndk ? 'available' : 'missing'
+    });
+
     if (!ndk || !channelId || !isConnected) {
       console.log('⏭️ Skipping channel messages subscription: missing requirements', {
         hasNdk: !!ndk,
@@ -29,6 +36,16 @@ export function useChannelMessages(channelId: string) {
       });
       return;
     }
+
+    // Add detailed relay status check for debugging
+    console.log('🔍 Detailed relay status check:', {
+      relays: Array.from(ndk.pool.relays.values()).map(r => ({
+        url: r.url,
+        status: r.status,
+        authenticated: r.authenticated,
+        connectivity: r.connectivity?.status
+      }))
+    });
 
     console.log('💬 Starting channel messages fetching for channel:', channelId);
     setIsLoading(true);
@@ -40,13 +57,20 @@ export function useChannelMessages(channelId: string) {
     if (parts.length < 2) {
       console.error('❌ Invalid channel ID format:', channelId);
       setIsLoading(false);
+      setLoadingChannel(false); // Clear chat store loading state on error
       return;
     }
 
     const workspaceId = parts[0]; // This is the group ID from NIP-29
     const channelName = parts.slice(1).join('-'); // Channel name (rejoin in case of multiple dashes)
 
-    console.log('💬 Parsed channel info:', { workspaceId, channelName });
+    console.log('💬 Parsed channel info:', {
+      channelId,
+      workspaceId,
+      channelName,
+      parts,
+      fullChannelId: channelId
+    });
 
     const processMessage = (event: any, isLive = false) => {
       try {
@@ -101,16 +125,61 @@ export function useChannelMessages(channelId: string) {
 
     const initializeMessages = async () => {
       try {
+        // Verify relay authentication before proceeding
+        const authenticatedRelays = Array.from(ndk.pool.relays.values()).filter(r => r.status === 5);
+        if (authenticatedRelays.length === 0) {
+          console.error('❌ No authenticated relays available for message fetching');
+          console.log('Available relays:', Array.from(ndk.pool.relays.values()).map(r => ({
+            url: r.url,
+            status: r.status,
+            authenticated: r.authenticated
+          })));
+          setIsLoading(false);
+          setLoadingChannel(false); // Clear chat store loading state on error
+          return;
+        }
+
+        console.log('✅ Found authenticated relays:', authenticatedRelays.map(r => r.url));
+
         // PHASE 1: HISTORICAL MESSAGES FETCH (like working test app)
         console.log('📜 PHASE 1: Fetching historical messages...');
 
-        const historicalMessages = await ndk.fetchEvents({
+        const filter = {
           kinds: [9, 11] as NDKKind[], // GroupChatMessage (NIP-29) and EncryptedDM
           "#h": [workspaceId], // Filter by group ID
           limit: 250 // Match working test app limit
+        };
+
+        console.log('📜 Message fetch filter:', filter);
+
+        const historicalMessages = await ndk.fetchEvents(filter);
+
+        console.log(`📜 Fetched ${historicalMessages.size} historical messages for group ${workspaceId}:`, {
+          filter,
+          relayStatuses: Array.from(ndk.pool.relays.values()).map(r => ({
+            url: r.url,
+            status: r.status,
+            authenticated: r.authenticated
+          })),
+          messagesArray: Array.from(historicalMessages).map(e => ({
+            id: e.id?.slice(0, 8),
+            kind: e.kind,
+            content: e.content?.slice(0, 50),
+            tags: e.tags,
+            groupId: e.tags.find((tag: string[]) => tag[0] === 'h')?.[1],
+            channelName: e.tags.find((tag: string[]) => tag[0] === 'c')?.[1],
+            relay: e.relay?.url
+          }))
         });
 
-        console.log(`📜 Fetched ${historicalMessages.size} historical messages for group ${workspaceId}`);
+        // Check if we got any messages and log potential issues
+        if (historicalMessages.size === 0) {
+          console.warn('⚠️ No historical messages fetched. Possible issues:');
+          console.warn('- Authentication may have failed');
+          console.warn('- Group ID may be incorrect:', workspaceId);
+          console.warn('- No messages exist for this group/channel combination');
+          console.warn('- Relay may be rejecting requests');
+        }
 
         let latestTimestamp = 0;
 
@@ -127,15 +196,20 @@ export function useChannelMessages(channelId: string) {
         // PHASE 2: LIVE SUBSCRIPTION (like working test app)
         console.log('🔴 PHASE 2: Starting live message subscription...');
 
-        const liveSubscription = ndk.subscribe({
+        const liveFilter = {
           kinds: [9, 11] as NDKKind[], // GroupChatMessage (NIP-29) and EncryptedDM
           "#h": [workspaceId], // Filter by group ID
           since: latestTimestamp + 1 // Only new messages after historical data
-        });
+        };
+
+        console.log('🔴 Live subscription filter:', liveFilter);
+
+        const liveSubscription = ndk.subscribe(liveFilter);
 
         if (!liveSubscription) {
           console.warn('⚠️ Could not create live message subscription - NDK not ready');
           setIsLoading(false);
+          setLoadingChannel(false); // Clear chat store loading state on error
           return;
         }
 
@@ -147,6 +221,7 @@ export function useChannelMessages(channelId: string) {
         liveSubscription.on('eose', () => {
           console.log('✅ Live message subscription EOSE - real-time messages active');
           setIsLoading(false);
+          setLoadingChannel(false); // Clear chat store loading state
         });
 
         // Cleanup function
@@ -162,6 +237,7 @@ export function useChannelMessages(channelId: string) {
       } catch (error) {
         console.error('❌ Failed to fetch messages:', error);
         setIsLoading(false);
+        setLoadingChannel(false); // Clear chat store loading state on error
       }
     };
 

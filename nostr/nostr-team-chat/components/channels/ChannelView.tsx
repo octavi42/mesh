@@ -1,7 +1,13 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useChatStore } from '@/lib/stores/chat-store';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { useGroupMembers } from '@/lib/hooks/use-group-members';
+import { UserAvatars } from '@/components/ui/user-avatars';
+import { MessageSkeletons } from '@/components/ui/message-skeleton';
+import { MessageList } from '@/components/chat/MessageList';
+import { MessageInput } from '@/components/chat/MessageInput';
 import type { Channel } from '@/lib/db/schema';
 import type { Message } from '@/lib/hooks/use-channel-messages';
 
@@ -20,160 +26,153 @@ export function ChannelView({
   isLoading,
   onSendMessage
 }: ChannelViewProps) {
-  const [newMessage, setNewMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isLoadingChannel } = useChatStore();
+  const { isLoadingChannel, isNavigating } = useChatStore();
+  const { pubkey } = useAuthStore();
 
-  // Debug logging for messages
+  // Get group members for the current workspace
+  const {
+    getAvatarUsers,
+    loading: membersLoading,
+    isAdmin,
+    memberCount
+  } = useGroupMembers({
+    groupId: workspaceId || undefined,
+    autoRefresh: true,
+    refreshInterval: 60000 // Refresh every minute
+  });
+
+  // Set initializing to false when we have messages or when loading is complete
   useEffect(() => {
-    console.log('🖥️ ChannelView render update:', {
-      channelId: channel.id,
-      channelName: channel.name,
-      messagesCount: messages.length,
-      isLoading,
-      messages: messages.map(m => ({
-        id: m.id?.slice(0, 8),
-        content: m.content?.slice(0, 30),
-        author: m.authorPubkey?.slice(0, 8)
-      }))
-    });
-  }, [channel.id, messages.length, isLoading]);
+    if (messages.length > 0 || (!isLoading && !isLoadingChannel)) {
+      setIsInitializing(false);
+    }
+  }, [messages.length, isLoading, isLoadingChannel]);
+
+  // Reset initializing state whenever channel changes
+  useEffect(() => {
+    console.log(`🔄 Channel changed to: ${channel.id}, setting isInitializing=true`);
+    setIsInitializing(true);
+  }, [channel.id]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = useCallback(async (content: string) => {
+    if (!workspaceId) return;
+    await onSendMessage(content);
+  }, [onSendMessage, workspaceId]);
 
-    if (!newMessage.trim() || isSending) return;
-
-    setIsSending(true);
-    try {
-      await onSendMessage(newMessage.trim());
-      setNewMessage('');
-    } catch (error) {
-      console.error('❌ Failed to send message:', error);
-      // TODO: Show error toast
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const truncatePubkey = (pubkey: string) => {
-    return `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}`;
-  };
+  if (!channel) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-gray-500">Channel not found</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Channel Header */}
-      <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center space-x-3">
-          <div className="flex-shrink-0">
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+    <div className="flex h-full flex-col bg-white dark:bg-black">
+      {/* Header with channel name and user avatars - Fixed */}
+      <div className="flex-shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg z-20">
+        <div className="flex items-center gap-2">
+          <span className="text-lg text-gray-400">#</span>
+          <div className="flex items-center gap-2">
+            <h1 className="text-base font-medium text-gray-900 dark:text-white">
               {channel.name}
             </h1>
-            {channel.description && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {channel.description}
-              </p>
-            )}
           </div>
+          {channel.description && (
+            <span className="text-sm text-gray-400 dark:text-gray-500">
+              {channel.description}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {memberCount > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {memberCount} member{memberCount !== 1 ? 's' : ''}
+              </span>
+              <UserAvatars
+                users={getAvatarUsers()}
+                size={40}
+                maxVisible={5}
+                isAdmin={isAdmin(pubkey || '')}
+              />
+            </div>
+          )}
+          {membersLoading && memberCount === 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Loading members...</span>
+              <div className="flex gap-1">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {(isLoadingChannel || (isLoading && messages.length === 0)) && (
-          <div className="flex items-center justify-center h-32">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2" />
-              <p className="text-gray-500 dark:text-gray-400">Loading messages...</p>
-            </div>
-          </div>
-        )}
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
+        {(() => {
+          // Simplified logic with clear priorities to prevent flickering
+          const shouldShowSkeleton = isNavigating || isInitializing || (isLoading && messages.length === 0) || isLoadingChannel;
+          const hasMessages = messages.length > 0;
+          const isEmpty = !isLoading && !isLoadingChannel && messages.length === 0;
 
-        {!isLoadingChannel && !isLoading && messages.length === 0 && (
-          <div className="flex items-center justify-center h-32">
-            <div className="text-center">
-              <p className="text-gray-500 dark:text-gray-400">
-                No messages yet. Start the conversation!
-              </p>
-            </div>
-          </div>
-        )}
+          // Debug logging to understand the loading state
+          console.log('🎭 ChannelView render logic:', {
+            channelId: channel.id,
+            isNavigating,
+            isInitializing,
+            isLoading,
+            isLoadingChannel,
+            messagesCount: messages.length,
+            shouldShowSkeleton,
+            hasMessages,
+            isEmpty
+          });
 
-        {messages.map((message) => (
-          <div key={message.id} className="flex space-x-3">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center">
-                <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm">
-                  {message.authorPubkey.charAt(0).toUpperCase()}
-                </span>
+          if (shouldShowSkeleton) {
+            return <MessageSkeletons count={3} />;
+          } else if (hasMessages) {
+            // Convert messages to the expected format for MessageList
+            const convertedMessages = messages.map(msg => ({
+              ...msg,
+              updatedAt: msg.createdAt // Add the updatedAt field that db schema expects
+            }));
+            return <MessageList messages={convertedMessages} currentUserPubkey={pubkey || undefined} />;
+          } else if (isEmpty) {
+            return (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-gray-500">
+                  No messages yet. Start the conversation!
+                </div>
               </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {truncatePubkey(message.authorPubkey)}
-                </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {formatTime(message.createdAt)}
-                </span>
-              </div>
-              <div className="mt-1">
-                <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">
-                  {message.content}
-                </p>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        <div ref={messagesEndRef} />
+            );
+          } else {
+            // Fallback to skeleton
+            return <MessageSkeletons count={3} />;
+          }
+        })()}
       </div>
 
-      {/* Message Input */}
-      <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700">
-        <form onSubmit={handleSubmit} className="flex space-x-2">
-          <div className="flex-1">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={`Message ${channel.name}`}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
-              disabled={isSending}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={!newMessage.trim() || isSending}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded-md transition-colors"
-          >
-            {isSending ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            )}
-          </button>
-        </form>
+      {/* Fixed Footer */}
+      <div className="flex-shrink-0 z-20">
+        <MessageInput
+          channelName={channel.name}
+          onSend={handleSendMessage}
+          disabled={!workspaceId || !pubkey || isLoading}
+        />
       </div>
     </div>
   );
