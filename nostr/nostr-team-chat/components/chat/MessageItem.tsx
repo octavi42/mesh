@@ -24,26 +24,41 @@ export function MessageItem({
   hoveredMessageId,
   setActiveMessageId,
   setHoveredMessageId,
-  lastMessage,
 }: MessageItemProps) {
   const messageRef = useRef<HTMLDivElement>(null);
   const [hoverWidth, setHoverWidth] = useState('100%');
 
   useEffect(() => {
-    if (messageRef.current && isOwnMessage) {
-      const messageWidth = messageRef.current.scrollWidth;
-      const containerWidth = messageRef.current.offsetWidth;
+    // Use character count as a simpler proxy for message width
+    const messageLength = message.content.length;
 
-      const maxHoverWidth = 100;
-      const minHoverWidth = 20;
+    // Define thresholds for message length
+    const shortMessageThreshold = 20; // Very short messages (like "Hi", "OK", etc.)
+    const longMessageThreshold = 100; // Long messages that likely wrap
 
-      const widthRatio = Math.min(messageWidth / containerWidth, 1);
-      const calculatedWidth = maxHoverWidth - (widthRatio * 70);
-      const finalWidth = Math.max(minHoverWidth, Math.min(maxHoverWidth, calculatedWidth));
+    const maxHoverWidth = 100;
+    const minHoverWidth = 25;
 
-      setHoverWidth(`${finalWidth}%`);
+    let widthRatio;
+    if (messageLength <= shortMessageThreshold) {
+      // Very short messages - use small width ratio (results in large hover area)
+      widthRatio = messageLength / shortMessageThreshold * 0.3; // 0-30% ratio
+    } else if (messageLength >= longMessageThreshold) {
+      // Long messages - use high width ratio (results in small hover area)
+      widthRatio = 0.9; // 90% ratio
+    } else {
+      // Medium messages - scale between 30% and 90%
+      const mediumRange = longMessageThreshold - shortMessageThreshold;
+      const position = (messageLength - shortMessageThreshold) / mediumRange;
+      widthRatio = 0.3 + (position * 0.6); // Scale from 30% to 90%
     }
-  }, [message.content, isOwnMessage]);
+
+    // Inverse proportional calculation
+    const inverseRatio = 1 - widthRatio;
+    const finalWidth = minHoverWidth + (maxHoverWidth - minHoverWidth) * inverseRatio;
+
+    setHoverWidth(`${Math.max(minHoverWidth, Math.min(maxHoverWidth, finalWidth))}%`);
+  }, [message.content]);
 
   const isLastInGroup = msgIndex === groupMessagesLength - 1;
   const isTemporary = message.id.startsWith('temp-');
@@ -77,10 +92,10 @@ export function MessageItem({
           </div>
         </div>
 
-        {/* Proportional Hover Area - only for own messages that are not temporary */}
-        {isOwnMessage && !isTemporary && (
+        {/* Proportional Hover Area - for all messages */}
+        {!isTemporary && (
           <div
-            className="absolute inset-y-0 right-0 group/message"
+            className={`absolute inset-y-0 group/message ${isOwnMessage ? 'right-0' : 'left-0'}`}
             style={{
               width: hoverWidth,
               zIndex: 2
