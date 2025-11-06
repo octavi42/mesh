@@ -11,13 +11,9 @@ import type { Workspace } from '@/lib/stores/workspace-store-clean';
 // Global flag to ensure workspace fetching happens only once per session
 let workspacesFetched = false;
 
-// Flag to track if we've done the one-time migration to managed-only
-let managedOnlyMigrationDone = false;
-
 // Function to reset the session (call on user logout)
 export function resetWorkspaceSession() {
   workspacesFetched = false;
-  managedOnlyMigrationDone = false;
   console.log('🔄 Workspace session reset - will fetch on next mount');
 }
 
@@ -52,13 +48,8 @@ export function useNIP29Workspaces() {
     workspacesFetched = true; // Mark as fetched immediately
     setLoading(true);
 
-    // One-time migration: Clear existing workspaces since we're now using managed-only logic
-    if (!managedOnlyMigrationDone) {
-      console.log('🧹 First run after switching to managed-only: clearing cached unmanaged groups');
-      const { resetWorkspaces } = useWorkspaceStore.getState();
-      resetWorkspaces(); // Use resetWorkspaces to clear localStorage completely
-      managedOnlyMigrationDone = true;
-    }
+    // Note: We've removed content discovery to only show managed groups
+    // Existing cached workspaces will gradually be replaced as we fetch managed ones
 
     // Track processed groups to avoid duplicates
     const processedGroups = new Set<string>();
@@ -292,6 +283,25 @@ export function useNIP29Workspaces() {
         });
 
         console.log('📜 Managed groups processing complete');
+
+        // Sync channels for newly loaded workspaces
+        const managedWorkspaceIds = Array.from(processedGroups);
+        if (managedWorkspaceIds.length > 0) {
+          console.log('🔄 Syncing channels for managed workspaces:', managedWorkspaceIds);
+          // Import and sync channels for each workspace
+          setTimeout(async () => {
+            try {
+              const { syncChannelsForWorkspace } = await import('../hooks/use-channels');
+              for (const workspaceId of managedWorkspaceIds) {
+                await syncChannelsForWorkspace(workspaceId);
+              }
+              console.log('✅ Channel sync completed for all managed workspaces');
+            } catch (error) {
+              console.error('❌ Failed to sync channels:', error);
+            }
+          }, 1000); // Delay to ensure workspaces are fully loaded
+        }
+
 
         // LIVE SUBSCRIPTION: Only subscribe to managed group events
         console.log('🔴 Starting live subscription for managed group events only...');
