@@ -5,22 +5,19 @@ import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { NDKKind } from '@nostr-dev-kit/ndk';
 import type { Workspace } from '@/lib/stores/workspace-store-clean';
 
-// Define content kinds that can contain group information (matching groups_relay app)
-const hTaggedContentKinds: NDKKind[] = [
-  9009, // CreateInvite - invites use h tags
-  9021, // JoinRequest - join requests use h tags
-  9000, // PutUser - user management uses h tags
-  9001, // RemoveUser - user removal uses h tags
-  9,    // Chat message ⭐ KEY for discovering groups!
-  11,   // DM
-];
+// Only process managed group events - no content discovery for unmanaged groups
+// This ensures we only show workspaces for properly structured groups
 
 // Global flag to ensure workspace fetching happens only once per session
 let workspacesFetched = false;
 
+// Flag to track if we've done the one-time migration to managed-only
+let managedOnlyMigrationDone = false;
+
 // Function to reset the session (call on user logout)
 export function resetWorkspaceSession() {
   workspacesFetched = false;
+  managedOnlyMigrationDone = false;
   console.log('🔄 Workspace session reset - will fetch on next mount');
 }
 
@@ -28,6 +25,7 @@ export function useNIP29Workspaces() {
   const { ndk, isConnected } = useNDK();
   const { pubkey } = useAuthStore();
   const { addWorkspace, setLoading, setError, workspaces } = useWorkspaceStore();
+  const subscriptionActiveRef = useRef(true);
 
   useEffect(() => {
     console.log('🔍 useNIP29Workspaces effect triggered:', {
@@ -54,7 +52,13 @@ export function useNIP29Workspaces() {
     workspacesFetched = true; // Mark as fetched immediately
     setLoading(true);
 
-    // CRITICAL: Never clear existing workspaces - only add new ones like groups_relay
+    // One-time migration: Clear existing workspaces since we're now using managed-only logic
+    if (!managedOnlyMigrationDone) {
+      console.log('🧹 First run after switching to managed-only: clearing cached unmanaged groups');
+      const { resetWorkspaces } = useWorkspaceStore.getState();
+      resetWorkspaces(); // Use resetWorkspaces to clear localStorage completely
+      managedOnlyMigrationDone = true;
+    }
 
     // Track processed groups to avoid duplicates
     const processedGroups = new Set<string>();
@@ -202,37 +206,8 @@ export function useNIP29Workspaces() {
             processedGroups.add(groupId);
             addWorkspace(workspace);
           }
-        } else if (event.kind === 9 || event.kind === 11 || event.kind === 9000 || event.kind === 9001) {
-          // Content events - create workspace if not exists
-          console.log(`${logPrefix} Content event (${event.kind}):`, {
-            id: event.id?.slice(0, 8),
-            tags: event.tags
-          });
-
-          const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
-          if (!groupId) return;
-
-          if (!processedGroups.has(groupId)) {
-            // Create workspace from content discovery (no metadata available)
-            const workspace: Workspace = {
-              id: groupId,
-              name: groupId.includes("'") ? groupId.split("'")[1] || 'Chat Group' : 'Chat Group',
-              description: 'Group discovered through chat messages',
-              picture: undefined,
-              isPublic: false, // Default to private since we don't have metadata
-              isClosed: true,
-              isBroadcast: false,
-              relay: event.relay?.url,
-              createdAt: event.created_at ? event.created_at * 1000 : Date.now(),
-              updatedAt: Date.now(),
-              scope: 'Default'
-            };
-
-            console.log(`${logPrefix} Creating workspace from content for group: ${groupId}`, workspace);
-            processedGroups.add(groupId);
-            addWorkspace(workspace);
-          }
         }
+        // Removed content event processing - only managed groups with proper metadata are included
       } catch (error) {
         console.error('❌ Failed to process event:', error);
       }
@@ -272,80 +247,62 @@ export function useNIP29Workspaces() {
           })));
         }
 
-        // PHASE 1: METADATA DISCOVERY (existing approach)
-        console.log('📜 PHASE 1: Fetching group metadata events...');
+        // MANAGED GROUPS ONLY: Fetch only proper group metadata events
+        console.log('📜 Fetching managed group metadata events...');
         const metadataFilter = {
           kinds: [39000, 39001, 39002, 9007] as NDKKind[]
         };
         console.log('📜 Metadata filter:', metadataFilter);
-        const historicalEvents = await ndk.fetchEvents(metadataFilter);
-        console.log(`📜 PHASE 1 result: ${historicalEvents.size} metadata events found`);
+        const managedGroupEvents = await ndk.fetchEvents(metadataFilter);
+        console.log(`📜 Found ${managedGroupEvents.size} managed group events`);
 
-        // PHASE 2: CONTENT DISCOVERY (new - matches groups_relay app)
-        console.log('📜 PHASE 2: Discovering groups through content events...');
-        const contentFilter = {
-          kinds: hTaggedContentKinds,
-          limit: 500 // Reasonable limit for content discovery
-        };
-        console.log('📜 Content filter:', contentFilter);
-        const contentEvents = await ndk.fetchEvents(contentFilter);
-        console.log(`📜 PHASE 2 result: ${contentEvents.size} content events found`);
-
-        // Combine both event sets
-        const combinedEvents = new Set([...historicalEvents, ...contentEvents]);
-        console.log(`📜 COMBINED: ${combinedEvents.size} total events (${historicalEvents.size} metadata + ${contentEvents.size} content)`);
-
-        // Use combined events for processing
-        const historicalEventsToProcess = combinedEvents;
-
-        // DETAILED DEBUGGING: Log group IDs discovered from all events
+        // DETAILED DEBUGGING: Log group IDs discovered from managed events only
         const discoveredGroupIds = new Set<string>();
-        if (historicalEventsToProcess.size > 0) {
-          console.log(`📜 Processing ${historicalEventsToProcess.size} events to discover groups...`);
+        if (managedGroupEvents.size > 0) {
+          console.log(`📜 Processing ${managedGroupEvents.size} managed group events...`);
 
-          Array.from(historicalEventsToProcess).forEach((e, index) => {
+          Array.from(managedGroupEvents).forEach((e, index) => {
             const groupId = e.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
             if (groupId) {
               discoveredGroupIds.add(groupId);
               if (index < 10) { // Log first 10 events for debugging
-                console.log(`📜 Event ${index + 1}:`, {
+                console.log(`📜 Managed event ${index + 1}:`, {
                   id: e.id?.slice(0, 8),
                   kind: e.kind,
                   extractedGroupId: groupId,
-                  source: historicalEvents.has(e) ? 'metadata' : 'content',
                   relay: e.relay?.url
                 });
               }
             }
           });
 
-          console.log(`📜 Discovered ${discoveredGroupIds.size} unique group IDs:`, Array.from(discoveredGroupIds));
+          console.log(`📜 Discovered ${discoveredGroupIds.size} managed group IDs:`, Array.from(discoveredGroupIds));
         } else {
-          console.log('📜 No events found from either metadata or content discovery');
+          console.log('📜 No managed group events found');
         }
 
         let latestTimestamp = 0;
 
-        // Process all combined events (metadata + content)
-        historicalEventsToProcess.forEach((event) => {
+        // Process managed group events only
+        managedGroupEvents.forEach((event) => {
           processEvent(event, false);
           if (event.created_at && event.created_at > latestTimestamp) {
             latestTimestamp = event.created_at;
           }
         });
 
-        console.log('📜 Historical data processing complete');
+        console.log('📜 Managed groups processing complete');
 
-        // PHASE 3: LIVE SUBSCRIPTION for both metadata and content (enhanced)
-        console.log('🔴 PHASE 3: Starting live subscription for metadata and content...');
+        // LIVE SUBSCRIPTION: Only subscribe to managed group events
+        console.log('🔴 Starting live subscription for managed group events only...');
 
-        const allKinds = [...new Set([39000, 39001, 39002, 9007, ...hTaggedContentKinds])];
+        const managedGroupKinds = [39000, 39001, 39002, 9007] as NDKKind[];
         const liveSubscription = ndk.subscribe({
-          kinds: allKinds as NDKKind[],
+          kinds: managedGroupKinds,
           since: latestTimestamp + 1 // Only new events after historical data
         });
 
-        console.log('🔴 Live subscription kinds:', allKinds);
+        console.log('🔴 Live subscription kinds (managed only):', managedGroupKinds);
 
         if (!liveSubscription) {
           console.warn('⚠️ Could not create live subscription - NDK not ready');
