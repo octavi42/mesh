@@ -47,6 +47,10 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
   const { workspaces } = useWorkspaceStore();
   const workspace = groupId ? workspaces.find(w => w.id === groupId) : null;
 
+  // Get current user's pubkey to filter them out of display
+  const { useAuthStore } = require('@/lib/stores/auth-store');
+  const { pubkey: currentUserPubkey } = useAuthStore();
+
   // Simple cache to avoid refetching recently fetched data
   const cacheTimeMs = 30000; // 30 seconds
   const isCacheValid = useCallback(() => {
@@ -158,46 +162,56 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
       let memberPubkeys: string[] = [];
       let adminPubkeys: string[] = [];
 
-      // Primary: Fetch authoritative member and admin lists from NIP-29 events
-      try {
-        const [memberListEvents, adminListEvents] = await Promise.all([
-          client.fetchEvents({
-            kinds: [39002], // NIP-29 member list
-            '#h': [localGroupId],
-            limit: 1
-          }),
-          client.fetchEvents({
-            kinds: [39001], // NIP-29 admin list
-            '#h': [localGroupId],
-            limit: 1
-          })
-        ]);
-
-        // Extract member pubkeys
-        if (memberListEvents.length > 0) {
-          memberListEvents[0].tags.forEach(tag => {
-            if (tag[0] === 'p') {
-              memberPubkeys.push(tag[1]);
-            }
-          });
-        }
-
-        // Extract admin pubkeys
-        if (adminListEvents.length > 0) {
-          adminListEvents[0].tags.forEach(tag => {
-            if (tag[0] === 'p') {
-              adminPubkeys.push(tag[1]);
-            }
-          });
-        }
-      } catch (error) {
-        console.warn('Failed to fetch NIP-29 member/admin lists:', error);
-      }
-
-      // Fallback: Use workspace data if available
-      if (memberPubkeys.length === 0 && workspace) {
+      // Priority: Use workspace data if available (more efficient)
+      if (workspace && (workspace.members?.length || workspace.admins?.length)) {
         memberPubkeys = workspace.members || [];
         adminPubkeys = workspace.admins || [];
+        console.log(`📊 Using cached workspace member data for ${targetGroupId}:`, {
+          members: memberPubkeys.length,
+          admins: adminPubkeys.length
+        });
+      } else {
+        // Fallback: Fetch from relay if workspace data not available
+        try {
+          console.log(`🔄 Fetching fresh member data from relay for ${targetGroupId}`);
+          const [memberListEvents, adminListEvents] = await Promise.all([
+            client.fetchEvents({
+              kinds: [39002], // NIP-29 member list
+              '#h': [localGroupId],
+              limit: 1
+            }),
+            client.fetchEvents({
+              kinds: [39001], // NIP-29 admin list
+              '#h': [localGroupId],
+              limit: 1
+            })
+          ]);
+
+          // Extract member pubkeys
+          if (memberListEvents.length > 0) {
+            memberListEvents[0].tags.forEach(tag => {
+              if (tag[0] === 'p') {
+                memberPubkeys.push(tag[1]);
+              }
+            });
+          }
+
+          // Extract admin pubkeys
+          if (adminListEvents.length > 0) {
+            adminListEvents[0].tags.forEach(tag => {
+              if (tag[0] === 'p') {
+                adminPubkeys.push(tag[1]);
+              }
+            });
+          }
+
+          console.log(`📊 Fetched fresh member data for ${targetGroupId}:`, {
+            members: memberPubkeys.length,
+            admins: adminPubkeys.length
+          });
+        } catch (error) {
+          console.warn('Failed to fetch NIP-29 member/admin lists:', error);
+        }
       }
 
       // Final fallback: Current user only
@@ -302,16 +316,24 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
     return members.some(m => m.pubkey === pubkey);
   }, [members]);
 
-  // Get members formatted for UserAvatars component
+  // Get members formatted for UserAvatars component (excluding current user)
   const getAvatarUsers = useCallback(() => {
-    return members.map((member, index) => ({
+    const filteredMembers = members.filter(member => member.pubkey !== currentUserPubkey);
+    console.log(`👥 Filtering members for display:`, {
+      totalMembers: members.length,
+      currentUser: currentUserPubkey?.slice(0, 8),
+      filteredCount: filteredMembers.length,
+      displayedMembers: filteredMembers.map(m => m.name).slice(0, 3)
+    });
+
+    return filteredMembers.map((member, index) => ({
       id: member.pubkey,
       name: member.name,
       image: member.picture || generateAvatarUrl(member.pubkey, member.name),
       pubkey: member.pubkey,
       role: member.role,
     }));
-  }, [members, generateAvatarUrl]);
+  }, [members, currentUserPubkey, generateAvatarUrl]);
 
   return {
     members,
@@ -327,6 +349,7 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
     getAvatarUsers,
     // Stats
     memberCount: members.length,
+    displayedMemberCount: members.filter(m => m.pubkey !== currentUserPubkey).length, // For UI display
     adminCount: members.filter(m => m.isAdmin).length,
     regularMemberCount: members.filter(m => !m.isAdmin).length,
   };

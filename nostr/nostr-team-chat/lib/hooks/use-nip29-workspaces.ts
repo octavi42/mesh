@@ -110,8 +110,10 @@ export function useNIP29Workspaces() {
             relay: event.relay?.url,
             createdAt: event.created_at ? event.created_at * 1000 : Date.now(),
             updatedAt: Date.now(),
-            adminCount: groupAdmins.get(groupId)?.length || 0,
+            members: groupMembers.get(groupId) || [],
+            admins: groupAdmins.get(groupId) || [],
             memberCount: groupMembers.get(groupId)?.length || 0,
+            adminCount: groupAdmins.get(groupId)?.length || 0,
             scope: 'Default'
           };
 
@@ -142,6 +144,18 @@ export function useNIP29Workspaces() {
 
             groupAdmins.set(groupId, adminPubkeys);
             console.log(`${logPrefix} Updated admins for group ${groupId}:`, adminPubkeys.length);
+
+            // Update existing workspace if it exists
+            const store = useWorkspaceStore.getState();
+            const existingWorkspace = store.workspaces.find(w => w.id === groupId);
+            if (existingWorkspace) {
+              store.updateWorkspace(groupId, {
+                admins: adminPubkeys,
+                adminCount: adminPubkeys.length,
+                updatedAt: Date.now()
+              });
+              console.log(`${logPrefix} Updated existing workspace admin data for ${groupId}`);
+            }
           }
 
         } else if (event.kind === 39002) {
@@ -160,6 +174,18 @@ export function useNIP29Workspaces() {
 
             groupMembers.set(groupId, memberPubkeys);
             console.log(`${logPrefix} Updated members for group ${groupId}:`, memberPubkeys.length);
+
+            // Update existing workspace if it exists
+            const store = useWorkspaceStore.getState();
+            const existingWorkspace = store.workspaces.find(w => w.id === groupId);
+            if (existingWorkspace) {
+              store.updateWorkspace(groupId, {
+                members: memberPubkeys,
+                memberCount: memberPubkeys.length,
+                updatedAt: Date.now()
+              });
+              console.log(`${logPrefix} Updated existing workspace member data for ${groupId}`);
+            }
           }
 
         } else if (event.kind === 9007) {
@@ -191,6 +217,10 @@ export function useNIP29Workspaces() {
               relay: event.relay?.url,
               createdAt: event.created_at ? event.created_at * 1000 : Date.now(),
               updatedAt: Date.now(),
+              members: groupMembers.get(groupId) || [],
+              admins: groupAdmins.get(groupId) || [],
+              memberCount: groupMembers.get(groupId)?.length || 0,
+              adminCount: groupAdmins.get(groupId)?.length || 0,
               scope: 'Default'
             };
 

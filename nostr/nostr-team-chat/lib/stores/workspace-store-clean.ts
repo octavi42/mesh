@@ -13,9 +13,11 @@ export interface Workspace {
   createdAt: number; // Group creation timestamp
   updatedAt: number; // Last metadata update
 
-  // Additional relay-specific fields
-  memberCount?: number; // Number of members (if available)
-  adminCount?: number; // Number of admins (if available)
+  // Member data from NIP-29 events
+  members?: string[]; // Array of member pubkeys from 39002 events
+  admins?: string[]; // Array of admin pubkeys from 39001 events
+  memberCount?: number; // Computed from members array length
+  adminCount?: number; // Computed from admins array length
   scope?: string; // Relay scope (usually "Default")
 }
 

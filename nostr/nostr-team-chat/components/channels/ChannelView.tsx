@@ -36,7 +36,7 @@ export function ChannelView({
     getAvatarUsers,
     loading: membersLoading,
     isAdmin,
-    memberCount
+    displayedMemberCount
   } = useGroupMembers({
     groupId: workspaceId || undefined,
     autoRefresh: true,
@@ -92,10 +92,10 @@ export function ChannelView({
           )}
         </div>
         <div className="flex items-center gap-3">
-          {memberCount > 0 && (
+          {displayedMemberCount > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                {memberCount} member{memberCount !== 1 ? 's' : ''}
+                {displayedMemberCount} other member{displayedMemberCount !== 1 ? 's' : ''}
               </span>
               <UserAvatars
                 users={getAvatarUsers()}
@@ -105,7 +105,7 @@ export function ChannelView({
               />
             </div>
           )}
-          {membersLoading && memberCount === 0 && (
+          {membersLoading && displayedMemberCount === 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 dark:text-gray-400">Loading members...</span>
               <div className="flex gap-1">
