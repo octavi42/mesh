@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useChannels } from '@/lib/hooks/use-channels';
+import { useChannels, syncChannelsForWorkspace } from '@/lib/hooks/use-channels';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelList } from '@/components/channels/ChannelList';
@@ -22,11 +22,16 @@ export default function WorkspacePage() {
   // can contain dots and quotes (e.g., "groups.contextio.app'dlpnklmeoft")
   // and are valid - we should not clear workspace data for valid group IDs
 
-  // Set current workspace from URL params
+  // Set current workspace from URL params and preload channels
   useEffect(() => {
     if (workspaceId) {
       console.log('🔄 Setting current workspace from URL:', workspaceId);
       setCurrentWorkspace(workspaceId);
+
+      // Proactively sync channels to prevent loading delays
+      syncChannelsForWorkspace(workspaceId).catch(error => {
+        console.warn('Failed to preload channels:', error);
+      });
     }
   }, [workspaceId, setCurrentWorkspace]);
 
@@ -35,6 +40,8 @@ export default function WorkspacePage() {
     if (!isLoading && channels.length > 0) {
       const firstChannel = channels[0];
       console.log('🔄 Auto-redirecting to first channel:', firstChannel.id);
+
+      // Preload channel data before navigation to prevent flash
       router.replace(`/app/w/${workspaceId}/c/${firstChannel.id}`);
     }
   }, [channels, isLoading, workspaceId, router]);

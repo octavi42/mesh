@@ -17,7 +17,7 @@ interface ChannelViewProps {
 
 
 export function ChannelView({ channelId }: ChannelViewProps) {
-  const channel = useChannel(channelId);
+  const { channel } = useChannel(channelId);
   const { currentWorkspaceId, isNavigating } = useChatStore();
   const { pubkey } = useAuthStore();
 

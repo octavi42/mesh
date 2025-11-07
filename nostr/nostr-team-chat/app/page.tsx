@@ -20,46 +20,6 @@ export default function HomePage() {
     );
   }
 
-  if (isAuthenticated) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950">
-        <div className="text-center max-w-md">
-          <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg
-              className="w-10 h-10 text-white"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-            Welcome Back!
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-8">
-            You&apos;re already authenticated. Ready to continue?
-          </p>
-          <button
-            onClick={() => {
-              console.log('🚀 NAVIGATION: "Go to App" button clicked');
-              console.log('🔐 Current auth state before navigation:', { isAuthenticated, loading });
-              console.log('📍 About to navigate to /app');
-              router.push('/app');
-            }}
-            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors shadow-lg hover:shadow-xl"
-          >
-            Go to App
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950">
@@ -98,7 +58,21 @@ export default function HomePage() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <LoginButton className="px-8 py-4 text-lg shadow-lg hover:shadow-xl" />
+            {isAuthenticated ? (
+              <button
+                onClick={() => {
+                  console.log('🚀 NAVIGATION: "Go to App" button clicked');
+                  console.log('🔐 Current auth state before navigation:', { isAuthenticated, loading });
+                  console.log('📍 About to navigate to /app');
+                  router.push('/app');
+                }}
+                className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors shadow-lg hover:shadow-xl"
+              >
+                Go to App
+              </button>
+            ) : (
+              <LoginButton className="px-8 py-4 text-lg shadow-lg hover:shadow-xl" />
+            )}
             <button className="px-8 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 text-gray-900 dark:text-white rounded-xl font-semibold text-lg transition-colors border border-gray-200 dark:border-gray-700">
               Learn More
             </button>

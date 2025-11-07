@@ -1,3 +1,4 @@
+import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Channel } from '@/lib/db/schema';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29';
@@ -24,7 +25,10 @@ export async function refreshChannelsForWorkspace(workspaceId: string): Promise<
 }
 
 export function useChannel(channelId: string | null) {
-  return useLiveQuery(
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [hasAttemptedSync, setHasAttemptedSync] = React.useState(false);
+
+  const channel = useLiveQuery(
     () => {
       if (!channelId) return undefined;
       return db.channels.get(channelId);
@@ -32,6 +36,56 @@ export function useChannel(channelId: string | null) {
     [channelId],
     undefined
   );
+
+  // Only show loading when we're actively syncing missing channels
+  React.useEffect(() => {
+    if (!channelId) {
+      setIsLoading(false);
+      setHasAttemptedSync(false);
+      return;
+    }
+
+    // If we have a channel, we're definitely not loading
+    if (channel) {
+      setIsLoading(false);
+      setHasAttemptedSync(true);
+      return;
+    }
+
+    // If we already attempted sync for this channel, don't load again
+    if (hasAttemptedSync) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Only sync if we haven't tried yet and channel doesn't exist
+    const workspaceId = channelId.split('-')[0];
+    if (workspaceId && !hasAttemptedSync) {
+      setIsLoading(true);
+      syncChannelsForWorkspace(workspaceId)
+        .then(() => {
+          setHasAttemptedSync(true);
+          setIsLoading(false);
+        })
+        .catch(() => {
+          setHasAttemptedSync(true);
+          setIsLoading(false);
+        });
+    }
+  }, [channelId, channel, hasAttemptedSync]);
+
+  // Reset sync attempt when channelId changes
+  React.useEffect(() => {
+    setHasAttemptedSync(false);
+  }, [channelId]);
+
+  return { channel, isLoading, hasAttemptedSync };
+}
+
+// Legacy hook for backward compatibility
+export function useChannelData(channelId: string | null) {
+  const result = useChannel(channelId);
+  return result.channel;
 }
 
 // Helper function to fetch and sync channels for a workspace
