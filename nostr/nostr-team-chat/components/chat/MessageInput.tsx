@@ -5,7 +5,7 @@ import { Send } from 'lucide-react';
 
 interface MessageInputProps {
   channelName: string;
-  onSend: (content: string) => Promise<void>;
+  onSend: (content: string) => void;
   disabled?: boolean;
 }
 
@@ -14,12 +14,12 @@ export function MessageInput({ channelName, onSend, disabled }: MessageInputProp
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!content.trim() || isSending || disabled) return;
 
     setIsSending(true);
     try {
-      await onSend(content);
+      onSend(content);
       setContent('');
     } catch (error) {
       console.error('Failed to send message:', error);

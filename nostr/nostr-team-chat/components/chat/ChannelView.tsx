@@ -33,7 +33,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     refreshInterval: 60000 // Refresh every minute
   });
   // Get static references to prevent re-renders
-  const sendMessage = useMessageStore.getState().sendMessage;
+  const sendMessage = useMessageStore((state) => state.sendMessage);
   const loadMessages = useMessageStore.getState().loadMessages;
   const subscribeToChannel = useMessageStore.getState().subscribeToChannel;
   const unsubscribeFromChannel = useMessageStore.getState().unsubscribeFromChannel;
@@ -98,9 +98,9 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     };
   }, [channelId, currentWorkspaceId]);
 
-  const handleSendMessage = useCallback(async (content: string) => {
+  const handleSendMessage = useCallback((content: string) => {
     if (!currentWorkspaceId) return;
-    await sendMessage(currentWorkspaceId, channelId, content);
+    sendMessage(currentWorkspaceId, channelId, content);
   }, [sendMessage, currentWorkspaceId, channelId]);
 
   if (!channel) {

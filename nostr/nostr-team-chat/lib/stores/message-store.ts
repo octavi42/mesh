@@ -40,163 +40,201 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
     return get().messages[channelId] || [];
   },
 
-  sendMessage: async (groupId, channelId, content) => {
+  sendMessage: (groupId, channelId, content) => {
+    console.log('🚀 sendMessage called:', { groupId, channelId, content: content.slice(0, 30) });
+
     if (!content.trim()) return;
 
-    // Step 1: Immediately display the message optimistically for instant UX
-    let tempMessage: Message;
-    let pubkey: string;
+    // Step 1: IMMEDIATELY create and display optimistic message (synchronous)
+    const tempMessageId = `temp-${Date.now()}-${Math.random()}`;
 
-    try {
-      // Get pubkey first for the optimistic message
-      if (!window.nostr) {
-        toast.error('Nostr extension not available. Please install a Nostr extension like Alby or nos2x.');
-        throw new Error('Nostr extension not available');
-      }
+    // Create optimistic message without waiting for anything
+    const tempMessage: Message = {
+      id: tempMessageId,
+      channelId,
+      authorPubkey: '', // Will be filled in background
+      content: content.trim(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
 
-      pubkey = await window.nostr.getPublicKey();
+    // Add to UI IMMEDIATELY (synchronous)
+    console.log('📝 Adding optimistic message to UI immediately:', { channelId, messageId: tempMessage.id, content: tempMessage.content.slice(0, 30) });
 
-      // Create and immediately show optimistic message
-      tempMessage = {
-        id: `temp-${Date.now()}`,
-        channelId,
-        authorPubkey: pubkey,
-        content: content.trim(),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
+    set((state) => {
+      const channelMessages = state.messages[channelId] || [];
+      const updatedMessages = [...channelMessages, tempMessage].sort((a, b) => a.createdAt - b.createdAt);
+      console.log('📝 Updated messages for channel:', channelId, 'count:', updatedMessages.length);
 
-      // Add to UI immediately for instant feedback
-      get().addMessage(channelId, tempMessage);
-      console.log('✅ Optimistic message displayed:', tempMessage.id);
-
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to send message: ${errorMsg}`);
-      throw error;
-    }
-
-    // Step 2: Handle all the background processing
-    try {
-      console.log('🔍 Starting background message processing...');
-
-      const localNsec = localStorage.getItem('nostr-login-local-key');
-      if (localNsec) {
-        console.log('✅ Using LOCAL nsec key - signs instantly');
-      } else {
-        console.log('⚠️ Using remote signer - may need external app');
-      }
-
-      const client = getGlobalNIP29Client();
-
-      if (!client.isConnected()) {
-        console.log('🔌 Connecting to relay...');
-        await client.connect();
-      }
-
-      const parts = groupId.split("'");
-      const localGroupId = parts.length === 2 ? parts[1] : groupId;
-
-      // Get the channel name
-      const { db } = await import('@/lib/db/schema');
-      const channel = await db.channels.get(channelId);
-      const channelName = channel?.name;
-
-      const tags: string[][] = [
-        ['h', localGroupId],
-      ];
-
-      if (channelName) {
-        tags.push(['c', channelName]);
-      } else {
-        console.warn('⚠️ No channel name found for channelId:', channelId);
-      }
-
-      const recentEvents = get().recentEventIds[channelId] || [];
-      recentEvents.slice(-3).forEach(eventId => {
-        tags.push(['previous', eventId]);
-      });
-
-      const unsignedEvent = {
-        kind: 9,
-        pubkey,
-        created_at: Math.floor(Date.now() / 1000),
-        tags,
-        content: content.trim(),
-      };
-
-      console.log('📝 Signing event...');
-
-      let signedEvent;
-      try {
-        signedEvent = await Promise.race([
-          window.nostr!.signEvent(unsignedEvent),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Signing timeout after 60 seconds')), 60000)
-          )
-        ]) as NostrEvent;
-
-        console.log('✅ Event signed successfully!');
-      } catch (error) {
-        console.error('❌ Failed to sign event:', error);
-        const errorMsg = error instanceof Error ? error.message : String(error);
-
-        if (errorMsg.includes('timeout')) {
-          toast.error('Signing timed out. Please check your signer app and try again.');
-        } else {
-          toast.error(`Failed to sign message: ${errorMsg}`);
+      return {
+        messages: {
+          ...state.messages,
+          [channelId]: updatedMessages
         }
-        throw error;
-      }
-
-      console.log('📡 Publishing event to relay...');
-      await client.publishEvent(signedEvent);
-      console.log('✅ Event published to relay!');
-
-      // Step 3: Replace temporary message with confirmed one
-      const confirmedMessage: Message = {
-        id: signedEvent.id,
-        channelId,
-        authorPubkey: signedEvent.pubkey,
-        content: signedEvent.content,
-        createdAt: signedEvent.created_at * 1000,
-        updatedAt: signedEvent.created_at * 1000,
       };
+    });
+    console.log('✅ Optimistic message displayed immediately:', tempMessage.id);
 
-      await db.messages.put(confirmedMessage);
+    // Step 2: Handle all async work in background
+    const handleAsyncSending = async () => {
+      let pubkey: string;
 
-      set((state) => {
-        const channelMessages = state.messages[channelId] || [];
-        const withoutTempAndDuplicates = channelMessages.filter(m => m.id !== tempMessage.id && m.id !== signedEvent.id);
+      try {
+        // Get pubkey and update the optimistic message
+        if (!window.nostr) {
+          throw new Error('Nostr extension not available. Please install a Nostr extension like Alby or nos2x.');
+        }
 
-        const eventIds = state.recentEventIds[channelId] || [];
+        pubkey = await window.nostr.getPublicKey();
 
-        return {
-          messages: {
-            ...state.messages,
-            [channelId]: [...withoutTempAndDuplicates, confirmedMessage].sort((a, b) => a.createdAt - b.createdAt)
-          },
-          recentEventIds: {
-            ...state.recentEventIds,
-            [channelId]: [...eventIds, signedEvent.id].slice(-10)
-          }
+        // Update the optimistic message with the real pubkey
+        set((state) => {
+          const channelMessages = state.messages[channelId] || [];
+          const updatedMessages = channelMessages.map(msg =>
+            msg.id === tempMessageId
+              ? { ...msg, authorPubkey: pubkey }
+              : msg
+          );
+
+          return {
+            messages: {
+              ...state.messages,
+              [channelId]: updatedMessages
+            }
+          };
+        });
+
+        console.log('🔍 Starting background message processing...');
+
+        const localNsec = localStorage.getItem('nostr-login-local-key');
+        if (localNsec) {
+          console.log('✅ Using LOCAL nsec key - signs instantly');
+        } else {
+          console.log('⚠️ Using remote signer - may need external app');
+        }
+
+        const client = getGlobalNIP29Client();
+
+        if (!client.isConnected()) {
+          console.log('🔌 Connecting to relay...');
+          await client.connect();
+        }
+
+        const parts = groupId.split("'");
+        const localGroupId = parts.length === 2 ? parts[1] : groupId;
+
+        // Get the channel name
+        const { db } = await import('@/lib/db/schema');
+        const channel = await db.channels.get(channelId);
+        const channelName = channel?.name;
+
+        const tags: string[][] = [
+          ['h', localGroupId],
+        ];
+
+        if (channelName) {
+          tags.push(['c', channelName]);
+        } else {
+          console.warn('⚠️ No channel name found for channelId:', channelId);
+        }
+
+        const recentEvents = get().recentEventIds[channelId] || [];
+        recentEvents.slice(-3).forEach(eventId => {
+          tags.push(['previous', eventId]);
+        });
+
+        const unsignedEvent = {
+          kind: 9,
+          pubkey,
+          created_at: Math.floor(Date.now() / 1000),
+          tags,
+          content: content.trim(),
         };
-      });
 
-      console.log('✅ Message confirmed and updated:', signedEvent.id);
+        console.log('📝 Signing event...');
 
-    } catch (error) {
-      // Step 4: On any error, remove the optimistic message and show error toast
-      console.error('❌ Failed to send message:', error);
+        let signedEvent;
+        try {
+          signedEvent = await Promise.race([
+            window.nostr!.signEvent(unsignedEvent),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Signing timeout after 60 seconds')), 60000)
+            )
+          ]) as NostrEvent;
 
-      // Remove the temporary message from UI
-      get().removeMessage(channelId, tempMessage.id);
+          console.log('✅ Event signed successfully!');
+        } catch (error) {
+          console.error('❌ Failed to sign event:', error);
+          const errorMsg = error instanceof Error ? error.message : String(error);
 
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to send message: ${errorMsg}`);
+          if (errorMsg.includes('timeout')) {
+            toast.error('Signing timed out. Please check your signer app and try again.');
+          } else {
+            toast.error(`Failed to sign message: ${errorMsg}`);
+          }
+          throw error;
+        }
 
-      throw error;
-    }
+        console.log('📡 Publishing event to relay...');
+        await client.publishEvent(signedEvent);
+        console.log('✅ Event published to relay!');
+
+        // Step 3: Replace temporary message with confirmed one
+        const confirmedMessage: Message = {
+          id: signedEvent.id,
+          channelId,
+          authorPubkey: signedEvent.pubkey,
+          content: signedEvent.content,
+          createdAt: signedEvent.created_at * 1000,
+          updatedAt: signedEvent.created_at * 1000,
+        };
+
+        await db.messages.put(confirmedMessage);
+
+        set((state) => {
+          const channelMessages = state.messages[channelId] || [];
+          const withoutTempAndDuplicates = channelMessages.filter(m => m.id !== tempMessageId && m.id !== signedEvent.id);
+
+          const eventIds = state.recentEventIds[channelId] || [];
+
+          return {
+            messages: {
+              ...state.messages,
+              [channelId]: [...withoutTempAndDuplicates, confirmedMessage].sort((a, b) => a.createdAt - b.createdAt)
+            },
+            recentEventIds: {
+              ...state.recentEventIds,
+              [channelId]: [...eventIds, signedEvent.id].slice(-10)
+            }
+          };
+        });
+
+        console.log('✅ Message confirmed and updated:', signedEvent.id);
+
+      } catch (error) {
+        // Step 4: On any error, remove the optimistic message and show error toast
+        console.error('❌ Failed to send message:', error);
+
+        // Remove the temporary message from UI
+        set((state) => {
+          const channelMessages = state.messages[channelId] || [];
+          const filteredMessages = channelMessages.filter(m => m.id !== tempMessageId);
+
+          return {
+            messages: {
+              ...state.messages,
+              [channelId]: filteredMessages
+            }
+          };
+        });
+
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to send message: ${errorMsg}`);
+      }
+    };
+
+    // Start async processing but don't block the UI
+    handleAsyncSending();
   },
 
   addMessage: (channelId, message) => {
