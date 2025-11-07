@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useAppInitialization } from '@/lib/hooks/use-app-initialization-clean';
 import { useNIP29Workspaces } from '@/lib/hooks/use-nip29-workspaces';
@@ -13,6 +13,7 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated, loading, hasHydrated } = useAuthStore();
   const { isInitialized, isInitializing, error } = useAppInitialization();
 
@@ -87,6 +88,14 @@ export default function ProtectedLayout({
     );
   }
 
+  // Check if this is the main /app page (workspace selection)
+  const isMainAppPage = pathname === '/app';
+
   // Render protected content
+  if (isMainAppPage) {
+    // For /app page, render without AppLayout to show custom workspace selection
+    return <>{children}</>;
+  }
+
   return <AppLayout>{children}</AppLayout>;
 }

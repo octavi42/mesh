@@ -9,6 +9,13 @@ export default function HomePage() {
   const router = useRouter();
   const { isAuthenticated, loading } = useAuthStore();
 
+  const handleGoToApp = () => {
+    console.log('🚀 NAVIGATION: "Go to App" button clicked');
+    console.log('🔐 Current auth state before navigation:', { isAuthenticated, loading });
+    console.log('📍 Navigating to /app');
+    router.push('/app');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950">
@@ -60,12 +67,7 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             {isAuthenticated ? (
               <button
-                onClick={() => {
-                  console.log('🚀 NAVIGATION: "Go to App" button clicked');
-                  console.log('🔐 Current auth state before navigation:', { isAuthenticated, loading });
-                  console.log('📍 About to navigate to /app');
-                  router.push('/app');
-                }}
+                onClick={handleGoToApp}
                 className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-lg transition-colors shadow-lg hover:shadow-xl"
               >
                 Go to App

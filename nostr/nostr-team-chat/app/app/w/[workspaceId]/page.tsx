@@ -35,13 +35,11 @@ export default function WorkspacePage() {
     }
   }, [workspaceId, setCurrentWorkspace]);
 
-  // Auto-redirect to first channel if available
+  // Auto-redirect to first channel if available (only if not coming from specific navigation)
   useEffect(() => {
     if (!isLoading && channels.length > 0) {
       const firstChannel = channels[0];
       console.log('🔄 Auto-redirecting to first channel:', firstChannel.id);
-
-      // Preload channel data before navigation to prevent flash
       router.replace(`/app/w/${workspaceId}/c/${firstChannel.id}`);
     }
   }, [channels, isLoading, workspaceId, router]);

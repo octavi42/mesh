@@ -4,11 +4,15 @@ import { persist } from 'zustand/middleware';
 interface ChatState {
   currentWorkspaceId: string;
   currentChannelId: string | null;
+  lastWorkspaceId: string | null;
+  lastChannelId: string | null;
   isNavigating: boolean;
   isLoadingWorkspace: boolean;
   isLoadingChannel: boolean;
   setCurrentWorkspace: (id: string, channelId?: string) => void;
   setCurrentChannel: (id: string) => void;
+  setLastLocation: (workspaceId: string, channelId: string) => void;
+  getLastLocation: () => { workspaceId: string; channelId: string } | null;
   setNavigating: (navigating: boolean) => void;
   setLoadingWorkspace: (loading: boolean) => void;
   setLoadingChannel: (loading: boolean) => void;
@@ -21,6 +25,8 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       currentWorkspaceId: '', // Start empty, will be set by workspace store
       currentChannelId: null,
+      lastWorkspaceId: null,
+      lastChannelId: null,
       isNavigating: false,
       isLoadingWorkspace: false,
       isLoadingChannel: false,
@@ -94,10 +100,28 @@ export const useChatStore = create<ChatState>()(
         });
       },
 
+      setLastLocation: (workspaceId, channelId) => {
+        set({
+          lastWorkspaceId: workspaceId,
+          lastChannelId: channelId,
+        });
+        console.log('💾 Last location saved:', { workspaceId, channelId });
+      },
+
+      getLastLocation: () => {
+        const { lastWorkspaceId, lastChannelId } = get();
+        if (lastWorkspaceId && lastChannelId) {
+          return { workspaceId: lastWorkspaceId, channelId: lastChannelId };
+        }
+        return null;
+      },
+
       reset: () => {
         set({
           currentWorkspaceId: '',
           currentChannelId: null,
+          lastWorkspaceId: null,
+          lastChannelId: null,
           isNavigating: false,
           isLoadingWorkspace: false,
           isLoadingChannel: false,

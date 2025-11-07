@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useChannel } from '@/lib/hooks/use-channels';
 import { useChannelMessages } from '@/lib/hooks/use-channel-messages';
@@ -9,6 +9,18 @@ import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { ChannelView } from '@/components/channels/ChannelView';
 import { MessageSkeletons } from '@/components/ui/message-skeleton';
 
+// Utility function for debouncing
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
 export default function ChannelPage() {
   const params = useParams();
   const router = useRouter();
@@ -16,7 +28,7 @@ export default function ChannelPage() {
   const channelId = params.channelId as string;
 
   const { workspaces } = useWorkspaceStore();
-  const { setCurrentChannel, reset: resetChatStore } = useChatStore();
+  const { setCurrentChannel, setLastLocation, reset: resetChatStore } = useChatStore();
 
   // Find the actual workspace with the original group ID
   // The URL can contain either sanitized or full workspace IDs
@@ -51,6 +63,14 @@ export default function ChannelPage() {
 
   const { messages, isLoading, sendMessage } = useChannelMessages(actualChannelId);
 
+  // Debounced function to update last location
+  const debouncedUpdateLocation = useMemo(
+    () => debounce((workspaceId: string, channelId: string) => {
+      setLastLocation(workspaceId, channelId);
+    }, 500),
+    [setLastLocation]
+  );
+
   // Set current channel when component mounts
   useEffect(() => {
     if (channelId) {
@@ -58,6 +78,14 @@ export default function ChannelPage() {
       setCurrentChannel(channelId);
     }
   }, [channelId, setCurrentChannel]);
+
+  // Update last location when both workspace and channel are available
+  useEffect(() => {
+    if (actualWorkspaceId && actualChannelId && channel) {
+      console.log('💾 Updating last location:', { actualWorkspaceId, actualChannelId });
+      debouncedUpdateLocation(actualWorkspaceId, actualChannelId);
+    }
+  }, [actualWorkspaceId, actualChannelId, channel, debouncedUpdateLocation]);
 
   // Always show skeleton if channel is not available - never show "not found"
   if (!channel) {
