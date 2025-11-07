@@ -59,23 +59,8 @@ export default function ChannelPage() {
     }
   }, [channelId, setCurrentChannel]);
 
-  // Show loading skeleton while channel is loading or doesn't exist yet
-  if (isChannelLoading || !channel) {
-    // Only show "not found" if loading is complete and channel truly doesn't exist
-    if (!isChannelLoading && !channel) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <h1 className="text-xl font-bold text-red-600">Channel Not Found</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              The channel "{channelId}" could not be found.
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    // Show skeleton while loading
+  // Always show skeleton if channel is not available - never show "not found"
+  if (!channel) {
     return (
       <div className="flex flex-col h-full">
         {/* Channel header skeleton */}
@@ -94,13 +79,32 @@ export default function ChannelPage() {
     );
   }
 
-  return (
-    <ChannelView
-      channel={channel}
-      workspaceId={actualWorkspaceId}
-      messages={messages}
-      isLoading={isLoading}
-      onSendMessage={sendMessage}
-    />
-  );
+  // Defensive rendering - always ensure we have valid data
+  try {
+    return (
+      <ChannelView
+        channel={channel}
+        workspaceId={actualWorkspaceId || ''}
+        messages={messages || []}
+        isLoading={isLoading}
+        onSendMessage={sendMessage}
+      />
+    );
+  } catch (error) {
+    console.warn('Error rendering ChannelView:', error);
+    // Fallback to skeleton on any error
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg z-20">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            <div className="w-32 h-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <MessageSkeletons count={3} />
+        </div>
+      </div>
+    );
+  }
 }

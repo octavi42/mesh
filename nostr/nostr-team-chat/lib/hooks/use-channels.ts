@@ -31,7 +31,12 @@ export function useChannel(channelId: string | null) {
   const channel = useLiveQuery(
     () => {
       if (!channelId) return undefined;
-      return db.channels.get(channelId);
+      try {
+        return db.channels.get(channelId);
+      } catch (error) {
+        console.warn('Error fetching channel:', error);
+        return undefined;
+      }
     },
     [channelId],
     undefined
@@ -52,7 +57,7 @@ export function useChannel(channelId: string | null) {
       return;
     }
 
-    // If we already attempted sync for this channel, don't load again
+    // If we already attempted sync for this channel, don't try again
     if (hasAttemptedSync) {
       setIsLoading(false);
       return;
@@ -62,13 +67,14 @@ export function useChannel(channelId: string | null) {
     const workspaceId = channelId.split('-')[0];
     if (workspaceId && !hasAttemptedSync) {
       setIsLoading(true);
+      setHasAttemptedSync(true); // Set immediately to prevent multiple attempts
+
       syncChannelsForWorkspace(workspaceId)
         .then(() => {
-          setHasAttemptedSync(true);
           setIsLoading(false);
         })
-        .catch(() => {
-          setHasAttemptedSync(true);
+        .catch((error) => {
+          console.warn('Failed to sync channels:', error);
           setIsLoading(false);
         });
     }
@@ -77,9 +83,10 @@ export function useChannel(channelId: string | null) {
   // Reset sync attempt when channelId changes
   React.useEffect(() => {
     setHasAttemptedSync(false);
+    setIsLoading(false);
   }, [channelId]);
 
-  return { channel, isLoading, hasAttemptedSync };
+  return { channel: channel || null, isLoading, hasAttemptedSync };
 }
 
 // Legacy hook for backward compatibility
