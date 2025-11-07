@@ -1,8 +1,11 @@
 'use client';
 
+import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
+import { useChatStore } from '@/lib/stores/chat-store';
 import { CreateWorkspaceModal } from '@/components/workspaces/CreateWorkspaceModal';
+import { db, type Channel } from '@/lib/db/schema';
 
 interface WorkspaceSelectionListProps {
   isLoading?: boolean;
@@ -11,6 +14,8 @@ interface WorkspaceSelectionListProps {
 export function WorkspaceSelectionList({ isLoading = false }: WorkspaceSelectionListProps) {
   const router = useRouter();
   const { workspaces } = useWorkspaceStore();
+  const { setCurrentWorkspace } = useChatStore();
+  const isNavigatingRef = useRef(false);
 
   // Helper function to sanitize workspace ID for URL
   const sanitizeWorkspaceIdForUrl = (workspaceId: string): string => {
@@ -20,9 +25,88 @@ export function WorkspaceSelectionList({ isLoading = false }: WorkspaceSelection
     return workspaceId;
   };
 
-  const handleWorkspaceClick = (workspaceId: string) => {
-    const urlSafeWorkspaceId = sanitizeWorkspaceIdForUrl(workspaceId);
-    router.push(`/app/w/${encodeURIComponent(urlSafeWorkspaceId)}`);
+  const handleWorkspaceClick = async (workspaceId: string) => {
+    console.log('🖱️ Workspace clicked:', workspaceId);
+
+    // Prevent rapid successive clicks
+    if (isNavigatingRef.current) {
+      console.log('⚠️ Click ignored - already navigating');
+      return;
+    }
+
+    isNavigatingRef.current = true;
+
+    try {
+      // Use sanitized workspace ID for URL but keep original for internal tracking
+      const urlSafeWorkspaceId = sanitizeWorkspaceIdForUrl(workspaceId);
+      console.log('🔍 Looking for channels in workspace:', workspaceId, 'URL-safe ID:', urlSafeWorkspaceId);
+
+      let channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
+      console.log('📋 Found channels:', channels);
+
+      // If no channels exist, create default channels for the workspace
+      if (channels.length === 0) {
+        console.log('📋 No channels found, creating default channels for workspace:', workspaceId);
+
+        const now = Date.now();
+        const defaultChannels: Channel[] = [
+          {
+            id: `${workspaceId}-general`,
+            workspaceId,
+            name: 'general',
+            description: 'General discussion',
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: `${workspaceId}-random`,
+            workspaceId,
+            name: 'random',
+            description: 'Random conversations',
+            createdAt: now,
+            updatedAt: now,
+          }
+        ];
+
+        try {
+          await db.channels.bulkAdd(defaultChannels);
+          console.log('✅ Created default channels:', defaultChannels.map(c => c.name));
+          channels = defaultChannels;
+        } catch (error) {
+          console.error('❌ Failed to create default channels:', error);
+          // Continue anyway, we can navigate to workspace without channels
+        }
+      }
+
+      const firstChannel = channels[0];
+
+      if (firstChannel) {
+        console.log('🔄 Setting workspace with first channel:', workspaceId, firstChannel.id);
+
+        // Set workspace immediately for responsive UI (use original ID)
+        setCurrentWorkspace(workspaceId, firstChannel.id);
+
+        // Navigate directly to first channel using Next.js router with URL-safe IDs
+        const url = `/app/w/${encodeURIComponent(urlSafeWorkspaceId)}/c/${encodeURIComponent(firstChannel.id)}`;
+        console.log('🚀 Navigating directly to channel:', url);
+        router.push(url);
+      } else {
+        console.log('🔄 Setting workspace without channel:', workspaceId);
+
+        // Set workspace immediately for responsive UI (use original ID)
+        setCurrentWorkspace(workspaceId);
+
+        // Navigate using Next.js router with URL-safe ID
+        const url = `/app/w/${encodeURIComponent(urlSafeWorkspaceId)}`;
+        console.log('🚀 Navigating to workspace:', url);
+        router.push(url);
+      }
+    } catch (error) {
+      console.error('Failed to handle workspace click:', error);
+    } finally {
+      // Reset navigation flag immediately after operation
+      isNavigatingRef.current = false;
+    }
   };
 
   if (isLoading) {

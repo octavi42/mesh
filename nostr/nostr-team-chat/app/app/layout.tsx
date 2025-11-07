@@ -45,49 +45,6 @@ export default function ProtectedLayout({
     return null;
   }
 
-  // Show initialization state
-  if (isInitializing) {
-    return (
-      <AppLayout>
-        <div className="flex h-full items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Initializing...
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Setting up your Nostr connection
-            </p>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  // Show initialization error
-  if (error) {
-    return (
-      <AppLayout>
-        <div className="flex h-full items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-2">
-              Initialization Failed
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
-              {error}
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
   // Check if this is the main /app page (workspace selection)
   const isMainAppPage = pathname === '/app';
 

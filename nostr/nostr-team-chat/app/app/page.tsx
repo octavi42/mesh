@@ -1,6 +1,7 @@
 'use client';
 
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
+import { useAppInitialization } from '@/lib/hooks/use-app-initialization-clean';
 import { CreateWorkspaceModal } from '@/components/workspaces/CreateWorkspaceModal';
 import { WorkspaceSelectionList } from '@/components/workspaces/WorkspaceSelectionList';
 
@@ -51,6 +52,46 @@ function EmptyPanel() {
 
 export default function AppHomePage() {
   const { workspaces, isLoading } = useWorkspaceStore();
+  const { isInitialized, isInitializing, error } = useAppInitialization();
+
+  // Show initialization state
+  if (isInitializing) {
+    return (
+      <div className="h-screen bg-[#fafafa] dark:bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Initializing...
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Setting up your Nostr connection
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show initialization error
+  if (error) {
+    return (
+      <div className="h-screen bg-[#fafafa] dark:bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-2">
+            Initialization Failed
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            {error}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Custom layout: Left sidebar with full workspace names + Right panel with welcome message
   return (
