@@ -70,14 +70,6 @@ export function Sidebar({ isOpen }: SidebarProps) {
             Channels
           </h2>
           <div className="flex items-center gap-2">
-            <CreateChannelSheet
-              workspaceId={currentWorkspaceId}
-              trigger={
-                <button className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-50 transition-colors dark:hover:bg-gray-900">
-                  <Plus className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                </button>
-              }
-            />
             <ChannelInfoSheet
               trigger={
                 <button className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-50 transition-colors dark:hover:bg-gray-900">
