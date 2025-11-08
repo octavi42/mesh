@@ -4,6 +4,9 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useMessageStore } from '@/lib/stores/message-store';
+import { useChannelStore } from '@/lib/stores/channel-store';
+import { showConfirmation } from '@/components/ui/global-confirmation-dialog';
+import { db } from '@/lib/db/schema';
 import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 
 interface ChannelLinkProps {
@@ -24,6 +27,7 @@ export function ChannelLink({
   shouldBlur = false,
 }: ChannelLinkProps) {
   const { setCurrentChannel, currentWorkspaceId, currentChannelId, setNavigating } = useChatStore();
+  const { removeChannel } = useChannelStore();
   const loading = useMessageStore((state) => state.loadingChannels[channelId] || false);
   const router = useRouter();
   const isNavigatingRef = useRef(false);
@@ -42,6 +46,8 @@ export function ChannelLink({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        event.preventDefault();
+        event.stopPropagation();
         setIsExpanded(false);
         onPopupStateChange?.(channelId, false);
         setTimeout(() => setIsAnimating(false), 200);
@@ -49,8 +55,8 @@ export function ChannelLink({
     };
 
     if (isExpanded) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('click', handleClickOutside, true);
+      return () => document.removeEventListener('click', handleClickOutside, true);
     }
   }, [isExpanded, channelId, onPopupStateChange]);
 
@@ -132,12 +138,50 @@ export function ChannelLink({
     console.log('Edit channel:', channelId);
   }, [channelId]);
 
-  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+  const handleDeleteClick = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // TODO: Implement delete functionality
-    console.log('Delete channel:', channelId);
-  }, [channelId]);
+
+    // Close the popup first
+    setIsExpanded(false);
+    onPopupStateChange?.(channelId, false);
+    setTimeout(() => setIsAnimating(false), 200);
+
+    // Show confirmation dialog
+    showConfirmation(
+      'Delete Channel',
+      `Are you sure you want to delete the channel #${channelName}? This action cannot be undone and all messages will be permanently deleted.`,
+      'Delete Channel',
+      'danger',
+      async () => {
+        try {
+          // If deleting the current channel, navigate away first
+          if (isActive && currentWorkspaceId) {
+            // Try to navigate to the first available channel or workspace
+            const firstChannel = document.querySelector('[data-channel-link]:not([data-channel-id="' + channelId + '"])') as HTMLElement;
+            if (firstChannel) {
+              firstChannel.click();
+            } else {
+              router.push(`/app/w/${currentWorkspaceId}`);
+            }
+          }
+
+          // Delete from database
+          await db.channels.delete(channelId);
+
+          // Delete related messages
+          await db.messages.where('channelId').equals(channelId).delete();
+
+          // Remove from store
+          removeChannel(channelId);
+
+          console.log('✅ Channel deleted successfully:', channelId);
+        } catch (error) {
+          console.error('❌ Failed to delete channel:', error);
+        }
+      }
+    );
+  }, [channelId, channelName, isActive, currentWorkspaceId, router, removeChannel, onPopupStateChange]);
 
   return (
     <div
