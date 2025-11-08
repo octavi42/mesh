@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useChannels } from '@/lib/hooks/use-channels';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelLink } from './ChannelLink';
@@ -15,6 +15,20 @@ interface SidebarProps {
 export function Sidebar({ isOpen }: SidebarProps) {
   const { currentChannelId, setCurrentChannel, currentWorkspaceId } = useChatStore();
   const channels = useChannels(currentWorkspaceId);
+  const [expandedChannelId, setExpandedChannelId] = useState<string | null>(null);
+
+  const handlePopupStateChange = useCallback((channelId: string, isOpen: boolean) => {
+    setExpandedChannelId(isOpen ? channelId : null);
+  }, []);
+
+  const handleBackdropClick = useCallback(() => {
+    if (expandedChannelId) {
+      setExpandedChannelId(null);
+      // Trigger a custom event to notify the expanded channel to close
+      const event = new CustomEvent('closeChannelPopup', { detail: { channelId: expandedChannelId } });
+      document.dispatchEvent(event);
+    }
+  }, [expandedChannelId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -63,8 +77,17 @@ export function Sidebar({ isOpen }: SidebarProps) {
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3">
-          <div className="space-y-1">
+        <div className="flex-1 overflow-y-auto p-3 relative">
+          {/* Backdrop overlay when popup is open */}
+          {expandedChannelId && (
+            <div
+              className="absolute inset-0 z-40 bg-transparent pointer-events-auto"
+              onClick={handleBackdropClick}
+              style={{ pointerEvents: 'auto' }}
+            />
+          )}
+
+          <div className="space-y-1 relative z-50">
             {channels?.map((channel, index) => (
               <ChannelLink
                 key={channel.id}
@@ -72,6 +95,8 @@ export function Sidebar({ isOpen }: SidebarProps) {
                 channelName={channel.name}
                 isActive={currentChannelId === channel.id}
                 shortcutNumber={index < 9 ? index + 1 : undefined}
+                onPopupStateChange={handlePopupStateChange}
+                shouldBlur={expandedChannelId !== null && expandedChannelId !== channel.id}
               />
             ))}
           </div>
