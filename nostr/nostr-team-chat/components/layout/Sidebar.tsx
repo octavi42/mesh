@@ -64,19 +64,44 @@ export function Sidebar({ isOpen }: SidebarProps) {
       </div>
 
       <div className="flex w-64 flex-shrink-0 flex-col">
-        <div className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-100 px-4 dark:border-gray-900">
+        {/* Fixed Header with + button */}
+        <div className="flex h-14 flex-shrink-0 items-center justify-between px-4">
           <h2 className="whitespace-nowrap text-base font-medium text-gray-900 dark:text-white">
             Channels
           </h2>
-          <ChannelInfoSheet
+          <div className="flex items-center gap-2">
+            <CreateChannelSheet
+              workspaceId={currentWorkspaceId}
+              trigger={
+                <button className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-50 transition-colors dark:hover:bg-gray-900">
+                  <Plus className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                </button>
+              }
+            />
+            <ChannelInfoSheet
+              trigger={
+                <button className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-50 transition-colors dark:hover:bg-gray-900">
+                  <Info className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                </button>
+              }
+            />
+          </div>
+        </div>
+
+        {/* Fixed Create New Chat Button */}
+        <div className="flex-shrink-0 p-3">
+          <CreateChannelSheet
+            workspaceId={currentWorkspaceId}
             trigger={
-              <button className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-50 transition-colors dark:hover:bg-gray-900">
-                <Info className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <button className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors border-2 border-dashed border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700">
+                <Plus className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1 text-left">Create new chat</span>
               </button>
             }
           />
         </div>
 
+        {/* Scrollable Channels List */}
         <div className="flex-1 overflow-y-auto p-3 relative">
           {/* Backdrop overlay when popup is open */}
           {expandedChannelId && (
@@ -88,17 +113,6 @@ export function Sidebar({ isOpen }: SidebarProps) {
           )}
 
           <div className="space-y-1 relative z-50">
-            {/* Create new chat button */}
-            <CreateChannelSheet
-              workspaceId={currentWorkspaceId}
-              trigger={
-                <button className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors border-2 border-dashed border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700">
-                  <Plus className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1 text-left">Create new chat</span>
-                </button>
-              }
-            />
-
             {channels?.map((channel, index) => (
               <ChannelLink
                 key={channel.id}

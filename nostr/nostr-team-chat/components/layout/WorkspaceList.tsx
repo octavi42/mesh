@@ -117,66 +117,72 @@ export function WorkspaceList() {
   };
 
   return (
-    <div className="flex flex-col items-center gap-2 py-4">
-      {workspaces.map((workspace) => {
-        const isActive = currentWorkspaceId === workspace.id;
-        const isLoading = isLoadingWorkspace && isActive;
-
-        return (
-          <button
-            key={workspace.id}
-            onClick={() => handleWorkspaceClick(workspace.id)}
-            disabled={isLoading || isActive}
-            className={`
-              flex h-12 w-12 items-center justify-center rounded-xl text-2xl
-              transition-all duration-200 relative
-              ${isActive
-                ? 'bg-indigo-600 text-white shadow-lg scale-110 cursor-default'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-105 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 cursor-pointer'
-              }
-              ${isLoading ? 'opacity-75' : ''}
-              ${isActive ? 'pointer-events-none' : ''}
-            `}
-            aria-label={workspace.name}
-            title={isActive ? `Current workspace: ${workspace.name}` : workspace.name}
-          >
-            {isLoading ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : workspace.picture ? (
-              <img src={workspace.picture} alt={workspace.name} className="w-12 h-12 rounded-xl object-cover" />
-            ) : (
-              workspace.name[0]?.toUpperCase() || '?'
-            )}
-          </button>
-        );
-      })}
-
-      <div className="my-2 h-px w-10 bg-gray-300 dark:bg-gray-700" />
-
-      <CreateWorkspaceSheet
-        trigger={
-          <button
-            className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-dashed border-gray-300 text-gray-400 transition-colors hover:border-indigo-500 hover:text-indigo-500 dark:border-gray-700 dark:hover:border-indigo-500"
-            aria-label="Add workspace"
-            title="Add workspace"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+    <div className="flex flex-col h-full">
+      {/* Fixed Create New Group Button */}
+      <div className="flex-shrink-0 flex justify-center pt-4 pb-0">
+        <CreateWorkspaceSheet
+          trigger={
+            <button
+              className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-dashed border-gray-300 text-gray-400 transition-colors hover:border-indigo-500 hover:text-indigo-500 dark:border-gray-700 dark:hover:border-indigo-500"
+              aria-label="Add workspace"
+              title="Add workspace"
             >
-              <line x1="12" x2="12" y1="5" y2="19" />
-              <line x1="5" x2="19" y1="12" y2="12" />
-            </svg>
-          </button>
-        }
-      />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" x2="12" y1="5" y2="19" />
+                <line x1="5" x2="19" y1="12" y2="12" />
+              </svg>
+            </button>
+          }
+        />
+      </div>
+
+      {/* Scrollable Workspaces List */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col items-center gap-2 pt-4 pb-4">
+          {workspaces.map((workspace) => {
+            const isActive = currentWorkspaceId === workspace.id;
+            const isLoading = isLoadingWorkspace && isActive;
+
+            return (
+              <button
+                key={workspace.id}
+                onClick={() => handleWorkspaceClick(workspace.id)}
+                disabled={isLoading || isActive}
+                className={`
+                  flex h-12 w-12 items-center justify-center rounded-xl text-2xl
+                  transition-all duration-200 relative
+                  ${isActive
+                    ? 'bg-indigo-600 text-white shadow-lg scale-110 cursor-default'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-105 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 cursor-pointer'
+                  }
+                  ${isLoading ? 'opacity-75' : ''}
+                  ${isActive ? 'pointer-events-none' : ''}
+                `}
+                aria-label={workspace.name}
+                title={isActive ? `Current workspace: ${workspace.name}` : workspace.name}
+              >
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : workspace.picture ? (
+                  <img src={workspace.picture} alt={workspace.name} className="w-12 h-12 rounded-xl object-cover" />
+                ) : (
+                  workspace.name[0]?.toUpperCase() || '?'
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
