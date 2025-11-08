@@ -6,6 +6,7 @@ import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelLink } from './ChannelLink';
 import { WorkspaceList } from './WorkspaceList';
 import { CreateChannelSheet } from '@/components/sheets/create-channel-sheet';
+import { ChannelInfoSheet } from '@/components/sheets/channel-info-sheet';
 import { Plus, Info } from 'lucide-react';
 
 interface SidebarProps {
@@ -67,11 +68,10 @@ export function Sidebar({ isOpen }: SidebarProps) {
           <h2 className="whitespace-nowrap text-base font-medium text-gray-900 dark:text-white">
             Channels
           </h2>
-          <CreateChannelSheet
-            workspaceId={currentWorkspaceId}
+          <ChannelInfoSheet
             trigger={
               <button className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-gray-50 transition-colors dark:hover:bg-gray-900">
-                <Plus className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <Info className="w-4 h-4 text-gray-500 dark:text-gray-400" />
               </button>
             }
           />
