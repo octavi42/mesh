@@ -8,6 +8,7 @@ import { useChannelStore } from '@/lib/stores/channel-store';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { useGroupMembers } from '@/lib/hooks/use-group-members';
 import { useMessageStore } from '@/lib/stores/message-store';
+import { useChannels } from '@/lib/hooks/use-channels';
 import { showConfirmation } from '@/components/ui/global-confirmation-dialog';
 import { db } from '@/lib/db/schema';
 import { useRouter } from 'next/navigation';
@@ -23,6 +24,8 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
   const { messages } = useMessageStore();
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [deleteConfirmationName, setDeleteConfirmationName] = useState('');
 
   const currentChannel = currentChannelId ? getChannelById(currentChannelId) : null;
   const currentWorkspace = currentWorkspaceId ? workspaces.find(w => w.id === currentWorkspaceId) : null;
@@ -48,6 +51,9 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
     groupId: currentWorkspaceId || undefined,
     autoRefresh: true
   });
+
+  // Get channels for workspace to count chats
+  const channels = useChannels(currentWorkspaceId);
 
   // Get channel messages for statistics
   const channelMessages = useMemo(() => {
@@ -86,40 +92,52 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
   const { pubkey: currentUserPubkey } = useAuthStore();
   const isCurrentUserAdmin = currentUserPubkey ? checkIsAdmin(currentUserPubkey) : false;
 
-  const handleDelete = async () => {
-    if (!currentChannel || !currentChannelId) return;
-
-    showConfirmation(
-      'Delete Channel',
-      `Are you sure you want to delete the channel #${currentChannel.name}? This action cannot be undone and all messages will be permanently deleted.`,
-      'Delete Channel',
-      'danger',
-      async () => {
-        setIsDeleting(true);
-        try {
-          // Navigate to workspace since we're deleting the current channel
-          if (currentWorkspaceId) {
-            router.push(`/app/w/${currentWorkspaceId}`);
-          }
-
-          // Delete from database
-          await db.channels.delete(currentChannelId);
-
-          // Delete related messages
-          await db.messages.where('channelId').equals(currentChannelId).delete();
-
-          // Remove from store
-          removeChannel(currentChannelId);
-
-          console.log('✅ Channel deleted successfully:', currentChannelId);
-        } catch (error) {
-          console.error('❌ Failed to delete channel:', error);
-        } finally {
-          setIsDeleting(false);
-        }
-      }
-    );
+  const handleDeleteClick = () => {
+    setIsDeleteMode(true);
   };
+
+  const handleConfirmDelete = async () => {
+    if (!currentWorkspace || !currentWorkspaceId) return;
+
+    // Check if the entered name matches the workspace name
+    if (deleteConfirmationName.trim() !== currentWorkspace.name.trim()) {
+      return; // Don't proceed if names don't match
+    }
+
+    setIsDeleting(true);
+    try {
+      // Navigate to main app since we're deleting the workspace
+      router.push('/app');
+
+      // Delete workspace from database
+      await db.nip29Workspaces.delete(currentWorkspaceId);
+
+      // Delete all channels for this workspace
+      await db.channels.where('workspaceId').equals(currentWorkspaceId).delete();
+
+      // Delete all messages for channels in this workspace
+      const workspaceChannels = await db.channels.where('workspaceId').equals(currentWorkspaceId).toArray();
+      for (const channel of workspaceChannels) {
+        await db.messages.where('channelId').equals(channel.id).delete();
+      }
+
+      console.log('✅ Workspace deleted successfully:', currentWorkspaceId);
+    } catch (error) {
+      console.error('❌ Failed to delete workspace:', error);
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteMode(false);
+      setDeleteConfirmationName('');
+    }
+  };
+
+  const handleCancelDelete = () => {
+    // First hide confirmation UI, then show delete button after height animation
+    setIsDeleteMode(false);
+    setDeleteConfirmationName('');
+  };
+
+  const isDeleteButtonEnabled = deleteConfirmationName.trim() === (currentWorkspace?.name.trim() || '');
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('en-US', {
@@ -171,13 +189,17 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
             }}
           />
           <Sheet.Content
-            className="bg-white rounded-3xl shadow-2xl w-full overflow-y-auto my-12"
+            className="bg-white rounded-3xl shadow-2xl w-full overflow-hidden my-12"
             stackingAnimation={{
               scale: [1, 0.95] as [number, number],
             }}
-            style={{ maxWidth: '540px', height: 'auto' }}
+            style={{
+              maxWidth: '540px',
+              height: isDeleteMode ? '650px' : '500px',
+              transition: 'height 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}
           >
-            <div className="p-8">
+            <div className="p-8 h-full overflow-hidden">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-light text-slate-900">
                   {currentWorkspace?.name || currentChannel?.name || 'Channel'}
@@ -220,8 +242,8 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
                     <div className="text-sm text-gray-500 mt-1">Members</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-light text-gray-900">{channelStats.totalMessages.toLocaleString()}</div>
-                    <div className="text-sm text-gray-500 mt-1">Messages</div>
+                    <div className="text-3xl font-light text-gray-900">{channels?.length || 0}</div>
+                    <div className="text-sm text-gray-500 mt-1">Chats</div>
                   </div>
                 </div>
 
@@ -266,15 +288,78 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
                 </div>
 
                 {/* Actions */}
-                <div className="pt-4 border-t border-gray-100">
-                  <button
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    className="flex items-center justify-center gap-2 w-full py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                <div className="pt-4 border-t border-gray-100 relative">
+                  {/* Delete Button */}
+                  <div
+                    className={`transition-all duration-300 ease-out ${
+                      isDeleteMode
+                        ? 'opacity-0 -translate-y-2 pointer-events-none'
+                        : 'opacity-100 translate-y-0 delay-[400ms]'
+                    }`}
                   >
-                    <Trash2 className="w-4 h-4" />
-                    <span>{isDeleting ? 'Deleting...' : 'Delete Channel'}</span>
-                  </button>
+                    <button
+                      onClick={handleDeleteClick}
+                      disabled={isDeleting}
+                      className="flex items-center justify-center gap-2 w-full py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete Workspace</span>
+                    </button>
+                  </div>
+
+                  {/* Confirmation UI */}
+                  <div
+                    className={`absolute top-4 left-0 right-0 space-y-6 transition-all duration-400 ease-out delay-[400ms] ${
+                      isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+                    }`}
+                  >
+                    <div
+                      className={`text-center transition-all duration-300 ease-out delay-[500ms] ${
+                        isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                      }`}
+                    >
+                      <h3 className="text-lg font-medium text-red-600 mb-2">Delete Workspace</h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        To confirm deletion, please type <span className="font-semibold text-gray-900">"{currentWorkspace?.name}"</span> below:
+                      </p>
+                    </div>
+
+                    <div
+                      className={`transition-all duration-300 ease-out delay-[600ms] ${
+                        isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                      }`}
+                    >
+                      <input
+                        type="text"
+                        value={deleteConfirmationName}
+                        onChange={(e) => setDeleteConfirmationName(e.target.value)}
+                        placeholder={`Type "${currentWorkspace?.name}" to confirm`}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all duration-300"
+                        autoFocus={isDeleteMode}
+                      />
+                    </div>
+
+                    <div
+                      className={`flex gap-3 transition-all duration-300 ease-out delay-[700ms] ${
+                        isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                      }`}
+                    >
+                      <button
+                        onClick={handleCancelDelete}
+                        disabled={isDeleting}
+                        className="flex-1 py-3 text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-300 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleConfirmDelete}
+                        disabled={!isDeleteButtonEnabled || isDeleting}
+                        className="flex-1 py-3 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isDeleting ? 'Deleting...' : 'Delete Workspace'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

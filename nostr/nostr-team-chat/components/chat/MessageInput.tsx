@@ -91,9 +91,14 @@ export function MessageInput({ channelName, onSend, disabled }: MessageInputProp
         <button
           onClick={handleSend}
           disabled={!content.trim() || isSending || disabled}
-          className="flex items-center justify-center w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-500 disabled:hover:to-blue-600 shadow-md hover:shadow-lg active:scale-95"
+          className="group relative flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 text-white transition-all duration-300 ease-out disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-105 active:scale-95 focus:outline-none focus:ring-4 focus:ring-blue-500/30 disabled:hover:scale-100 disabled:hover:shadow-lg disabled:hover:shadow-blue-500/25"
         >
-          <Send className="w-5 h-5" />
+          {isSending ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <Send className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          )}
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         </button>
       </div>
     </div>

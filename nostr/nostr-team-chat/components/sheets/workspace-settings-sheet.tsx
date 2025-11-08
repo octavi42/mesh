@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { AlertTriangle, Trash2, Settings, Users, Hash } from 'lucide-react';
+import { AlertTriangle, Trash2, Settings, Users, Hash, MessageSquare } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +27,7 @@ import {
 import { useDeletePermissions } from '@/lib/hooks/use-delete-permissions';
 import { useDeleteActions } from '@/lib/hooks/use-delete-actions';
 import { useNIP29Workspace } from '@/lib/hooks/use-nip29-workspace';
+import { useChannels } from '@/lib/hooks/use-channels';
 import { Badge } from '@/components/ui/badge';
 
 interface WorkspaceSettingsSheetProps {
@@ -42,6 +43,7 @@ export function WorkspaceSettingsSheet({
 }: WorkspaceSettingsSheetProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { workspace } = useNIP29Workspace(groupId);
+  const channels = useChannels(groupId);
   const { canDeleteGroup } = useDeletePermissions({ groupId });
   const { deleteGroup, isDeleting } = useDeleteActions(groupId);
 
@@ -121,7 +123,14 @@ export function WorkspaceSettingsSheet({
                 </div>
               </div>
               <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <Hash className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <MessageSquare className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <div>
+                  <p className="text-xs text-gray-500">Chats</p>
+                  <p className="text-sm font-medium">{channels?.length || 0}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <Settings className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                 <div>
                   <p className="text-xs text-gray-500">Type</p>
                   <div className="flex gap-1">
@@ -178,10 +187,10 @@ export function WorkspaceSettingsSheet({
                         </AlertDialogHeader>
                         <div className="py-4">
                           <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                            <li>• All messages and chat history</li>
-                            <li>• All channels and their content</li>
-                            <li>• Member list and permissions</li>
-                            <li>• Invites and join requests</li>
+                            <li>• {channels?.length || 0} {(channels?.length || 0) === 1 ? 'chat' : 'chats'} and their content</li>
+                            <li>• {workspace.members.length + workspace.admins.length} {(workspace.members.length + workspace.admins.length) === 1 ? 'member' : 'members'}</li>
+                            <li>• All permissions and settings</li>
+                            <li>• All invites and join requests</li>
                           </ul>
                         </div>
                         <AlertDialogFooter>
