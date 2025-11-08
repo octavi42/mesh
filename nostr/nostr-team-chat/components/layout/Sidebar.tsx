@@ -6,7 +6,7 @@ import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelLink } from './ChannelLink';
 import { WorkspaceList } from './WorkspaceList';
 import { CreateChannelSheet } from '@/components/sheets/create-channel-sheet';
-import { Plus } from 'lucide-react';
+import { Plus, Info } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -88,6 +88,17 @@ export function Sidebar({ isOpen }: SidebarProps) {
           )}
 
           <div className="space-y-1 relative z-50">
+            {/* Create new chat button */}
+            <CreateChannelSheet
+              workspaceId={currentWorkspaceId}
+              trigger={
+                <button className="w-full flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors border-2 border-dashed border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700">
+                  <Plus className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1 text-left">Create new chat</span>
+                </button>
+              }
+            />
+
             {channels?.map((channel, index) => (
               <ChannelLink
                 key={channel.id}
