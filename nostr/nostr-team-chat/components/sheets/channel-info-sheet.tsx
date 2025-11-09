@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sheet } from '@silk-hq/components';
 import { X, Hash, Calendar, Trash2, Users, Lock, Globe, Crown, MessageSquare, Activity, Eye, UserPlus, Settings, ExternalLink, Clock, TrendingUp, Shield } from 'lucide-react';
 import { useChatStore } from '@/lib/stores/chat-store';
@@ -29,6 +29,7 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [deleteConfirmationName, setDeleteConfirmationName] = useState('');
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const currentChannel = currentChannelId ? getChannelById(currentChannelId) : null;
   const currentWorkspace = currentWorkspaceId ? workspaces.find(w => w.id === currentWorkspaceId) : null;
@@ -114,11 +115,20 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
       console.log('🗑️ Starting workspace deletion process for:', currentWorkspaceId);
       toast.loading(`Deleting workspace "${currentWorkspace.name}"...`, { id: toastId });
 
+      // Close the sheet immediately when deletion starts
+      console.log('🔲 Closing sheet immediately as deletion starts');
+      if (closeButtonRef.current) {
+        closeButtonRef.current.click();
+        console.log('🔲 Sheet closed via ref');
+      } else {
+        console.log('🔲 Close button ref not available, sheet may not close');
+      }
+
       // Smart navigation: try to navigate to another workspace first, fallback to /app
       await navigateAwayFromDeletedWorkspace(currentWorkspaceId);
 
       // Give navigation time to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // STEP 1: Delete workspace from RELAY first (NIP-29 compliance)
       await deleteWorkspaceFromRelay(currentWorkspaceId, currentWorkspace.name);
@@ -184,13 +194,68 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
       const availableWorkspaces = workspaces.filter(ws => ws.id !== workspaceIdToDelete);
 
       if (availableWorkspaces.length > 0) {
-        // Navigate to the first available workspace
+        // Navigate to the first available workspace with channel selection
         const nextWorkspace = availableWorkspaces[0];
         console.log('🧭 Navigating to next available workspace:', nextWorkspace.name);
-        router.push(`/app/w/${nextWorkspace.id}`);
+
+        // Try to find a default channel for this workspace
+        try {
+          const channels = await db.channels.where('workspaceId').equals(nextWorkspace.id).toArray();
+
+          if (channels.length > 0) {
+            // Find general channel or use the first available
+            const defaultChannel = channels.find(c => c.name === 'general') || channels[0];
+            console.log('🧭 Selecting default channel:', defaultChannel.name);
+
+            // Import the chat store to properly set the workspace and channel
+            const { useChatStore } = await import('@/lib/stores/chat-store');
+            const { setCurrentWorkspace, setCurrentChannel } = useChatStore.getState();
+
+            console.log('🧭 Setting workspace and channel state:', {
+              workspaceId: nextWorkspace.id,
+              workspaceName: nextWorkspace.name,
+              channelId: defaultChannel.id,
+              channelName: defaultChannel.name
+            });
+
+            // Set workspace and channel
+            setCurrentWorkspace(nextWorkspace.id, defaultChannel.id);
+            setCurrentChannel(defaultChannel.id);
+
+            console.log('🧭 Navigating to:', `/app/w/${nextWorkspace.id}/c/${defaultChannel.id}`);
+            router.push(`/app/w/${nextWorkspace.id}/c/${defaultChannel.id}`);
+          } else {
+            // No channels available, just go to workspace
+            const { useChatStore } = await import('@/lib/stores/chat-store');
+            const { setCurrentWorkspace } = useChatStore.getState();
+            setCurrentWorkspace(nextWorkspace.id);
+
+            router.push(`/app/w/${nextWorkspace.id}`);
+          }
+        } catch (channelError) {
+          console.warn('❌ Failed to set default channel, navigating to workspace:', channelError);
+          const { useChatStore } = await import('@/lib/stores/chat-store');
+          const { setCurrentWorkspace } = useChatStore.getState();
+          setCurrentWorkspace(nextWorkspace.id);
+
+          router.push(`/app/w/${nextWorkspace.id}`);
+        }
       } else {
         // Only navigate to /app if no other workspaces are available
         console.log('🧭 No other workspaces available, navigating to /app');
+
+        // Clear current workspace and channel since none are available
+        const { useChatStore } = await import('@/lib/stores/chat-store');
+        const { setCurrentWorkspace, setCurrentChannel } = useChatStore.getState();
+
+        // Clear selections - need to check the exact signature for clearing
+        try {
+          setCurrentWorkspace(''); // Try empty string first
+          setCurrentChannel('');
+        } catch (e) {
+          console.warn('Could not clear workspace/channel selection:', e);
+        }
+
         router.push('/app');
       }
 
@@ -304,7 +369,10 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
                   {currentWorkspace?.name || currentChannel?.name || 'Channel'}
                 </h2>
                 <Sheet.Trigger action="dismiss" asChild>
-                  <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors">
+                  <button
+                    ref={closeButtonRef}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
                     <X className="w-5 h-5 text-slate-400" />
                   </button>
                 </Sheet.Trigger>
