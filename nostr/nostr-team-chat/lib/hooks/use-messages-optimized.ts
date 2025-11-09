@@ -164,8 +164,10 @@ export function useMessagesOptimized(options: UseMessagesOptions): MessageState 
       clearError();
 
       try {
+        // Load messages with deletion filtering
         const messages = await dataManagerRef.current.loadMessages(channelId, {
-          limit: initialLimit
+          limit: initialLimit,
+          includeDeletionEvents: true // Enable deletion event processing
         });
 
         const normalized = normalizeMessages(messages);

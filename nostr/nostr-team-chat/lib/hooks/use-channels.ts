@@ -188,3 +188,24 @@ function getDefaultChannelDescription(channelName: string): string {
       return `Discussion in #${channelName}`;
   }
 }
+
+// Helper function to remove empty channels (when all messages are deleted)
+export async function removeEmptyChannel(channelId: string): Promise<void> {
+  try {
+    console.log('🗑️ Removing empty channel:', channelId);
+
+    // Check if channel has any messages in the database
+    const { db } = await import('@/lib/db/schema');
+    const messageCount = await db.messages.where('channelId').equals(channelId).count();
+
+    if (messageCount === 0) {
+      // Channel is empty, remove it from database
+      await db.channels.delete(channelId);
+      console.log('✅ Removed empty channel:', channelId);
+    } else {
+      console.log('⏭️ Channel still has messages, not removing:', channelId, 'messageCount:', messageCount);
+    }
+  } catch (error) {
+    console.error('❌ Failed to remove empty channel:', error);
+  }
+}

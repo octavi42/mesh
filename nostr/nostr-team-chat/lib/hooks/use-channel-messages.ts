@@ -74,6 +74,61 @@ export function useChannelMessages(channelId: string) {
       fullChannelId: channelId
     });
 
+    const processDeletionEvent = (event: any) => {
+      try {
+        console.log('🗑️ LIVE DELETION: Received deletion event:', {
+          id: event.id?.slice(0, 8),
+          kind: event.kind,
+          groupId: event.tags.find((tag: string[]) => tag[0] === 'h')?.[1],
+          deletedEventIds: event.tags
+            .filter((tag: string[]) => tag[0] === 'e')
+            .map((tag: string[]) => tag[1])
+            .filter(Boolean),
+          relay: event.relay?.url
+        });
+
+        // Extract group ID to make sure this deletion applies to our current channel
+        const messageGroupId = event.tags.find((tag: string[]) => tag[0] === 'h')?.[1];
+        if (messageGroupId !== workspaceId) {
+          console.log('⏭️ Deletion event not for our workspace, ignoring');
+          return;
+        }
+
+        // Extract IDs of deleted messages
+        const deletedIds = event.tags
+          .filter((tag: string[]) => tag[0] === 'e')
+          .map((tag: string[]) => tag[1])
+          .filter(Boolean);
+
+        if (deletedIds.length > 0) {
+          console.log(`🗑️ Removing ${deletedIds.length} deleted messages:`, deletedIds.map(id => id.slice(0, 8)));
+
+          // Remove deleted messages from state
+          setMessages(prev => {
+            const filteredMessages = prev.filter(msg => !deletedIds.includes(msg.id));
+            console.log(`🗑️ Messages before deletion: ${prev.length}, after deletion: ${filteredMessages.length}`);
+
+            // Check if this specific channel is now empty and should be removed
+            const currentChannelMessages = filteredMessages.filter(msg => msg.channelId === channelId);
+            if (currentChannelMessages.length === 0 && prev.length > 0) {
+              console.log('🗑️ Channel is now empty, scheduling channel cleanup');
+
+              // Import and call channel cleanup function
+              import('@/lib/hooks/use-channels').then(({ removeEmptyChannel }) => {
+                removeEmptyChannel(channelId);
+              }).catch(error => {
+                console.error('❌ Failed to cleanup empty channel:', error);
+              });
+            }
+
+            return filteredMessages;
+          });
+        }
+      } catch (error) {
+        console.error('❌ Failed to process deletion event:', error);
+      }
+    };
+
     const processMessage = (event: any, isLive = false) => {
       try {
         const logPrefix = isLive ? '🔴 LIVE MSG' : '📜 HISTORICAL MSG';
@@ -161,11 +216,20 @@ export function useChannelMessages(channelId: string) {
           limit: 250 // Match working test app limit
         };
 
+        // Also fetch deletion events to process deleted messages
+        const deletionFilter = {
+          kinds: [9005] as NDKKind[], // Message deletion events
+          "#h": [workspaceId], // Filter by group ID
+          limit: 100
+        };
+
         console.log('📜 Message fetch filter:', filter);
+        console.log('🗑️ Deletion fetch filter:', deletionFilter);
 
         const historicalMessages = await ndk.fetchEvents(filter);
+        const deletionEvents = await ndk.fetchEvents(deletionFilter);
 
-        console.log(`📜 Fetched ${historicalMessages.size} historical messages for group ${workspaceId}:`, {
+        console.log(`📜 Fetched ${historicalMessages.size} historical messages and ${deletionEvents.size} deletion events for group ${workspaceId}:`, {
           filter,
           relayStatuses: Array.from(ndk.pool.relays.values()).map(r => ({
             url: r.url,
@@ -192,10 +256,33 @@ export function useChannelMessages(channelId: string) {
           console.warn('- Relay may be rejecting requests');
         }
 
+        // Build set of deleted message IDs from deletion events
+        const deletedMessageIds = new Set<string>();
+        deletionEvents.forEach((deleteEvent) => {
+          // Extract event IDs from 'e' tags in deletion events
+          const deletedIds = deleteEvent.tags
+            .filter((tag: string[]) => tag[0] === 'e')
+            .map((tag: string[]) => tag[1])
+            .filter(Boolean);
+
+          deletedIds.forEach((id) => {
+            deletedMessageIds.add(id);
+            console.log('🗑️ Message marked as deleted:', id.slice(0, 8));
+          });
+        });
+
+        console.log(`🗑️ Found ${deletedMessageIds.size} deleted message IDs`);
+
         let latestTimestamp = 0;
 
-        // Process historical messages
+        // Process historical messages, excluding deleted ones
         historicalMessages.forEach((event) => {
+          // Skip deleted messages
+          if (deletedMessageIds.has(event.id)) {
+            console.log('⏭️ Skipping deleted message:', event.id.slice(0, 8));
+            return;
+          }
+
           processMessage(event, false);
           if (event.created_at && event.created_at > latestTimestamp) {
             latestTimestamp = event.created_at;
@@ -208,7 +295,7 @@ export function useChannelMessages(channelId: string) {
         console.log('🔴 PHASE 2: Starting live message subscription...');
 
         const liveFilter = {
-          kinds: [9, 11] as NDKKind[], // GroupChatMessage (NIP-29) and EncryptedDM
+          kinds: [9, 11, 9005] as NDKKind[], // GroupChatMessage, EncryptedDM, and deletion events
           "#h": [workspaceId], // Filter by group ID
           since: latestTimestamp + 1 // Only new messages after historical data
         };
@@ -224,9 +311,15 @@ export function useChannelMessages(channelId: string) {
           return;
         }
 
-        // Handle live messages
+        // Handle live messages and deletion events
         liveSubscription.on('event', (event) => {
-          processMessage(event, true);
+          if (event.kind === 9005) {
+            // Handle deletion event
+            processDeletionEvent(event);
+          } else {
+            // Handle regular message
+            processMessage(event, true);
+          }
         });
 
         liveSubscription.on('eose', () => {
