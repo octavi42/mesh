@@ -9,9 +9,11 @@ import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { useGroupMembers } from '@/lib/hooks/use-group-members';
 import { useMessageStore } from '@/lib/stores/message-store';
 import { useChannels } from '@/lib/hooks/use-channels';
+import { useNDK } from '@/lib/hooks/use-ndk';
 import { showConfirmation } from '@/components/ui/global-confirmation-dialog';
 import { db } from '@/lib/db/schema';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 interface ChannelInfoSheetProps {
   trigger?: React.ReactNode;
@@ -22,6 +24,7 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
   const { getChannelById, removeChannel } = useChannelStore();
   const { workspaces } = useWorkspaceStore();
   const { messages } = useMessageStore();
+  const { ndk } = useNDK();
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
@@ -105,29 +108,125 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
     }
 
     setIsDeleting(true);
+    const toastId = `delete-workspace-${currentWorkspaceId}`;
+
     try {
-      // Navigate to main app since we're deleting the workspace
-      router.push('/app');
+      console.log('🗑️ Starting workspace deletion process for:', currentWorkspaceId);
+      toast.loading(`Deleting workspace "${currentWorkspace.name}"...`, { id: toastId });
 
-      // Delete workspace from database
-      await db.nip29Workspaces.delete(currentWorkspaceId);
+      // Smart navigation: try to navigate to another workspace first, fallback to /app
+      await navigateAwayFromDeletedWorkspace(currentWorkspaceId);
 
-      // Delete all channels for this workspace
-      await db.channels.where('workspaceId').equals(currentWorkspaceId).delete();
+      // Give navigation time to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Delete all messages for channels in this workspace
-      const workspaceChannels = await db.channels.where('workspaceId').equals(currentWorkspaceId).toArray();
-      for (const channel of workspaceChannels) {
-        await db.messages.where('channelId').equals(channel.id).delete();
-      }
+      // STEP 1: Delete workspace from RELAY first (NIP-29 compliance)
+      await deleteWorkspaceFromRelay(currentWorkspaceId, currentWorkspace.name);
+
+      // STEP 2: Clean up local database (this should happen automatically via deletion events)
+      // But we also do it here for immediate UI feedback
+      await cleanupLocalWorkspaceData(currentWorkspaceId);
 
       console.log('✅ Workspace deleted successfully:', currentWorkspaceId);
+      toast.success(`Workspace "${currentWorkspace.name}" deleted successfully`, { id: toastId });
+
     } catch (error) {
       console.error('❌ Failed to delete workspace:', error);
+      toast.error(`Failed to delete workspace: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
     } finally {
       setIsDeleting(false);
       setIsDeleteMode(false);
       setDeleteConfirmationName('');
+    }
+  };
+
+  // Function to delete workspace from relay using NIP-29 deletion events
+  const deleteWorkspaceFromRelay = async (workspaceId: string, workspaceName: string) => {
+    if (!ndk) {
+      throw new Error('NDK not available for workspace deletion');
+    }
+
+    try {
+      console.log('🗑️ Deleting workspace from relay:', workspaceId);
+
+      const { NDKEvent } = await import('@nostr-dev-kit/ndk');
+
+      // Create a workspace deletion event (kind 9008)
+      const deletionEvent = new NDKEvent(ndk);
+      deletionEvent.kind = 9008; // NIP-29 group deletion
+      deletionEvent.content = `Workspace "${workspaceName}" deleted by admin`;
+
+      // Add group tag for the workspace being deleted
+      deletionEvent.tags = [
+        ['h', workspaceId] // Group ID tag
+      ];
+
+      console.log('🗑️ Creating workspace deletion event for group:', workspaceId);
+
+      // Sign and publish the deletion event
+      await deletionEvent.sign();
+      await deletionEvent.publish();
+
+      console.log('✅ Workspace deletion event published successfully with ID:', deletionEvent.id?.slice(0, 8));
+
+    } catch (error) {
+      console.error('❌ Failed to delete workspace from relay:', error);
+      throw error;
+    }
+  };
+
+  // Smart navigation function to avoid getting stuck on /app
+  const navigateAwayFromDeletedWorkspace = async (workspaceIdToDelete: string) => {
+    try {
+      console.log('🧭 Smart navigation away from deleted workspace:', workspaceIdToDelete);
+
+      // Get all available workspaces except the one being deleted
+      const availableWorkspaces = workspaces.filter(ws => ws.id !== workspaceIdToDelete);
+
+      if (availableWorkspaces.length > 0) {
+        // Navigate to the first available workspace
+        const nextWorkspace = availableWorkspaces[0];
+        console.log('🧭 Navigating to next available workspace:', nextWorkspace.name);
+        router.push(`/app/w/${nextWorkspace.id}`);
+      } else {
+        // Only navigate to /app if no other workspaces are available
+        console.log('🧭 No other workspaces available, navigating to /app');
+        router.push('/app');
+      }
+
+    } catch (error) {
+      console.error('❌ Navigation error, fallback to /app:', error);
+      router.push('/app');
+    }
+  };
+
+  // Function to clean up local workspace data
+  const cleanupLocalWorkspaceData = async (workspaceId: string) => {
+    try {
+      console.log('🧹 Cleaning up local workspace data for:', workspaceId);
+
+      // Get all channels for this workspace before deletion
+      const workspaceChannels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
+
+      // Delete all messages for channels in this workspace
+      for (const channel of workspaceChannels) {
+        await db.messages.where('channelId').equals(channel.id).delete();
+        console.log('🗑️ Deleted messages for channel:', channel.name);
+      }
+
+      // Delete all channels for this workspace
+      await db.channels.where('workspaceId').equals(workspaceId).delete();
+      console.log('🗑️ Deleted channels for workspace');
+
+      // Delete workspace from database
+      await db.nip29Workspaces.delete(workspaceId);
+      console.log('🗑️ Deleted workspace from local database');
+
+      console.log('✅ Local workspace data cleanup completed');
+
+    } catch (error) {
+      console.error('❌ Failed to cleanup local workspace data:', error);
+      throw error;
     }
   };
 

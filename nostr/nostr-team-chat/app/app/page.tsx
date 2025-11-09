@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { useAppInitialization } from '@/lib/hooks/use-app-initialization-clean';
 import { CreateWorkspaceModal } from '@/components/workspaces/CreateWorkspaceModal';
@@ -53,19 +54,61 @@ function EmptyPanel() {
 export default function AppHomePage() {
   const { workspaces, isLoading } = useWorkspaceStore();
   const { isInitialized, isInitializing, error } = useAppInitialization();
+  const [showSkipOption, setShowSkipOption] = useState(false);
+
+  // Show skip option after 10 seconds of initialization
+  useEffect(() => {
+    if (isInitializing) {
+      const timer = setTimeout(() => {
+        setShowSkipOption(true);
+      }, 10000);
+
+      return () => clearTimeout(timer);
+    } else {
+      setShowSkipOption(false);
+    }
+  }, [isInitializing]);
 
   // Show initialization state
   if (isInitializing) {
     return (
       <div className="h-screen bg-[#fafafa] dark:bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Initializing...
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
             Setting up your Nostr connection
           </p>
+
+          {showSkipOption && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500">
+                Taking longer than usual? You can continue anyway.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 mr-2"
+              >
+                Refresh Page
+              </button>
+              <button
+                onClick={() => {
+                  // Force skip initialization by navigating to a specific workspace
+                  const firstWorkspace = workspaces[0];
+                  if (firstWorkspace) {
+                    window.location.href = `/app/w/${firstWorkspace.id}`;
+                  } else {
+                    window.location.reload();
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+              >
+                Continue Anyway
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
