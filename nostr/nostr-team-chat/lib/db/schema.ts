@@ -70,6 +70,7 @@ export interface Message {
   content: string;
   createdAt: number;
   updatedAt: number;
+  isPending?: boolean;
 }
 
 const db = new Dexie('NostrTeamChat') as Dexie & {

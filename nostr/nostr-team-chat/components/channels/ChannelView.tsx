@@ -61,9 +61,9 @@ export function ChannelView({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = useCallback(async (content: string) => {
+  const handleSendMessage = useCallback((content: string) => {
     if (!workspaceId) return;
-    await onSendMessage(content);
+    onSendMessage(content);
   }, [onSendMessage, workspaceId]);
 
   if (!channel) {
@@ -148,7 +148,8 @@ export function ChannelView({
             // Convert messages to the expected format for MessageList
             const convertedMessages = messages.map(msg => ({
               ...msg,
-              updatedAt: msg.createdAt // Add the updatedAt field that db schema expects
+              updatedAt: msg.createdAt, // Add the updatedAt field that db schema expects
+              isPending: msg.isPending || false // Add isPending field for loading state
             }));
             return <MessageList messages={convertedMessages} currentUserPubkey={pubkey || undefined} />;
           } else if (isEmpty) {

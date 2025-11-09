@@ -61,7 +61,6 @@ export function MessageItem({
   }, [message.content]);
 
   const isLastInGroup = msgIndex === groupMessagesLength - 1;
-  const isTemporary = message.id.startsWith('temp-');
 
   return (
     <div
@@ -78,23 +77,17 @@ export function MessageItem({
           ref={messageRef}
           className={`rounded-2xl px-4 py-2.5 shadow-sm relative ${isOwnMessage ? 'transition-all duration-300 ease-out' : ''} ${isOwnMessage ? (activeMessageId === message.id ? '-translate-x-20' : hoveredMessageId === message.id ? '-translate-x-12' : '') : ''} ${
             isOwnMessage
-              ? `${isTemporary ? 'bg-gradient-to-br from-blue-400 to-blue-500 text-white opacity-75' : 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'} rounded-br-md`
+              ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-md'
               : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-bl-md hover:border-gray-300 dark:hover:border-gray-600'
           }`}
         >
           <div className="flex items-center gap-2">
             <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words flex-1">{message.content}</p>
-            {isTemporary && isOwnMessage && (
-              <div className="flex-shrink-0">
-                <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin"></div>
-              </div>
-            )}
           </div>
         </div>
 
         {/* Proportional Hover Area - for all messages */}
-        {!isTemporary && (
-          <div
+        <div
             className={`absolute inset-y-0 group/message ${isOwnMessage ? 'right-0' : 'left-0'}`}
             style={{
               width: hoverWidth,
@@ -108,10 +101,9 @@ export function MessageItem({
             }}
           >
           </div>
-        )}
 
-        {/* Animated hover component - slides from right and fades in - only for own messages and not temporary */}
-        {isOwnMessage && !isTemporary && (
+        {/* Animated hover component - slides from right and fades in - only for own messages */}
+        {isOwnMessage && (
         <div className={`absolute top-1/2 -translate-y-1/2 -right-2 transition-all duration-300 ease-out ${
           activeMessageId === message.id
             ? 'opacity-100 translate-x-0'

@@ -3,6 +3,7 @@ import { useNDK } from './use-ndk';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { NDKKind } from '@nostr-dev-kit/ndk';
+import { toast } from 'sonner';
 
 export interface Message {
   id: string;
@@ -11,6 +12,7 @@ export interface Message {
   authorPubkey: string;
   createdAt: number;
   replyTo?: string;
+  isPending?: boolean;
 }
 
 export function useChannelMessages(channelId: string) {
@@ -109,9 +111,18 @@ export function useChannelMessages(channelId: string) {
           });
 
           setMessages(prev => {
-            // Avoid duplicates
-            const exists = prev.find(m => m.id === message.id);
-            if (exists) return prev;
+            // Avoid duplicates - check by ID first, then by content and author for optimistic messages
+            const existsById = prev.find(m => m.id === message.id);
+            if (existsById) return prev;
+
+            // Also check for optimistic messages that might have the same content and author
+            // within a short time window (to catch race conditions)
+            const existsByContentAndAuthor = prev.find(m =>
+              m.content === message.content &&
+              m.authorPubkey === message.authorPubkey &&
+              Math.abs(m.createdAt - message.createdAt) < 10000 // within 10 seconds
+            );
+            if (existsByContentAndAuthor) return prev;
 
             // Add and sort by timestamp
             const updated = [...prev, message].sort((a, b) => a.createdAt - b.createdAt);
@@ -266,6 +277,25 @@ export function useChannelMessages(channelId: string) {
 
     console.log('📤 Sending message:', { workspaceId, channelName, content: content.slice(0, 30) });
 
+    // STEP 1: IMMEDIATE optimistic update with loading state
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const optimisticMessage: Message = {
+      id: tempId,
+      channelId,
+      content,
+      authorPubkey: pubkey,
+      createdAt: Date.now(),
+      replyTo,
+      isPending: true
+    };
+
+    // Add optimistic message immediately
+    setMessages(prev => {
+      const updated = [...prev, optimisticMessage].sort((a, b) => a.createdAt - b.createdAt);
+      return updated;
+    });
+
+    // STEP 2: Handle actual sending in background
     try {
       const { NDKEvent } = await import('@nostr-dev-kit/ndk');
       const messageEvent = new NDKEvent(ndk);
@@ -283,10 +313,28 @@ export function useChannelMessages(channelId: string) {
       await messageEvent.sign();
       await messageEvent.publish();
 
+      // Update the optimistic message with the real event ID to prevent duplicates
+      // from the live subscription, but keep everything else the same to avoid flickering
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === tempId
+            ? { ...msg, id: messageEvent.id || tempId }
+            : msg
+        )
+      );
+
       console.log('✅ Message sent successfully');
     } catch (error) {
       console.error('❌ Failed to send message:', error);
-      throw error;
+
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+
+      // Show error toast
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to send message: ${errorMessage}`);
+
+      // Don't throw error to prevent breaking the UI
     }
   };
 

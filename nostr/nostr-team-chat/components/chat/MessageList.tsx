@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import type { Message } from '@/lib/db/schema';
 import { MessageItem } from './MessageItem';
 
@@ -26,27 +26,31 @@ export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
 
   const TIME_GROUPING_WINDOW = 5 * 60 * 1000;
 
-  const messageGroups: Array<{ messages: typeof messages; groupId: string }> = [];
-  let currentGroup: typeof messages = [];
+  const messageGroups = useMemo(() => {
+    const groups: Array<{ messages: typeof messages; groupId: string }> = [];
+    let currentGroup: typeof messages = [];
 
-  messages.forEach((message, index) => {
-    const prevMessage = index > 0 ? messages[index - 1] : null;
+    messages.forEach((message, index) => {
+      const prevMessage = index > 0 ? messages[index - 1] : null;
 
-    const isNewGroup = !prevMessage ||
-      prevMessage.authorPubkey !== message.authorPubkey ||
-      (message.createdAt - prevMessage.createdAt) > TIME_GROUPING_WINDOW;
+      const isNewGroup = !prevMessage ||
+        prevMessage.authorPubkey !== message.authorPubkey ||
+        (message.createdAt - prevMessage.createdAt) > TIME_GROUPING_WINDOW;
 
-    if (isNewGroup && currentGroup.length > 0) {
-      messageGroups.push({ messages: [...currentGroup], groupId: `${currentGroup[0].id}-group` });
-      currentGroup = [];
+      if (isNewGroup && currentGroup.length > 0) {
+        groups.push({ messages: [...currentGroup], groupId: `${currentGroup[0].id}-group` });
+        currentGroup = [];
+      }
+
+      currentGroup.push(message);
+    });
+
+    if (currentGroup.length > 0) {
+      groups.push({ messages: [...currentGroup], groupId: `${currentGroup[0].id}-group` });
     }
 
-    currentGroup.push(message);
-  });
-
-  if (currentGroup.length > 0) {
-    messageGroups.push({ messages: [...currentGroup], groupId: `${currentGroup[0].id}-group` });
-  }
+    return groups;
+  }, [messages]);
 
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden p-6" style={{ minHeight: 0 }}>
@@ -78,7 +82,7 @@ export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
                   <div className="space-y-0.5">
                     {group.messages.map((message, msgIndex) => (
                       <MessageItem
-                        key={message.id}
+                        key={`${message.id}-${msgIndex}`}
                         message={message}
                         msgIndex={msgIndex}
                         groupMessagesLength={group.messages.length}
