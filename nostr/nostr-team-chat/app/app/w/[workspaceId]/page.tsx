@@ -8,6 +8,9 @@ import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelList } from '@/components/channels/ChannelList';
 import { CreateChannelSheet } from '@/components/sheets/create-channel-sheet';
 import { MessageSquarePlus, Hash } from 'lucide-react';
+import { UserAvatars } from '@/components/ui/user-avatars';
+import { useGroupMembers } from '@/lib/hooks/use-group-members';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 export default function WorkspacePage() {
   const params = useParams();
@@ -16,6 +19,7 @@ export default function WorkspacePage() {
 
   const { getWorkspaceById, clearWorkspaces, workspaces } = useWorkspaceStore();
   const { isLoadingWorkspace, reset: resetChatStore, setLoadingWorkspace, setCurrentWorkspace } = useChatStore();
+  const { pubkey } = useAuthStore();
 
   // Find workspace by either full ID or sanitized ID (URL param might be sanitized)
   const workspace = getWorkspaceById(workspaceId) ||
@@ -24,6 +28,21 @@ export default function WorkspacePage() {
 
   // Use the actual workspace ID for channel queries and operations
   const actualWorkspaceId = workspace?.id || workspaceId;
+
+  // Get group members for the workspace
+  const {
+    getAvatarUsers,
+    loading: membersLoading,
+    isAdmin,
+    displayedMemberCount,
+    memberCount
+  } = useGroupMembers({
+    groupId: actualWorkspaceId || undefined,
+    autoRefresh: true,
+    refreshInterval: 60000 // Refresh every minute
+  });
+
+
   const channels = useChannels(actualWorkspaceId);
   const isLoading = isLoadingWorkspace; // Show loading when workspace is being set
 
@@ -80,17 +99,44 @@ export default function WorkspacePage() {
 
   if (channels.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center max-w-md mx-auto">
-          <div className="mb-6">
-            <Hash className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Welcome to {workspace.name}
+      <div className="flex flex-col h-full">
+        {/* Workspace Header */}
+        <div className="flex-shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {workspace.name}
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Get started by creating your first channel to begin conversations with your team.
-            </p>
           </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {displayedMemberCount > 0 && (
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {displayedMemberCount} member{displayedMemberCount !== 1 ? 's' : ''}
+                </span>
+              )}
+              <UserAvatars
+                users={getAvatarUsers()}
+                size={40}
+                maxVisible={5}
+                isAdmin={isAdmin(pubkey || '')}
+                showInviteButton={true}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto">
+            <div className="mb-6">
+              <Hash className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Welcome to {workspace.name}
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Get started by creating your first channel to begin conversations with your team.
+              </p>
+            </div>
 
           <CreateChannelSheet
             workspaceId={actualWorkspaceId}
@@ -102,9 +148,10 @@ export default function WorkspacePage() {
             }
           />
 
-          <p className="text-sm text-gray-500 mt-4">
-            Channels are where your team communicates. They can be organized by topic, project, or team.
-          </p>
+            <p className="text-sm text-gray-500 mt-4">
+              Channels are where your team communicates. They can be organized by topic, project, or team.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -113,7 +160,34 @@ export default function WorkspacePage() {
   // AppLayout already provides the sidebar with channels via Sidebar component
   // Just show the main empty state content
   return (
-    <div className="h-full flex items-center justify-center">
+    <div className="flex flex-col h-full">
+      {/* Workspace Header */}
+      <div className="flex-shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {workspace.name}
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {displayedMemberCount > 0 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {displayedMemberCount} member{displayedMemberCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            <UserAvatars
+              users={getAvatarUsers()}
+              size={40}
+              maxVisible={5}
+              isAdmin={isAdmin(pubkey || '')}
+              showInviteButton={true}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto">
           <div className="mb-6">
             <MessageSquarePlus className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -145,6 +219,7 @@ export default function WorkspacePage() {
             </div>
           </div>
         </div>
+      </div>
     </div>
   );
 }

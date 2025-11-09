@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState, KeyboardEvent } from "react";
 import { UserInfoSheet } from "@/components/sheets/user-info-sheet";
 import { AllUsersSheet } from "@/components/sheets/all-users-sheet";
-import { Users } from "lucide-react";
+import { Users, UserPlus } from "lucide-react";
+import { InviteUserSheet } from "@/components/sheets/invite-user-sheet";
 
 interface User {
   id: string | number;
@@ -24,6 +25,7 @@ interface UserAvatarsProps {
   focusScale?: number;
   isAdmin?: boolean;
   showUsersButton?: boolean;
+  showInviteButton?: boolean;
 }
 
 export const UserAvatars = ({
@@ -35,6 +37,7 @@ export const UserAvatars = ({
   focusScale = 1.2,
   isAdmin = false,
   showUsersButton = true,
+  showInviteButton = false,
 }: UserAvatarsProps) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -52,13 +55,18 @@ export const UserAvatars = ({
     ? [...slicedUsers, { id: 'plus-bubble', name: undefined, image: '' }]
     : slicedUsers;
 
-  // Add users button if enabled
-  if (showUsersButton) {
+  // If there are no users and showInviteButton is true, show invite button
+  if (users.length === 0 && showInviteButton) {
+    allUsersToRender = [{ id: 'invite-bubble', name: undefined, image: '' }];
+  }
+
+  // Add users button if enabled (but not if we're showing invite button)
+  if (showUsersButton && !(users.length === 0 && showInviteButton)) {
     allUsersToRender = [...allUsersToRender, { id: 'users-bubble', name: undefined, image: '' }];
   }
 
   const handleKeyEnter = (e: KeyboardEvent<HTMLButtonElement>, user: User) => {
-    if ((e.key === "Enter" || e.key === " ") && user.id !== 'plus-bubble' && user.id !== 'users-bubble') {
+    if ((e.key === "Enter" || e.key === " ") && user.id !== 'plus-bubble' && user.id !== 'users-bubble' && user.id !== 'invite-bubble') {
       const triggerElement = (e.target as HTMLElement).nextElementSibling as HTMLElement;
       triggerElement?.click();
     }
@@ -70,6 +78,7 @@ export const UserAvatars = ({
         const isHoveredOne = hoveredIndex === index;
         const isLengthBubble = user.id === 'plus-bubble';
         const isUsersBubble = user.id === 'users-bubble';
+        const isInviteBubble = user.id === 'invite-bubble';
 
         const diff = 1 - safeOverlap / 100;
         const zIndex = isHoveredOne ? allUsersToRender.length : index;
@@ -113,6 +122,44 @@ export const UserAvatars = ({
                   <div className="w-full h-full rounded-full overflow-hidden shadow-lg">
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-500 to-cyan-600 text-white">
                       <Users className="w-4 h-4" />
+                    </div>
+                  </div>
+                </motion.div>
+              }
+            />
+          );
+        }
+
+        if (isInviteBubble) {
+          return (
+            <InviteUserSheet
+              key={user.id}
+              trigger={
+                <motion.div
+                  role="img"
+                  aria-label="Invite member"
+                  className="relative cursor-pointer outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 rounded-full bg-white dark:bg-gray-900"
+                  style={{
+                    width: safeSize,
+                    height: safeSize,
+                    zIndex,
+                    marginLeft: index === 0 ? 0 : -safeSize * diff,
+                    padding: '3px',
+                  }}
+                  tabIndex={0}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  onFocus={() => setHoveredIndex(index)}
+                  onBlur={() => setHoveredIndex(null)}
+                  animate={{
+                    scale: shouldScale ? safeFocusScale : 1,
+                    x: shouldShift ? shift : 0,
+                  }}
+                  transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                >
+                  <div className="w-full h-full rounded-full overflow-hidden shadow-lg">
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-green-500 to-emerald-600 text-white">
+                      <UserPlus className="w-4 h-4" />
                     </div>
                   </div>
                 </motion.div>

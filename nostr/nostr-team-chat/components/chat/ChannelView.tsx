@@ -129,19 +129,20 @@ export function ChannelView({ channelId }: ChannelViewProps) {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {displayedMemberCount > 0 && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            {displayedMemberCount > 0 && (
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {displayedMemberCount} other member{displayedMemberCount !== 1 ? 's' : ''}
               </span>
-              <UserAvatars
-                users={getAvatarUsers()}
-                size={40}
-                maxVisible={5}
-                isAdmin={isAdmin(pubkey || '')}
-              />
-            </div>
-          )}
+            )}
+            <UserAvatars
+              users={getAvatarUsers()}
+              size={40}
+              maxVisible={5}
+              isAdmin={isAdmin(pubkey || '')}
+              showInviteButton={true}
+            />
+          </div>
           {membersLoading && displayedMemberCount === 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 dark:text-gray-400">Loading members...</span>
