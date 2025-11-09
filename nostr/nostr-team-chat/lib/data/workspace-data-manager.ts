@@ -143,9 +143,10 @@ export class WorkspaceDataManager {
 
       // Fetch workspace-related events
       const metadataKinds: NDKKind[] = [39000, 39001, 39002, 9007];
+      const deletionKinds: NDKKind[] = [9008];
 
       const workspaces = await Promise.race([
-        this.fetchWorkspaceEvents(metadataKinds, pubkey),
+        this.fetchWorkspaceEvents(metadataKinds, deletionKinds, pubkey),
         this.createTimeoutPromise(timeout, 'Workspace fetch timeout')
       ]);
 
@@ -211,21 +212,42 @@ export class WorkspaceDataManager {
   /**
    * Fetch and process workspace events
    */
-  private async fetchWorkspaceEvents(kinds: NDKKind[], pubkey: string): Promise<Workspace[]> {
-    const filter = { kinds, limit: 500 };
-    const events = await this.ndk.fetchEvents(filter);
+  private async fetchWorkspaceEvents(metadataKinds: NDKKind[], deletionKinds: NDKKind[], pubkey: string): Promise<Workspace[]> {
+    // Fetch metadata events
+    const metadataFilter = { kinds: metadataKinds, limit: 500 };
+    const metadataEvents = await this.ndk.fetchEvents(metadataFilter);
 
-    console.log(`📜 Found ${events.size} workspace events`);
+    // Fetch deletion events
+    const deletionFilter = { kinds: deletionKinds, limit: 100 };
+    const deletionEvents = await this.ndk.fetchEvents(deletionFilter);
+
+    console.log(`📜 Found ${metadataEvents.size} workspace events and ${deletionEvents.size} deletion events`);
+
+    // Build set of deleted group IDs
+    const deletedGroupIds = new Set<string>();
+    for (const event of deletionEvents) {
+      const groupId = event.tags.find(tag => tag[0] === 'h')?.[1];
+      if (groupId) {
+        deletedGroupIds.add(groupId);
+        console.log('📜 Group marked as deleted:', groupId);
+      }
+    }
 
     // Process events into workspaces
     const workspacesMap = new Map<string, Workspace>();
     const groupAdmins = new Map<string, string[]>();
     const groupMembers = new Map<string, string[]>();
 
-    for (const event of events) {
+    for (const event of metadataEvents) {
       try {
         const groupId = event.tags.find(tag => tag[0] === 'h' || tag[0] === 'd')?.[1];
         if (!groupId) continue;
+
+        // Skip deleted groups
+        if (deletedGroupIds.has(groupId)) {
+          console.log('📜 Skipping deleted group:', groupId);
+          continue;
+        }
 
         switch (event.kind) {
           case 39000: // Group metadata
@@ -253,7 +275,7 @@ export class WorkspaceDataManager {
       return isAdmin || isMember;
     });
 
-    console.log(`✅ Processed ${userWorkspaces.length} workspaces for user`);
+    console.log(`✅ Processed ${userWorkspaces.length} workspaces for user (${deletedGroupIds.size} groups were deleted)`);
     return userWorkspaces;
   }
 

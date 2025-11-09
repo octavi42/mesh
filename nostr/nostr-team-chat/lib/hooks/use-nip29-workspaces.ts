@@ -17,6 +17,18 @@ export function resetWorkspaceSession() {
   console.log('🔄 Workspace session reset - will fetch on next mount');
 }
 
+// Function to force refresh workspaces (for debugging deleted groups)
+export function forceRefreshWorkspaces() {
+  workspacesFetched = false;
+  console.log('🔄 Forcing workspace refresh - clearing cache and refetching');
+
+  // Clear the workspace store
+  const store = useWorkspaceStore.getState();
+  store.setWorkspaces([]);
+
+  console.log('✅ Workspace cache cleared, will refetch on next component mount');
+}
+
 export function useNIP29Workspaces() {
   const { ndk, isConnected } = useNDK();
   const { pubkey } = useAuthStore();
@@ -56,7 +68,7 @@ export function useNIP29Workspaces() {
     const groupAdmins = new Map<string, string[]>(); // groupId -> admin pubkeys
     const groupMembers = new Map<string, string[]>(); // groupId -> member pubkeys
 
-    const processEvent = (event: any, isLive = false) => {
+    const processEvent = (event: any, isLive = false, deletedGroupIds?: Set<string>) => {
       try {
         const logPrefix = isLive ? '🔴 LIVE' : '📜 HISTORICAL';
 
@@ -74,6 +86,12 @@ export function useNIP29Workspaces() {
 
           if (!groupId) {
             console.warn('⚠️ Missing group ID in metadata event - tags:', event.tags);
+            return;
+          }
+
+          // Skip deleted groups
+          if (deletedGroupIds && deletedGroupIds.has(groupId)) {
+            console.log(`${logPrefix} Skipping deleted group: ${groupId}`);
             return;
           }
 
@@ -136,7 +154,7 @@ export function useNIP29Workspaces() {
           });
 
           const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
-          if (groupId) {
+          if (groupId && (!deletedGroupIds || !deletedGroupIds.has(groupId))) {
             const adminPubkeys = event.tags
               .filter((tag: string[]) => tag[0] === 'p')
               .map((tag: string[]) => tag[1])
@@ -166,7 +184,7 @@ export function useNIP29Workspaces() {
           });
 
           const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
-          if (groupId) {
+          if (groupId && (!deletedGroupIds || !deletedGroupIds.has(groupId))) {
             const memberPubkeys = event.tags
               .filter((tag: string[]) => tag[0] === 'p')
               .map((tag: string[]) => tag[1])
@@ -197,6 +215,12 @@ export function useNIP29Workspaces() {
 
           const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
           if (!groupId) return;
+
+          // Skip deleted groups
+          if (deletedGroupIds && deletedGroupIds.has(groupId)) {
+            console.log(`${logPrefix} Skipping deleted group creation event: ${groupId}`);
+            return;
+          }
 
           if (!processedGroups.has(groupId)) {
             let metadata: any = {};
@@ -277,6 +301,26 @@ export function useNIP29Workspaces() {
         const managedGroupEvents = await ndk.fetchEvents(metadataFilter);
         console.log(`📜 Found ${managedGroupEvents.size} managed group events`);
 
+        // Fetch deletion events to filter out deleted groups
+        console.log('📜 Fetching group deletion events...');
+        const deletionFilter = {
+          kinds: [9008] as NDKKind[]
+        };
+        const deletionEvents = await ndk.fetchEvents(deletionFilter);
+        console.log(`📜 Found ${deletionEvents.size} deletion events`);
+
+        // Build set of deleted group IDs
+        const deletedGroupIds = new Set<string>();
+        deletionEvents.forEach(event => {
+          const groupId = event.tags.find((tag: string[]) => tag[0] === 'h')?.[1];
+          if (groupId) {
+            deletedGroupIds.add(groupId);
+            console.log('📜 Group marked as deleted:', groupId, 'from event:', event.id?.slice(0, 8));
+          }
+        });
+
+        console.log('📜 Total deleted groups found:', deletedGroupIds.size, 'IDs:', Array.from(deletedGroupIds));
+
         // DETAILED DEBUGGING: Log group IDs discovered from managed events only
         const discoveredGroupIds = new Set<string>();
         if (managedGroupEvents.size > 0) {
@@ -306,7 +350,7 @@ export function useNIP29Workspaces() {
 
         // Process managed group events only
         managedGroupEvents.forEach((event) => {
-          processEvent(event, false);
+          processEvent(event, false, deletedGroupIds);
           if (event.created_at && event.created_at > latestTimestamp) {
             latestTimestamp = event.created_at;
           }
@@ -333,16 +377,16 @@ export function useNIP29Workspaces() {
         }
 
 
-        // LIVE SUBSCRIPTION: Only subscribe to managed group events
-        console.log('🔴 Starting live subscription for managed group events only...');
+        // LIVE SUBSCRIPTION: Only subscribe to managed group events including deletions
+        console.log('🔴 Starting live subscription for managed group events including deletions...');
 
-        const managedGroupKinds = [39000, 39001, 39002, 9007] as NDKKind[];
+        const managedGroupKinds = [39000, 39001, 39002, 9007, 9008] as NDKKind[];
         const liveSubscription = ndk.subscribe({
           kinds: managedGroupKinds,
           since: latestTimestamp + 1 // Only new events after historical data
         });
 
-        console.log('🔴 Live subscription kinds (managed only):', managedGroupKinds);
+        console.log('🔴 Live subscription kinds (managed + deletion):', managedGroupKinds);
 
         if (!liveSubscription) {
           console.warn('⚠️ Could not create live subscription - NDK not ready');
@@ -352,7 +396,21 @@ export function useNIP29Workspaces() {
 
         // Handle live events
         liveSubscription.on('event', (event) => {
-          processEvent(event, true);
+          if (event.kind === 9008) {
+            // Handle group deletion
+            const groupId = event.tags.find((tag: string[]) => tag[0] === 'h')?.[1];
+            if (groupId) {
+              console.log('🔴 LIVE Group deletion event received:', groupId);
+              deletedGroupIds.add(groupId);
+
+              // Remove from workspace store
+              const store = useWorkspaceStore.getState();
+              store.removeWorkspace(groupId);
+              console.log('🔴 LIVE Removed deleted workspace:', groupId);
+            }
+          } else {
+            processEvent(event, true, deletedGroupIds);
+          }
         });
 
         liveSubscription.on('eose', () => {
