@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sheet } from '@silk-hq/components';
 import { X } from 'lucide-react';
 import { useChatStore } from '@/lib/stores/chat-store';
@@ -18,6 +19,7 @@ export function CreateChannelSheet({ trigger, workspaceId }: CreateChannelSheetP
   const [channelDescription, setChannelDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const { setCurrentChannel } = useChatStore();
+  const router = useRouter();
 
   const handleCreate = async () => {
     if (!channelName || isCreating) return;
@@ -32,8 +34,21 @@ export function CreateChannelSheet({ trigger, workspaceId }: CreateChannelSheetP
       const existingChannel = await db.channels.get(channelId);
       if (existingChannel) {
         console.log('Channel already exists:', sanitizedName);
-        // Don't auto-navigate to the channel - let user choose
-      // setCurrentChannel(channelId);
+        // Navigate to the existing channel
+        setCurrentChannel(channelId);
+
+        // Helper function to sanitize workspace ID for URL (same as other components)
+        const sanitizeWorkspaceIdForUrl = (workspaceId: string): string => {
+          if (workspaceId.includes("'")) {
+            return workspaceId.split("'")[1] || workspaceId;
+          }
+          return workspaceId;
+        };
+
+        // Navigate to the channel URL
+        const urlSafeWorkspaceId = sanitizeWorkspaceIdForUrl(workspaceId);
+        router.push(`/app/w/${urlSafeWorkspaceId}/c/${channelId}`);
+
         setChannelName('');
         setChannelDescription('');
         return;
@@ -68,8 +83,21 @@ export function CreateChannelSheet({ trigger, workspaceId }: CreateChannelSheetP
 
       await client.publishEvent(welcomeMessage);
 
-      // Don't auto-navigate to the channel - let user choose
-      // setCurrentChannel(channelId);
+      // Navigate to the newly created channel
+      setCurrentChannel(channelId);
+
+      // Helper function to sanitize workspace ID for URL (same as other components)
+      const sanitizeWorkspaceIdForUrl = (workspaceId: string): string => {
+        if (workspaceId.includes("'")) {
+          return workspaceId.split("'")[1] || workspaceId;
+        }
+        return workspaceId;
+      };
+
+      // Navigate to the channel URL
+      const urlSafeWorkspaceId = sanitizeWorkspaceIdForUrl(workspaceId);
+      router.push(`/app/w/${urlSafeWorkspaceId}/c/${channelId}`);
+
       setChannelName('');
       setChannelDescription('');
 
