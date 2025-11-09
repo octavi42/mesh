@@ -44,41 +44,10 @@ export function WorkspaceSelectionList({ isLoading = false }: WorkspaceSelection
       let channels = await db.channels.where('workspaceId').equals(workspaceId).toArray();
       console.log('📋 Found channels:', channels);
 
-      // If no channels exist, create default channels for the workspace
-      if (channels.length === 0) {
-        console.log('📋 No channels found, creating default channels for workspace:', workspaceId);
+      // Navigate to workspace page without creating default channels
+      console.log('📋 Navigating to workspace without creating default channels:', workspaceId);
 
-        const now = Date.now();
-        const defaultChannels: Channel[] = [
-          {
-            id: `${workspaceId}-general`,
-            workspaceId,
-            name: 'general',
-            description: 'General discussion',
-            createdAt: now,
-            updatedAt: now,
-          },
-          {
-            id: `${workspaceId}-random`,
-            workspaceId,
-            name: 'random',
-            description: 'Random conversations',
-            createdAt: now,
-            updatedAt: now,
-          }
-        ];
-
-        try {
-          await db.channels.bulkAdd(defaultChannels);
-          console.log('✅ Created default channels:', defaultChannels.map(c => c.name));
-          channels = defaultChannels;
-        } catch (error) {
-          console.error('❌ Failed to create default channels:', error);
-          // Continue anyway, we can navigate to workspace without channels
-        }
-      }
-
-      const firstChannel = channels[0];
+      const firstChannel = channels.length > 0 ? channels[0] : null;
 
       if (firstChannel) {
         console.log('🔄 Setting workspace with first channel:', workspaceId, firstChannel.id);

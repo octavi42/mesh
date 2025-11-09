@@ -6,16 +6,25 @@ import { useChannels, syncChannelsForWorkspace } from '@/lib/hooks/use-channels'
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelList } from '@/components/channels/ChannelList';
+import { CreateChannelSheet } from '@/components/sheets/create-channel-sheet';
+import { MessageSquarePlus, Hash } from 'lucide-react';
 
 export default function WorkspacePage() {
   const params = useParams();
   const router = useRouter();
   const workspaceId = params.workspaceId as string;
 
-  const channels = useChannels(workspaceId);
-  const { setCurrentWorkspace, getWorkspaceById, clearWorkspaces } = useWorkspaceStore();
-  const { isLoadingWorkspace, reset: resetChatStore } = useChatStore();
-  const workspace = getWorkspaceById(workspaceId);
+  const { getWorkspaceById, clearWorkspaces, workspaces } = useWorkspaceStore();
+  const { isLoadingWorkspace, reset: resetChatStore, setLoadingWorkspace, setCurrentWorkspace } = useChatStore();
+
+  // Find workspace by either full ID or sanitized ID (URL param might be sanitized)
+  const workspace = getWorkspaceById(workspaceId) ||
+    workspaces.find(w => w.id.includes(`'${workspaceId}`)) ||
+    null;
+
+  // Use the actual workspace ID for channel queries and operations
+  const actualWorkspaceId = workspace?.id || workspaceId;
+  const channels = useChannels(actualWorkspaceId);
   const isLoading = isLoadingWorkspace; // Show loading when workspace is being set
 
   // Note: Removed "corrupted" workspace ID validation as NIP-29 group IDs
@@ -24,25 +33,26 @@ export default function WorkspacePage() {
 
   // Set current workspace from URL params and preload channels
   useEffect(() => {
-    if (workspaceId) {
-      console.log('🔄 Setting current workspace from URL:', workspaceId);
-      setCurrentWorkspace(workspaceId);
+    if (actualWorkspaceId) {
+      console.log('🔄 Setting current workspace from URL:', workspaceId, 'actual ID:', actualWorkspaceId);
+      setCurrentWorkspace(actualWorkspaceId);
 
       // Proactively sync channels to prevent loading delays
-      syncChannelsForWorkspace(workspaceId).catch(error => {
+      syncChannelsForWorkspace(actualWorkspaceId).catch(error => {
         console.warn('Failed to preload channels:', error);
       });
     }
-  }, [workspaceId, setCurrentWorkspace]);
+  }, [actualWorkspaceId, setCurrentWorkspace]);
 
-  // Auto-redirect to first channel if available (only if not coming from specific navigation)
+  // Clear loading state when workspace is found
   useEffect(() => {
-    if (!isLoading && channels.length > 0) {
-      const firstChannel = channels[0];
-      console.log('🔄 Auto-redirecting to first channel:', firstChannel.id);
-      router.replace(`/app/w/${workspaceId}/c/${firstChannel.id}`);
+    if (workspace && isLoadingWorkspace) {
+      console.log('🔄 Clearing workspace loading state');
+      setLoadingWorkspace(false);
     }
-  }, [channels, isLoading, workspaceId, router]);
+  }, [workspace, isLoadingWorkspace, setLoadingWorkspace]);
+
+  // Don't auto-redirect - let user choose a channel
 
   if (!workspace) {
     return (
@@ -71,42 +81,70 @@ export default function WorkspacePage() {
   if (channels.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            No Channels Yet
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            This workspace doesn't have any channels yet.
+        <div className="text-center max-w-md mx-auto">
+          <div className="mb-6">
+            <Hash className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Welcome to {workspace.name}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Get started by creating your first channel to begin conversations with your team.
+            </p>
+          </div>
+
+          <CreateChannelSheet
+            workspaceId={actualWorkspaceId}
+            trigger={
+              <button className="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors">
+                <MessageSquarePlus className="w-5 h-5" />
+                Create Channel
+              </button>
+            }
+          />
+
+          <p className="text-sm text-gray-500 mt-4">
+            Channels are where your team communicates. They can be organized by topic, project, or team.
           </p>
-          {process.env.NODE_ENV === 'development' && (
-            <button
-              onClick={() => {
-                // TODO: Implement create channel functionality
-                console.log('🔧 Create channel button clicked');
-              }}
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-            >
-              Create Channel
-            </button>
-          )}
         </div>
       </div>
     );
   }
 
+  // AppLayout already provides the sidebar with channels via Sidebar component
+  // Just show the main empty state content
   return (
-    <div className="h-full">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-          {workspace.name}
-        </h1>
-        {workspace.description && (
-          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-            {workspace.description}
-          </p>
-        )}
-      </div>
-      <ChannelList channels={channels} workspaceId={workspaceId} />
+    <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto">
+          <div className="mb-6">
+            <MessageSquarePlus className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              Select a channel to start chatting
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400">
+              Choose a channel from the sidebar to view messages and join the conversation.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {channels.length > 0 && (
+              <p className="text-sm text-gray-500">
+                or click on a channel like <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-blue-600">#{channels[0].name}</span> to get started
+              </p>
+            )}
+
+            <div>
+              <CreateChannelSheet
+                workspaceId={actualWorkspaceId}
+                trigger={
+                  <button className="inline-flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg font-medium transition-colors border border-blue-200 dark:border-blue-800">
+                    <MessageSquarePlus className="w-4 h-4" />
+                    Create New Channel
+                  </button>
+                }
+              />
+            </div>
+          </div>
+        </div>
     </div>
   );
 }

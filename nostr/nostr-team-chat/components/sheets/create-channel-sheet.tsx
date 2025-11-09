@@ -32,7 +32,8 @@ export function CreateChannelSheet({ trigger, workspaceId }: CreateChannelSheetP
       const existingChannel = await db.channels.get(channelId);
       if (existingChannel) {
         console.log('Channel already exists:', sanitizedName);
-        setCurrentChannel(channelId);
+        // Don't auto-navigate to the channel - let user choose
+      // setCurrentChannel(channelId);
         setChannelName('');
         setChannelDescription('');
         return;
@@ -67,7 +68,8 @@ export function CreateChannelSheet({ trigger, workspaceId }: CreateChannelSheetP
 
       await client.publishEvent(welcomeMessage);
 
-      setCurrentChannel(channelId);
+      // Don't auto-navigate to the channel - let user choose
+      // setCurrentChannel(channelId);
       setChannelName('');
       setChannelDescription('');
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sheet } from '@silk-hq/components';
 import { X, UserPlus, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { InviteUserSheet } from './invite-user-sheet';
@@ -30,6 +31,15 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
   const dismissButtonRef = useRef<HTMLButtonElement>(null);
   const { createWorkspace, initializeClient, subscribeToWorkspace } = useWorkspaceStore();
   const { setCurrentWorkspace } = useChatStore();
+  const router = useRouter();
+
+  // Helper function to sanitize workspace ID for URL
+  const sanitizeWorkspaceIdForUrl = (workspaceId: string): string => {
+    if (workspaceId.includes("'")) {
+      return workspaceId.split("'")[1] || workspaceId;
+    }
+    return workspaceId;
+  };
 
   const handleCreate = async () => {
     if (!workspaceName.trim()) return;
@@ -50,7 +60,8 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
       console.log('✅ Workspace created:', groupId);
 
       subscribeToWorkspace(groupId);
-      setCurrentWorkspace(groupId);
+      // Set workspace but don't set a current channel - let user choose
+      setCurrentWorkspace(groupId); // This will set currentChannelId to null
 
       setWorkspaceName('');
       setWorkspaceDescription('');
@@ -58,6 +69,10 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
       setInvitedUsers([]);
 
       dismissButtonRef.current?.click();
+
+      // Navigate to the workspace page using URL-safe ID
+      const urlSafeGroupId = sanitizeWorkspaceIdForUrl(groupId);
+      router.push(`/app/w/${urlSafeGroupId}`);
     } catch (err) {
       console.error('Failed to create workspace:', err);
       setError(err instanceof Error ? err.message : 'Failed to create workspace');

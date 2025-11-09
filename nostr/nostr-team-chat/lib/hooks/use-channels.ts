@@ -127,10 +127,6 @@ export async function syncChannelsForWorkspace(workspaceId: string): Promise<voi
     // Extract unique channel names from message 'c' tags
     const channelNames = new Set<string>();
 
-    // Always include default channels
-    channelNames.add('general');
-    channelNames.add('random');
-
     // Extract channels from existing messages
     for (const message of messages) {
       const channelTag = message.tags.find(([tag]) => tag === 'c');
