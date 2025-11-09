@@ -458,6 +458,7 @@ export function useNIP29Workspaces() {
 export function useCreateWorkspace() {
   const { ndk, publish } = useNDK();
   const { pubkey } = useAuthStore();
+  const { addWorkspace } = useWorkspaceStore();
 
   const createWorkspace = async (params: {
     name: string;
@@ -491,6 +492,28 @@ export function useCreateWorkspace() {
       ];
 
       await publish(groupEvent);
+
+      // Immediately add the workspace to the store
+      const workspace: Workspace = {
+        id: groupId,
+        name: params.name,
+        description: params.description,
+        picture: params.picture,
+        isPublic: params.isPublic || false,
+        isClosed: false,
+        isBroadcast: false,
+        relay: ndk.pool.relays.values().next().value?.url,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        members: [pubkey],
+        admins: [pubkey],
+        memberCount: 1,
+        adminCount: 1,
+        scope: 'Default'
+      };
+
+      addWorkspace(workspace);
+      console.log('✅ Workspace added to store immediately:', workspace);
 
       console.log('✅ Workspace created successfully:', {
         groupId,

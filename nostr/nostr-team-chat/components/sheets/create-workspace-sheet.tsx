@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Sheet } from '@silk-hq/components';
 import { X, UserPlus, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { InviteUserSheet } from './invite-user-sheet';
-import { useWorkspaceStore } from '@/lib/stores/workspace-store';
+import { useCreateWorkspace } from '@/lib/hooks/use-nip29-workspaces';
 import { useChatStore } from '@/lib/stores/chat-store';
 import './create-workspace-sheet.css';
 
@@ -29,7 +29,7 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
   const [error, setError] = useState<string | null>(null);
 
   const dismissButtonRef = useRef<HTMLButtonElement>(null);
-  const { createWorkspace, initializeClient, subscribeToWorkspace } = useWorkspaceStore();
+  const { createWorkspace } = useCreateWorkspace();
   const { setCurrentWorkspace } = useChatStore();
   const router = useRouter();
 
@@ -48,20 +48,17 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
     setError(null);
 
     try {
-      await initializeClient();
+      const workspaceId = await createWorkspace({
+        name: workspaceName.trim(),
+        description: workspaceDescription.trim() || undefined,
+        picture: workspaceIcon.trim() || undefined,
+        isPublic: false,
+      });
 
-      const groupId = await createWorkspace(
-        workspaceName.trim(),
-        workspaceDescription.trim() || undefined,
-        workspaceIcon.trim() || undefined,
-        false
-      );
+      console.log('✅ Workspace created:', workspaceId);
 
-      console.log('✅ Workspace created:', groupId);
-
-      subscribeToWorkspace(groupId);
       // Set workspace but don't set a current channel - let user choose
-      setCurrentWorkspace(groupId); // This will set currentChannelId to null
+      setCurrentWorkspace(workspaceId); // This will set currentChannelId to null
 
       setWorkspaceName('');
       setWorkspaceDescription('');
@@ -71,7 +68,7 @@ export function CreateWorkspaceSheet({ trigger }: CreateWorkspaceSheetProps) {
       dismissButtonRef.current?.click();
 
       // Navigate to the workspace page using URL-safe ID
-      const urlSafeGroupId = sanitizeWorkspaceIdForUrl(groupId);
+      const urlSafeGroupId = sanitizeWorkspaceIdForUrl(workspaceId);
       router.push(`/app/w/${urlSafeGroupId}`);
     } catch (err) {
       console.error('Failed to create workspace:', err);
