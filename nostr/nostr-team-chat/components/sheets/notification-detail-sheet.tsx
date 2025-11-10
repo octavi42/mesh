@@ -6,7 +6,10 @@ import { X, MessageSquare, UserPlus, AtSign, Check, XIcon } from 'lucide-react';
 import { SHEET_ANIMATIONS } from '@/lib/constants/sheet-animations';
 import { useNotificationStore } from '@/lib/stores/notification-store';
 import { acceptRelayInvite, getInviteByCode } from '@/lib/nostr/invites';
-import { useWorkspaceStore } from '@/lib/stores/workspace-store';
+import { forceRefreshWorkspaces } from '@/lib/hooks/use-nip29-workspaces';
+import { useNDK } from '@/lib/hooks/use-ndk';
+import { useAuthStore } from '@/lib/stores/auth-store';
+import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import type { Notification } from '@/lib/db/schema';
 import './notification-detail-sheet.css';
 
@@ -21,7 +24,9 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
   const [statusMessage, setStatusMessage] = useState('');
 
   const { deleteNotification } = useNotificationStore();
-  const { fetchWorkspaces } = useWorkspaceStore();
+  const { ndk } = useNDK();
+  const { pubkey } = useAuthStore();
+  const { addWorkspace } = useWorkspaceStore();
 
   // Handle accepting an invite
   const handleAcceptInvite = async () => {
@@ -36,25 +41,52 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
       console.log('🎯 Accepting relay invite:', { inviteCode, groupId });
 
       // Accept the invite via relay (production method)
-      const { eventId } = await acceptRelayInvite(groupId, inviteCode, 'Accepted invitation');
+      console.log('📤 Sending join request to relay...');
 
-      // Sync workspaces to get the new workspace
-      await fetchWorkspaces();
+      // Show user that they need to approve the signing request
+      setStatusMessage('Please approve the signing request in your Nostr extension (e.g., Alby)...');
+
+      // Add timeout to prevent infinite hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Signing timeout - please check your Nostr extension and try again')), 45000)
+      );
+
+      const acceptPromise = acceptRelayInvite(groupId, inviteCode, 'Accepted invitation');
+
+      const { eventId } = await Promise.race([acceptPromise, timeoutPromise]);
+      console.log('✅ Join request sent successfully:', eventId);
+
+      // Only proceed with success actions if we got here without timeout
+      console.log('🔄 Forcing workspace refresh...');
+      forceRefreshWorkspaces();
 
       setActionStatus('success');
-      setStatusMessage(`Successfully sent join request! Event ID: ${eventId.slice(0, 8)}...`);
+      setStatusMessage(`Successfully joined workspace! The workspace should appear in your list shortly.`);
 
       console.log('✅ Invite accepted via relay:', { eventId, groupId, inviteCode });
 
-      // Remove the notification after successful join request
+      // Remove the notification immediately
+      deleteNotification(notification.id);
+
+      // Force refresh workspaces without page reload
       setTimeout(() => {
-        deleteNotification(notification.id);
+        console.log('🔄 Refreshing workspace list...');
+        // The workspace list should update automatically when forceRefreshWorkspaces() is called above
       }, 2000);
 
     } catch (error) {
       console.error('❌ Failed to accept invite:', error);
       setActionStatus('error');
-      setStatusMessage(`Failed to send join request: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      if (errorMessage.includes('timeout') || errorMessage.includes('Signing timeout')) {
+        setStatusMessage('Signing timed out. Please check your Nostr extension (like Alby) and ensure popups are allowed, then try again.');
+      } else if (errorMessage.includes('User rejected') || errorMessage.includes('cancelled')) {
+        setStatusMessage('You cancelled the signing request. Click "Accept Invitation" again if you want to join the workspace.');
+      } else {
+        setStatusMessage(`Failed to join workspace: ${errorMessage}`);
+      }
     } finally {
       setIsProcessing(false);
     }

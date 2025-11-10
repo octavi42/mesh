@@ -2,7 +2,6 @@ import { createInviteEvent, joinRequestEvent } from './nip29/events';
 import { getGlobalNIP29Client } from './nip29/client';
 import { NIP29EventKind } from './nip29/types';
 import type { NostrEvent, UnsignedNostrEvent } from './nip29/types';
-import { createInviteNotification } from '@/lib/stores/notification-store';
 
 export interface InviteOptions {
   expiresAt?: number;
@@ -364,26 +363,29 @@ export async function sendRelayInvite(
   // Extract local group ID
   const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
 
-  // Store invite data locally (in production, this would be on a server)
-  // The invitee will use this code with a kind 9021 join request
-  const inviteData = {
-    inviteCode,
-    groupId: localGroupId,
+  // Create the invite on the relay using NIP-29 KIND_GROUP_CREATE_INVITE_9009
+  console.log('📤 Creating invite on relay...', {
+    localGroupId,
     fullGroupId: groupId,
-    groupName: options.workspaceName || 'Unknown Workspace',
-    inviterPubkey: pubkey,
-    inviterName: options.inviterName || 'Someone',
-    targetPubkey: userPubkey,
-    role: options.role || 'member',
+    inviteCode,
     expiresAt: options.expiresAt,
-    createdAt: Date.now(),
-    message: `You've been invited to join ${options.workspaceName || 'a workspace'}`
-  };
+    userPubkey
+  });
 
-  // Store in localStorage for development (use proper invite service in production)
-  const existingInvites = JSON.parse(localStorage.getItem('nip29_invites') || '[]');
-  existingInvites.push(inviteData);
-  localStorage.setItem('nip29_invites', JSON.stringify(existingInvites));
+  const inviteEvent = await createInviteEvent(localGroupId, options.expiresAt, inviteCode);
+
+  console.log('🔍 Created invite event:', {
+    id: inviteEvent.id,
+    kind: inviteEvent.kind,
+    tags: inviteEvent.tags,
+    content: inviteEvent.content,
+    pubkey: inviteEvent.pubkey,
+    created_at: inviteEvent.created_at
+  });
+
+  // Publish the invite creation event to the relay
+  await client.publishEvent(inviteEvent);
+  console.log('✅ Invite creation event published to relay:', { inviteCode, eventId: inviteEvent.id });
 
   // Create invite link
   const inviteLink = `${window.location.origin}/invite/${inviteCode}`;
@@ -394,7 +396,7 @@ export async function sendRelayInvite(
     localGroupId,
     fullGroupId: groupId,
     userPubkey,
-    inviteData
+    eventId: inviteEvent.id
   });
 
   // Send relay-based invite notification using kind 1 events
@@ -405,7 +407,10 @@ export async function sendRelayInvite(
       kind: 1, // Text note
       content: JSON.stringify({
         type: 'invite',
-        title: 'Group Invitation',
+        title: 'Workspace Invitation',
+        groupName: options.workspaceName || 'Unknown Workspace', // Add this field that handler expects
+        workspaceName: options.workspaceName || 'Unknown Workspace', // Keep this for compatibility
+        inviterName: options.inviterName || 'Someone', // Add this field that handler expects
         message: `${options.inviterName || 'Someone'} invited you to join ${options.workspaceName || 'a workspace'}`,
         inviteCode,
         groupId: localGroupId,
@@ -436,28 +441,7 @@ export async function sendRelayInvite(
     });
   } catch (error) {
     console.warn('⚠️ Failed to send relay notification:', error);
-
-    // Fallback to local notification
-    try {
-      const { useNotificationStore } = await import('@/lib/stores/notification-store');
-      const { addNotification } = useNotificationStore.getState();
-      await addNotification({
-        userId: userPubkey,
-        type: 'invite',
-        title: 'Group Invitation',
-        message: `${options.inviterName || 'Someone'} invited you to join ${options.workspaceName || 'a workspace'}`,
-        data: {
-          inviteCode,
-          groupId: localGroupId,
-          fullGroupId: groupId,
-          inviterPubkey: pubkey,
-          role: options.role || 'member'
-        }
-      });
-      console.log('📝 Created local notification as fallback');
-    } catch (fallbackError) {
-      console.warn('⚠️ Failed to create fallback notification:', fallbackError);
-    }
+    // No fallback - all notifications should come from relay events only
   }
 
   return {
@@ -501,20 +485,8 @@ export async function sendDirectInvite(
   // Store invite locally in IndexedDB
   await storeInviteLocally(inviteData);
 
-  // Create notification for the invited user
-  try {
-    await createInviteNotification(userPubkey, {
-      workspaceName: options.workspaceName || 'Unknown Workspace',
-      inviterName: options.inviterName || 'Someone',
-      inviteCode,
-      groupId,
-    });
-
-    console.log('📧 Created invite notification for user:', userPubkey);
-  } catch (error) {
-    console.warn('Failed to create invite notification:', error);
-    // Don't fail the invite creation if notification fails
-  }
+  // Note: This function is deprecated and no longer creates local notifications
+  // All notifications should come from relay events via sendRelayInvite
 
   // Create invite link
   const inviteLink = `${window.location.origin}/invite/${inviteCode}`;
@@ -623,11 +595,28 @@ export async function acceptRelayInvite(
   // Extract local group ID for the h tag (relay expects only the local part)
   const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
 
+  console.log('🔍 Join request details:', {
+    originalGroupId: groupId,
+    localGroupId,
+    inviteCode,
+    message
+  });
+
   // Create join request event
   const joinEvent = await joinRequestEvent(localGroupId, inviteCode, message);
 
+  console.log('🔍 Created join request event:', {
+    id: joinEvent.id,
+    kind: joinEvent.kind,
+    tags: joinEvent.tags,
+    content: joinEvent.content,
+    pubkey: joinEvent.pubkey,
+    created_at: joinEvent.created_at
+  });
+
   // Publish to relay
   await client.publishEvent(joinEvent);
+  console.log('✅ Join request event published to relay');
 
   console.log('🤝 Sent relay join request:', { groupId, localGroupId, inviteCode, message, eventId: joinEvent.id });
 

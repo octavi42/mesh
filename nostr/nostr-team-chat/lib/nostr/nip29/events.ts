@@ -203,13 +203,18 @@ export async function deleteGroupEvent(groupId: string): Promise<NostrEvent> {
 
 export async function createInviteEvent(
   groupId: string,
-  expiresAt?: number
+  expiresAt?: number,
+  inviteCode?: string
 ): Promise<NostrEvent> {
   ensureNostrAvailable();
   const pubkey = await window.nostr!.getPublicKey();
 
   // Use the full group ID for the h tag
   const tags: string[][] = [['h', groupId]];
+
+  if (inviteCode) {
+    tags.push(['code', inviteCode]);
+  }
 
   if (expiresAt) {
     tags.push(['expiration', expiresAt.toString()]);

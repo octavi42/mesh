@@ -27,6 +27,10 @@ export const useAuthStore = create<AuthState>()(
 
       setPubkey: (pubkey: string, npub?: string) => {
         console.log('🔑 setPubkey called:', { pubkey, npub });
+
+        const currentState = get();
+        const pubkeyChanged = currentState.pubkey !== pubkey;
+
         set({
           pubkey,
           npub: npub || null,
@@ -34,12 +38,15 @@ export const useAuthStore = create<AuthState>()(
           loading: false,
         });
 
-        // Start listening for invites when user logs in
-        if (pubkey) {
-          console.log('🔔 Starting invite subscription for user:', pubkey);
+        // Only start subscription if pubkey actually changed (to prevent duplicates)
+        if (pubkey && pubkeyChanged) {
+          console.log('🔔 Pubkey changed, restarting invite subscription for user:', pubkey);
+          stopListeningForInvites(); // Stop existing subscription
           startListeningForInvites(pubkey).catch(error => {
             console.error('Failed to start invite subscription:', error);
           });
+        } else if (pubkey && !pubkeyChanged) {
+          console.log('🔔 Pubkey unchanged, keeping existing subscription');
         }
       },
 
@@ -98,12 +105,25 @@ export const useAuthStore = create<AuthState>()(
 
       login: (pubkey: string, npub?: string) => {
         console.log('🔑 LOGIN CALLED:', { pubkey, npub });
+
+        // Stop any existing subscriptions before starting new ones
+        stopListeningForInvites();
+
         set({
           pubkey,
           npub: npub || null,
           isAuthenticated: !!pubkey,
           loading: false,
         });
+
+        // Start listening for invites when user logs in
+        if (pubkey) {
+          console.log('🔔 Starting invite subscription for user:', pubkey);
+          startListeningForInvites(pubkey).catch(error => {
+            console.error('Failed to start invite subscription:', error);
+          });
+        }
+
         console.log('✅ LOGIN COMPLETE - Store state:', get());
         console.log('📦 localStorage after login:', localStorage.getItem('nostr-auth'));
       },

@@ -23,16 +23,17 @@ export function NotificationsSheet({ trigger }: NotificationsSheetProps) {
   const {
     notifications,
     isLoading,
-    loadNotifications,
+    fetchNotificationsFromRelay,
     markAsRead
   } = useNotificationStore();
 
-  // Load notifications when component mounts
+  // Fetch notifications from relay when user pubkey becomes available
   useEffect(() => {
     if (pubkey) {
-      loadNotifications();
+      console.log('🔄 Fetching fresh notifications from relay for user:', pubkey);
+      fetchNotificationsFromRelay(pubkey, 24); // Last 24 hours
     }
-  }, [pubkey, loadNotifications]);
+  }, [pubkey, fetchNotificationsFromRelay]);
 
   // Filter notifications for current user
   const userNotifications = notifications?.filter(n => n.userId === pubkey) || [];
@@ -111,6 +112,13 @@ export function NotificationsSheet({ trigger }: NotificationsSheetProps) {
                     >
                       {showAllNotifications ? 'Show Mine' : 'Show All'}
                     </button>
+                    <button
+                      onClick={() => pubkey && fetchNotificationsFromRelay(pubkey, 24)}
+                      className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-600 px-2 py-1 rounded transition-colors"
+                      title="Refresh notifications from relay"
+                    >
+                      Refresh
+                    </button>
                     <Sheet.Trigger action="dismiss" asChild>
                       <button className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors">
                         <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
@@ -150,7 +158,17 @@ export function NotificationsSheet({ trigger }: NotificationsSheetProps) {
                           )}
                         </div>
                         <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
-                        <p className="text-xs text-gray-400">{formatTime(notification.createdAt)}</p>
+                        {notification.type === 'invite' && notification.data?.inviteCode && (
+                          <p className="text-xs font-mono bg-gray-100 px-2 py-1 rounded mb-1">
+                            Invite: {notification.data.inviteCode}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400">
+                          {formatTime(notification.createdAt)}
+                          {notification.type === 'invite' && (
+                            <span className="ml-2 text-purple-600 font-medium">• Workspace Invite</span>
+                          )}
+                        </p>
                       </div>
                     ))}
                   </div>

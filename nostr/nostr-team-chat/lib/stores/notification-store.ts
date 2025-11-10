@@ -1,20 +1,22 @@
 'use client';
 
 import { create } from 'zustand';
-import { db, type Notification } from '@/lib/db/schema';
+import { type Notification } from '@/lib/db/schema';
+import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client';
 
 interface NotificationStore {
   notifications: Notification[];
   unreadCount: number;
   isLoading: boolean;
+  lastFetchTime: number | null;
 
   // Actions
-  loadNotifications: () => Promise<void>;
-  addNotification: (notification: Omit<Notification, 'id' | 'createdAt'>) => Promise<void>;
-  markAsRead: (notificationId: string) => Promise<void>;
-  markAllAsRead: () => Promise<void>;
-  deleteNotification: (notificationId: string) => Promise<void>;
-  clearAll: () => Promise<void>;
+  fetchNotificationsFromRelay: (userPubkey: string, hoursBack?: number) => Promise<void>;
+  addNotificationFromEvent: (eventId: string, notification: Omit<Notification, 'id' | 'createdAt'>) => void;
+  markAsRead: (notificationId: string) => void;
+  markAllAsRead: () => void;
+  deleteNotification: (notificationId: string) => void;
+  clearAll: () => void;
 
   // Computed getters
   getUnreadNotifications: () => Notification[];
@@ -25,168 +27,178 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
       notifications: [],
       unreadCount: 0,
       isLoading: false,
+      lastFetchTime: null,
 
-      loadNotifications: async () => {
+      fetchNotificationsFromRelay: async (userPubkey: string, hoursBack: number = 24) => {
         try {
-          console.log('📱 Loading notifications from IndexedDB...');
-          console.log('📱 Database info:', {
-            name: db.name,
-            isOpen: db.isOpen(),
-            version: db.verno
-          });
+          console.log('📱 Fetching notifications from relay for user:', userPubkey);
           set({ isLoading: true });
 
-          // Check if table exists and get count
-          const tableExists = await db.notifications.count();
-          console.log('📱 Notifications table count:', tableExists);
+          const client = getGlobalNIP29Client();
 
-          const notifications = await db.notifications
-            .orderBy('createdAt')
-            .reverse()
-            .toArray();
+          // Ensure client is connected
+          if (!client.isConnected()) {
+            await client.connect();
+          }
+
+          // Fetch invite notification events from the last X hours
+          const since = Math.floor(Date.now() / 1000) - (hoursBack * 60 * 60);
+          const filter = {
+            kinds: [1], // Text notes used for invite notifications
+            '#p': [userPubkey], // Events that tag this user
+            '#t': ['invite'], // Must have invite tag
+            since: since
+          };
+
+          console.log('📡 Fetching notifications with filter:', filter);
+
+          const events = await client.fetchEvents([filter]);
+          console.log(`📨 Found ${events.length} notification events from relay`);
+
+          // Convert events to notifications
+          const notifications: Notification[] = [];
+
+          for (const event of events) {
+            try {
+              // Parse the invite notification content
+              const inviteData = JSON.parse(event.content);
+
+              // Verify this is an invite notification
+              if (inviteData.type !== 'invite') {
+                continue;
+              }
+
+              // Extract invite details
+              const inviteCodeTag = event.tags.find(tag => tag[0] === 'invite_code');
+              const groupIdTag = event.tags.find(tag => tag[0] === 'group_id');
+
+              const notification: Notification = {
+                id: event.id, // Use event ID as notification ID
+                userId: userPubkey,
+                type: 'invite',
+                title: 'Workspace Invitation',
+                message: inviteData.message || `You have been invited to join ${inviteData.workspaceName || 'a workspace'}`,
+                data: {
+                  inviteCode: inviteData.inviteCode || inviteCodeTag?.[1] || 'unknown',
+                  groupId: inviteData.fullGroupId || (groupIdTag ? `relay'${groupIdTag[1]}` : 'unknown'),
+                  workspaceName: inviteData.workspaceName || inviteData.groupName || 'Unknown Workspace',
+                  inviterName: inviteData.inviterName || 'Someone',
+                  inviterPubkey: event.pubkey
+                },
+                read: false, // All notifications start as unread in memory-only system
+                createdAt: event.created_at * 1000 // Convert to milliseconds
+              };
+
+              notifications.push(notification);
+            } catch (error) {
+              console.warn('Failed to parse notification event:', event.id, error);
+            }
+          }
+
+          // Sort by newest first
+          notifications.sort((a, b) => b.createdAt - a.createdAt);
 
           const unreadCount = notifications.filter(n => !n.read).length;
 
-          console.log('📱 Loaded notifications:', {
+          console.log('📱 Processed notifications from relay:', {
             total: notifications.length,
             unread: unreadCount,
-            notifications: notifications.map(n => ({
-              id: n.id,
-              userId: n.userId,
-              type: n.type,
-              title: n.title,
-              createdAt: new Date(n.createdAt).toISOString()
-            }))
+            oldestEvent: notifications.length > 0 ? new Date(Math.min(...notifications.map(n => n.createdAt))).toISOString() : 'none',
+            newestEvent: notifications.length > 0 ? new Date(Math.max(...notifications.map(n => n.createdAt))).toISOString() : 'none'
           });
 
           set({
             notifications,
             unreadCount,
-            isLoading: false
+            isLoading: false,
+            lastFetchTime: Date.now()
           });
+
         } catch (error) {
-          console.error('❌ Failed to load notifications:', error);
+          console.error('❌ Failed to fetch notifications from relay:', error);
           set({ isLoading: false });
         }
       },
 
-      addNotification: async (notificationData) => {
-        try {
-          const notification: Notification = {
-            ...notificationData,
-            id: crypto.randomUUID(),
-            createdAt: Date.now(),
-          };
+      addNotificationFromEvent: (eventId: string, notificationData) => {
+        const currentNotifications = get().notifications;
 
-          // Store in IndexedDB
-          await db.notifications.add(notification);
-
-          // Update state
-          const currentNotifications = get().notifications;
-          const newNotifications = [notification, ...currentNotifications];
-          const unreadCount = newNotifications.filter(n => !n.read).length;
-
-          set({
-            notifications: newNotifications,
-            unreadCount
-          });
-
-          console.log('📧 Added notification:', notification);
-        } catch (error) {
-          console.error('Failed to add notification:', error);
-          throw error;
+        // Use eventId as the notification ID to prevent duplicates
+        const existingNotification = currentNotifications.find(n => n.id === eventId);
+        if (existingNotification) {
+          console.log('📧 Notification with this event ID already exists in memory:', eventId);
+          return;
         }
+
+        const notification: Notification = {
+          ...notificationData,
+          id: eventId, // Use Nostr event ID as stable identifier
+          createdAt: Date.now(),
+        };
+
+        // Update memory state only (no persistence)
+        const newNotifications = [notification, ...currentNotifications];
+        const unreadCount = newNotifications.filter(n => !n.read).length;
+
+        set({
+          notifications: newNotifications,
+          unreadCount
+        });
+
+        console.log('📧 Added notification from event to memory:', { eventId, notification });
       },
 
-      markAsRead: async (notificationId) => {
-        try {
-          // Update in IndexedDB
-          await db.notifications.update(notificationId, { read: true });
+      markAsRead: (notificationId: string) => {
+        // Update memory state only (no persistence needed)
+        const currentNotifications = get().notifications;
+        const updatedNotifications = currentNotifications.map(n =>
+          n.id === notificationId ? { ...n, read: true } : n
+        );
+        const unreadCount = updatedNotifications.filter(n => !n.read).length;
 
-          // Update state
-          const currentNotifications = get().notifications;
-          const updatedNotifications = currentNotifications.map(n =>
-            n.id === notificationId ? { ...n, read: true } : n
-          );
-          const unreadCount = updatedNotifications.filter(n => !n.read).length;
+        set({
+          notifications: updatedNotifications,
+          unreadCount
+        });
 
-          set({
-            notifications: updatedNotifications,
-            unreadCount
-          });
-
-          console.log('✅ Marked notification as read:', notificationId);
-        } catch (error) {
-          console.error('Failed to mark notification as read:', error);
-          throw error;
-        }
+        console.log('✅ Marked notification as read in memory:', notificationId);
       },
 
-      markAllAsRead: async () => {
-        try {
-          const currentNotifications = get().notifications;
-          const unreadIds = currentNotifications
-            .filter(n => !n.read)
-            .map(n => n.id);
+      markAllAsRead: () => {
+        // Update memory state only (no persistence needed)
+        const currentNotifications = get().notifications;
+        const updatedNotifications = currentNotifications.map(n => ({ ...n, read: true }));
 
-          // Update all unread notifications in IndexedDB
-          await Promise.all(
-            unreadIds.map(id => db.notifications.update(id, { read: true }))
-          );
+        set({
+          notifications: updatedNotifications,
+          unreadCount: 0
+        });
 
-          // Update state
-          const updatedNotifications = currentNotifications.map(n => ({ ...n, read: true }));
-
-          set({
-            notifications: updatedNotifications,
-            unreadCount: 0
-          });
-
-          console.log('✅ Marked all notifications as read');
-        } catch (error) {
-          console.error('Failed to mark all notifications as read:', error);
-          throw error;
-        }
+        console.log('✅ Marked all notifications as read in memory');
       },
 
-      deleteNotification: async (notificationId) => {
-        try {
-          // Delete from IndexedDB
-          await db.notifications.delete(notificationId);
+      deleteNotification: (notificationId: string) => {
+        // Update memory state only (no persistence needed)
+        const currentNotifications = get().notifications;
+        const filteredNotifications = currentNotifications.filter(n => n.id !== notificationId);
+        const unreadCount = filteredNotifications.filter(n => !n.read).length;
 
-          // Update state
-          const currentNotifications = get().notifications;
-          const filteredNotifications = currentNotifications.filter(n => n.id !== notificationId);
-          const unreadCount = filteredNotifications.filter(n => !n.read).length;
+        set({
+          notifications: filteredNotifications,
+          unreadCount
+        });
 
-          set({
-            notifications: filteredNotifications,
-            unreadCount
-          });
-
-          console.log('🗑️ Deleted notification:', notificationId);
-        } catch (error) {
-          console.error('Failed to delete notification:', error);
-          throw error;
-        }
+        console.log('🗑️ Deleted notification from memory:', notificationId);
       },
 
-      clearAll: async () => {
-        try {
-          // Clear all notifications from IndexedDB
-          await db.notifications.clear();
+      clearAll: () => {
+        // Clear memory state only (no persistence needed)
+        set({
+          notifications: [],
+          unreadCount: 0
+        });
 
-          // Update state
-          set({
-            notifications: [],
-            unreadCount: 0
-          });
-
-          console.log('🗑️ Cleared all notifications');
-        } catch (error) {
-          console.error('Failed to clear all notifications:', error);
-          throw error;
-        }
+        console.log('🗑️ Cleared all notifications from memory');
       },
 
       getUnreadNotifications: () => {
@@ -198,8 +210,9 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
       },
     }));
 
-// Helper function to create invite notifications
-export const createInviteNotification = async (
+// Helper function to create invite notifications from Nostr events
+export const createInviteNotificationFromEvent = (
+  eventId: string,
   userId: string,
   inviteData: {
     workspaceName: string;
@@ -208,9 +221,9 @@ export const createInviteNotification = async (
     groupId: string;
   }
 ) => {
-  const { addNotification } = useNotificationStore.getState();
+  const { addNotificationFromEvent } = useNotificationStore.getState();
 
-  await addNotification({
+  addNotificationFromEvent(eventId, {
     userId,
     type: 'invite',
     title: 'Workspace Invitation',
@@ -225,8 +238,9 @@ export const createInviteNotification = async (
   });
 };
 
-// Helper function to create join request notifications
-export const createJoinRequestNotification = async (
+// Helper function to create join request notifications from Nostr events
+export const createJoinRequestNotificationFromEvent = (
+  eventId: string,
   userId: string, // admin receiving the notification
   requestData: {
     workspaceName: string;
@@ -235,9 +249,9 @@ export const createJoinRequestNotification = async (
     groupId: string;
   }
 ) => {
-  const { addNotification } = useNotificationStore.getState();
+  const { addNotificationFromEvent } = useNotificationStore.getState();
 
-  await addNotification({
+  addNotificationFromEvent(eventId, {
     userId,
     type: 'join_request',
     title: 'Join Request',

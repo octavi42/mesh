@@ -25,7 +25,7 @@ interface AccountSheetProps {
 export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSheetProps) {
   console.log('AccountSheet rendering', { trigger, user, isCurrentUser });
   const { logout, pubkey: authPubkey, npub: authNpub } = useAuthStore();
-  const { notifications, unreadCount, loadNotifications } = useNotificationStore();
+  const { notifications, unreadCount, fetchNotificationsFromRelay } = useNotificationStore();
   const [showNotificationsSheet, setShowNotificationsSheet] = useState(false);
   const [showPublicKeySheet, setShowPublicKeySheet] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -33,12 +33,13 @@ export function AccountSheet({ trigger, user, isCurrentUser = !user }: AccountSh
   const publicKeyButtonRef = useRef<HTMLButtonElement>(null);
   const accountSheetRef = useRef<HTMLButtonElement>(null);
 
-  // Load notifications when user is available
+  // Fetch notifications from relay when user is available
   useEffect(() => {
     if (authPubkey) {
-      loadNotifications();
+      console.log('🔄 Fetching notifications for account sheet');
+      fetchNotificationsFromRelay(authPubkey, 24); // Last 24 hours
     }
-  }, [authPubkey, loadNotifications]);
+  }, [authPubkey, fetchNotificationsFromRelay]);
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark');
