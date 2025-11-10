@@ -820,37 +820,45 @@ export async function getInviteStatus(
 
   try {
     // Check for all invite state events for this user and invite
-    const stateEvents = await client.fetchEvents([
-      {
-        kinds: [9021, 9023, 9024, 9025], // Join request, decline, seen, delete
-        authors: [userPubkey],
-        '#h': [localGroupId],
-        '#code': [inviteCode],
-        limit: 50
-      }
-    ]);
+    const filter = {
+      kinds: [9021, 9023, 9024, 9025], // Join request, decline, seen, delete
+      authors: [userPubkey],
+      '#h': [localGroupId],
+      '#code': [inviteCode],
+      limit: 50
+    };
+    console.log(`🔍 Querying invite status with filter:`, filter);
+
+    const stateEvents = await client.fetchEvents([filter]);
+    console.log(`🔍 Found ${stateEvents.length} state events for invite ${inviteCode}:`, stateEvents.map(e => ({ kind: e.kind, created_at: e.created_at })));
 
     // Sort by timestamp (most recent first)
     stateEvents.sort((a, b) => b.created_at - a.created_at);
 
     // Check the most recent state
     if (stateEvents.length === 0) {
+      console.log(`🔍 No state events found for invite ${inviteCode}, returning 'pending'`);
       return 'pending';
     }
 
     const latestEvent = stateEvents[0];
-    switch (latestEvent.kind) {
-      case 9021: // JOIN_REQUEST - means accepted
-        return 'accepted';
-      case 9023: // DECLINE
-        return 'declined';
-      case 9024: // SEEN
-        return 'seen';
-      case 9025: // DELETE
-        return 'deleted';
-      default:
-        return 'pending';
-    }
+    const result = (() => {
+      switch (latestEvent.kind) {
+        case 9021: // JOIN_REQUEST - means accepted
+          return 'accepted';
+        case 9023: // DECLINE
+          return 'declined';
+        case 9024: // SEEN
+          return 'seen';
+        case 9025: // DELETE
+          return 'deleted';
+        default:
+          return 'pending';
+      }
+    })();
+
+    console.log(`🔍 Latest state for invite ${inviteCode}:`, { kind: latestEvent.kind, status: result });
+    return result;
   } catch (error) {
     console.error('Failed to fetch invite status:', error);
     return 'pending';

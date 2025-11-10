@@ -87,6 +87,7 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
               try {
                 if (inviteCode !== 'unknown' && groupId !== 'unknown') {
                   status = await getInviteStatus(groupId, inviteCode, userPubkey);
+                  console.log(`📊 Fetched status for invite ${inviteCode}:`, { status, groupId, userPubkey });
                 }
               } catch (error) {
                 console.warn('Failed to fetch invite status:', error);
@@ -132,7 +133,8 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
             total: notifications.length,
             unread: unreadCount,
             oldestEvent: notifications.length > 0 ? new Date(Math.min(...notifications.map(n => n.createdAt))).toISOString() : 'none',
-            newestEvent: notifications.length > 0 ? new Date(Math.max(...notifications.map(n => n.createdAt))).toISOString() : 'none'
+            newestEvent: notifications.length > 0 ? new Date(Math.max(...notifications.map(n => n.createdAt))).toISOString() : 'none',
+            notifications: notifications.map(n => ({ id: n.id, status: n.status, read: n.read, inviteCode: n.data?.inviteCode }))
           });
 
           set({

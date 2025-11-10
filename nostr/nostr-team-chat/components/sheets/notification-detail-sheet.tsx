@@ -28,25 +28,28 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
   const { pubkey } = useAuthStore();
   const { addWorkspace } = useWorkspaceStore();
 
-  // Mark invite as seen when user views it (only if currently pending)
+  // Mark invite as seen when user views it
   useEffect(() => {
     const markAsSeen = async () => {
       if (notification.type === 'invite' && notification.data && pubkey) {
         const currentStatus = (notification as any).status;
 
-        // Only mark as seen if status is pending (not already seen, accepted, or declined)
-        if (currentStatus === 'pending') {
+        // Only publish seen event if not already seen (but do it for accepted/declined too!)
+        if (currentStatus !== 'seen') {
           const { inviteCode, groupId } = notification.data;
           try {
+            // Publish seen event to relay (even for accepted/declined invites)
             await markInviteSeen(groupId as string, inviteCode as string);
-            // Mark the notification as read instead of updating status to "seen"
+            // Update local status to 'seen'
+            updateNotificationStatus(notification.id, 'seen');
+            // Mark as read in UI
             markAsRead(notification.id);
-            console.log('📧 Marked invite as seen and notification as read:', { inviteCode, groupId });
+            console.log('📧 Marked invite as seen and notification as read:', { inviteCode, groupId, previousStatus: currentStatus });
           } catch (error) {
             console.warn('Failed to mark invite as seen:', error);
           }
         } else {
-          console.log('📧 Invite already has status:', currentStatus, '- not marking as seen');
+          console.log('📧 Invite already marked as seen, skipping');
         }
       }
     };
