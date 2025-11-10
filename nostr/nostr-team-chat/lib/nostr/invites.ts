@@ -652,35 +652,207 @@ export async function joinWorkspaceWithInvite(
  */
 export async function isWorkspaceAdmin(groupId: string, userPubkey: string): Promise<boolean> {
   const client = getGlobalNIP29Client();
-  
+
   // Ensure client is connected
   if (!client.isConnected()) {
     await client.connect();
   }
-  
+
   try {
     // Extract local group ID for the h tag (relay expects only the local part)
     const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
-    
+
     const events = await client.fetchEvents([
       {
         kinds: [NIP29EventKind.GroupAdmins],
         '#h': [localGroupId]
       }
     ]);
-    
+
     if (events.length === 0) {
       return false;
     }
-    
+
     const adminEvent = events[0];
     const adminPubkeys = adminEvent.tags
       .filter(tag => tag[0] === 'p')
       .map(tag => tag[1]);
-    
+
     return adminPubkeys.includes(userPubkey);
   } catch (error) {
     console.error('Failed to check admin status:', error);
     return false;
+  }
+}
+
+/**
+ * Send an invite decline event to the relay
+ */
+export async function declineInvite(
+  groupId: string,
+  inviteCode: string
+): Promise<{ eventId: string }> {
+  const client = getGlobalNIP29Client();
+
+  if (!client.isConnected()) {
+    await client.connect();
+  }
+
+  if (!window.nostr) {
+    throw new Error('Nostr extension not available');
+  }
+
+  const pubkey = await window.nostr.getPublicKey();
+  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
+
+  const unsignedEvent = {
+    kind: 9023, // KIND_GROUP_INVITE_DECLINE_9023
+    pubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['h', localGroupId],
+      ['code', inviteCode]
+    ],
+    content: 'Declined invitation'
+  };
+
+  const signedEvent = await window.nostr.signEvent(unsignedEvent);
+  await client.publishEvent(signedEvent);
+
+  console.log('❌ Declined invite:', { groupId, inviteCode, eventId: signedEvent.id });
+
+  return { eventId: signedEvent.id };
+}
+
+/**
+ * Send an invite seen event to the relay
+ */
+export async function markInviteSeen(
+  groupId: string,
+  inviteCode: string
+): Promise<{ eventId: string }> {
+  const client = getGlobalNIP29Client();
+
+  if (!client.isConnected()) {
+    await client.connect();
+  }
+
+  if (!window.nostr) {
+    throw new Error('Nostr extension not available');
+  }
+
+  const pubkey = await window.nostr.getPublicKey();
+  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
+
+  const unsignedEvent = {
+    kind: 9024, // KIND_GROUP_INVITE_SEEN_9024
+    pubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['h', localGroupId],
+      ['code', inviteCode]
+    ],
+    content: 'Viewed invitation'
+  };
+
+  const signedEvent = await window.nostr.signEvent(unsignedEvent);
+  await client.publishEvent(signedEvent);
+
+  console.log('👁️ Marked invite as seen:', { groupId, inviteCode, eventId: signedEvent.id });
+
+  return { eventId: signedEvent.id };
+}
+
+/**
+ * Send an invite delete event to the relay
+ */
+export async function deleteInvite(
+  groupId: string,
+  inviteCode: string
+): Promise<{ eventId: string }> {
+  const client = getGlobalNIP29Client();
+
+  if (!client.isConnected()) {
+    await client.connect();
+  }
+
+  if (!window.nostr) {
+    throw new Error('Nostr extension not available');
+  }
+
+  const pubkey = await window.nostr.getPublicKey();
+  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
+
+  const unsignedEvent = {
+    kind: 9025, // KIND_GROUP_INVITE_DELETE_9025
+    pubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['h', localGroupId],
+      ['code', inviteCode]
+    ],
+    content: 'Deleted invitation'
+  };
+
+  const signedEvent = await window.nostr.signEvent(unsignedEvent);
+  await client.publishEvent(signedEvent);
+
+  console.log('🗑️ Deleted invite:', { groupId, inviteCode, eventId: signedEvent.id });
+
+  return { eventId: signedEvent.id };
+}
+
+/**
+ * Get the current status of an invite for a specific user
+ */
+export async function getInviteStatus(
+  groupId: string,
+  inviteCode: string,
+  userPubkey: string
+): Promise<'pending' | 'seen' | 'accepted' | 'declined' | 'deleted'> {
+  const client = getGlobalNIP29Client();
+
+  if (!client.isConnected()) {
+    await client.connect();
+  }
+
+  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
+
+  try {
+    // Check for all invite state events for this user and invite
+    const stateEvents = await client.fetchEvents([
+      {
+        kinds: [9021, 9023, 9024, 9025], // Join request, decline, seen, delete
+        authors: [userPubkey],
+        '#h': [localGroupId],
+        '#code': [inviteCode],
+        limit: 50
+      }
+    ]);
+
+    // Sort by timestamp (most recent first)
+    stateEvents.sort((a, b) => b.created_at - a.created_at);
+
+    // Check the most recent state
+    if (stateEvents.length === 0) {
+      return 'pending';
+    }
+
+    const latestEvent = stateEvents[0];
+    switch (latestEvent.kind) {
+      case 9021: // JOIN_REQUEST - means accepted
+        return 'accepted';
+      case 9023: // DECLINE
+        return 'declined';
+      case 9024: // SEEN
+        return 'seen';
+      case 9025: // DELETE
+        return 'deleted';
+      default:
+        return 'pending';
+    }
+  } catch (error) {
+    console.error('Failed to fetch invite status:', error);
+    return 'pending';
   }
 }

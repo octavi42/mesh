@@ -163,12 +163,27 @@ export function NotificationsSheet({ trigger }: NotificationsSheetProps) {
                             Invite: {notification.data.inviteCode}
                           </p>
                         )}
-                        <p className="text-xs text-gray-400">
-                          {formatTime(notification.createdAt)}
-                          {notification.type === 'invite' && (
-                            <span className="ml-2 text-purple-600 font-medium">• Workspace Invite</span>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-400">
+                            {formatTime(notification.createdAt)}
+                            {notification.type === 'invite' && (
+                              <span className="ml-2 text-purple-600 font-medium">• Workspace Invite</span>
+                            )}
+                          </p>
+                          {notification.type === 'invite' && (notification as any).status && (
+                            <span className={`text-xs px-2 py-1 rounded font-medium ${
+                              (notification as any).status === 'accepted'
+                                ? 'bg-green-100 text-green-700'
+                                : (notification as any).status === 'declined'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {(notification as any).status === 'accepted' && '✅ Accepted'}
+                              {(notification as any).status === 'declined' && '❌ Declined'}
+                              {((notification as any).status === 'pending' || (notification as any).status === 'seen') && '⏳ Pending'}
+                            </span>
                           )}
-                        </p>
+                        </div>
                       </div>
                     ))}
                   </div>

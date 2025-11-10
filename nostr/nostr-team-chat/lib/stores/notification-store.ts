@@ -3,9 +3,15 @@
 import { create } from 'zustand';
 import { type Notification } from '@/lib/db/schema';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client';
+import { getInviteStatus } from '@/lib/nostr/invites';
+
+// Extend notification interface to include status
+interface NotificationWithStatus extends Notification {
+  status?: 'pending' | 'seen' | 'accepted' | 'declined' | 'deleted';
+}
 
 interface NotificationStore {
-  notifications: Notification[];
+  notifications: NotificationWithStatus[];
   unreadCount: number;
   isLoading: boolean;
   lastFetchTime: number | null;
@@ -17,10 +23,11 @@ interface NotificationStore {
   markAllAsRead: () => void;
   deleteNotification: (notificationId: string) => void;
   clearAll: () => void;
+  updateNotificationStatus: (notificationId: string, status: NotificationWithStatus['status']) => void;
 
   // Computed getters
-  getUnreadNotifications: () => Notification[];
-  getNotificationsByType: (type: Notification['type']) => Notification[];
+  getUnreadNotifications: () => NotificationWithStatus[];
+  getNotificationsByType: (type: Notification['type']) => NotificationWithStatus[];
 }
 
 export const useNotificationStore = create<NotificationStore>()((set, get) => ({
@@ -56,7 +63,7 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
           console.log(`📨 Found ${events.length} notification events from relay`);
 
           // Convert events to notifications
-          const notifications: Notification[] = [];
+          const notifications: NotificationWithStatus[] = [];
 
           for (const event of events) {
             try {
@@ -72,21 +79,42 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
               const inviteCodeTag = event.tags.find(tag => tag[0] === 'invite_code');
               const groupIdTag = event.tags.find(tag => tag[0] === 'group_id');
 
-              const notification: Notification = {
+              const inviteCode = inviteData.inviteCode || inviteCodeTag?.[1] || 'unknown';
+              const groupId = inviteData.fullGroupId || (groupIdTag ? `relay'${groupIdTag[1]}` : 'unknown');
+
+              // Fetch invite status from relay
+              let status: NotificationWithStatus['status'] = 'pending';
+              try {
+                if (inviteCode !== 'unknown' && groupId !== 'unknown') {
+                  status = await getInviteStatus(groupId, inviteCode, userPubkey);
+                }
+              } catch (error) {
+                console.warn('Failed to fetch invite status:', error);
+              }
+
+              // Skip notifications that have been deleted
+              if (status === 'deleted') {
+                console.log(`🗑️ Skipping deleted invite notification: ${inviteCode}`);
+                continue;
+              }
+
+              const notification: NotificationWithStatus = {
                 id: event.id, // Use event ID as notification ID
                 userId: userPubkey,
                 type: 'invite',
                 title: 'Workspace Invitation',
                 message: inviteData.message || `You have been invited to join ${inviteData.workspaceName || 'a workspace'}`,
                 data: {
-                  inviteCode: inviteData.inviteCode || inviteCodeTag?.[1] || 'unknown',
-                  groupId: inviteData.fullGroupId || (groupIdTag ? `relay'${groupIdTag[1]}` : 'unknown'),
+                  inviteCode,
+                  groupId,
                   workspaceName: inviteData.workspaceName || inviteData.groupName || 'Unknown Workspace',
                   inviterName: inviteData.inviterName || 'Someone',
                   inviterPubkey: event.pubkey
                 },
-                read: false, // All notifications start as unread in memory-only system
-                createdAt: event.created_at * 1000 // Convert to milliseconds
+                // Mark as read if status is "seen", otherwise unread
+                read: status === 'seen',
+                createdAt: event.created_at * 1000, // Convert to milliseconds
+                status
               };
 
               notifications.push(notification);
@@ -130,10 +158,11 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
           return;
         }
 
-        const notification: Notification = {
+        const notification: NotificationWithStatus = {
           ...notificationData,
           id: eventId, // Use Nostr event ID as stable identifier
           createdAt: Date.now(),
+          status: 'pending' // Default status for new notifications
         };
 
         // Update memory state only (no persistence)
@@ -199,6 +228,19 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
         });
 
         console.log('🗑️ Cleared all notifications from memory');
+      },
+
+      updateNotificationStatus: (notificationId: string, status: NotificationWithStatus['status']) => {
+        const currentNotifications = get().notifications;
+        const updatedNotifications = currentNotifications.map(n =>
+          n.id === notificationId ? { ...n, status } : n
+        );
+
+        set({
+          notifications: updatedNotifications
+        });
+
+        console.log('🔄 Updated notification status:', { notificationId, status });
       },
 
       getUnreadNotifications: () => {

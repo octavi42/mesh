@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sheet } from '@silk-hq/components';
-import { X, MessageSquare, UserPlus, AtSign, Check, XIcon } from 'lucide-react';
+import { X, MessageSquare, UserPlus, AtSign, Check, XIcon, Trash2 } from 'lucide-react';
 import { SHEET_ANIMATIONS } from '@/lib/constants/sheet-animations';
 import { useNotificationStore } from '@/lib/stores/notification-store';
-import { acceptRelayInvite, getInviteByCode } from '@/lib/nostr/invites';
+import { acceptRelayInvite, getInviteByCode, declineInvite, markInviteSeen, deleteInvite } from '@/lib/nostr/invites';
 import { forceRefreshWorkspaces } from '@/lib/hooks/use-nip29-workspaces';
 import { useNDK } from '@/lib/hooks/use-ndk';
 import { useAuthStore } from '@/lib/stores/auth-store';
@@ -23,10 +23,36 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
   const [actionStatus, setActionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [statusMessage, setStatusMessage] = useState('');
 
-  const { deleteNotification } = useNotificationStore();
+  const { deleteNotification, updateNotificationStatus, markAsRead } = useNotificationStore();
   const { ndk } = useNDK();
   const { pubkey } = useAuthStore();
   const { addWorkspace } = useWorkspaceStore();
+
+  // Mark invite as seen when user views it (only if currently pending)
+  useEffect(() => {
+    const markAsSeen = async () => {
+      if (notification.type === 'invite' && notification.data && pubkey) {
+        const currentStatus = (notification as any).status;
+
+        // Only mark as seen if status is pending (not already seen, accepted, or declined)
+        if (currentStatus === 'pending') {
+          const { inviteCode, groupId } = notification.data;
+          try {
+            await markInviteSeen(groupId as string, inviteCode as string);
+            // Mark the notification as read instead of updating status to "seen"
+            markAsRead(notification.id);
+            console.log('📧 Marked invite as seen and notification as read:', { inviteCode, groupId });
+          } catch (error) {
+            console.warn('Failed to mark invite as seen:', error);
+          }
+        } else {
+          console.log('📧 Invite already has status:', currentStatus, '- not marking as seen');
+        }
+      }
+    };
+
+    markAsSeen();
+  }, [notification, pubkey, updateNotificationStatus]);
 
   // Handle accepting an invite
   const handleAcceptInvite = async () => {
@@ -56,6 +82,9 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
       const { eventId } = await Promise.race([acceptPromise, timeoutPromise]);
       console.log('✅ Join request sent successfully:', eventId);
 
+      // Update notification status to accepted
+      updateNotificationStatus(notification.id, 'accepted');
+
       // Only proceed with success actions if we got here without timeout
       console.log('🔄 Forcing workspace refresh...');
       forceRefreshWorkspaces();
@@ -65,8 +94,10 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
 
       console.log('✅ Invite accepted via relay:', { eventId, groupId, inviteCode });
 
-      // Remove the notification immediately
-      deleteNotification(notification.id);
+      // Remove the notification after a short delay to show the accepted status
+      setTimeout(() => {
+        deleteNotification(notification.id);
+      }, 2000);
 
       // Force refresh workspaces without page reload
       setTimeout(() => {
@@ -94,19 +125,63 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
 
   // Handle declining an invite
   const handleDeclineInvite = async () => {
-    if (notification.type !== 'invite') return;
+    if (notification.type !== 'invite' || !notification.data) return;
 
     setIsProcessing(true);
 
     try {
-      // Simply delete the notification
-      await deleteNotification(notification.id);
+      const { inviteCode, groupId } = notification.data;
+
+      // Send decline event to relay
+      await declineInvite(groupId as string, inviteCode as string);
+
+      // Update notification status
+      updateNotificationStatus(notification.id, 'declined');
+
       setActionStatus('success');
       setStatusMessage('Invite declined');
+
+      // Remove the notification after showing the declined status
+      setTimeout(() => {
+        deleteNotification(notification.id);
+      }, 2000);
+
     } catch (error) {
       console.error('Failed to decline invite:', error);
       setActionStatus('error');
       setStatusMessage('Failed to decline invite');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle deleting a notification
+  const handleDeleteNotification = async () => {
+    if (notification.type !== 'invite' || !notification.data) return;
+
+    setIsProcessing(true);
+
+    try {
+      const { inviteCode, groupId } = notification.data;
+
+      // Send delete event to relay
+      await deleteInvite(groupId as string, inviteCode as string);
+
+      // Update notification status to deleted
+      updateNotificationStatus(notification.id, 'deleted');
+
+      setActionStatus('success');
+      setStatusMessage('Invite deleted');
+
+      // Remove the notification after showing the deleted status
+      setTimeout(() => {
+        deleteNotification(notification.id);
+      }, 2000);
+
+    } catch (error) {
+      console.error('Failed to delete invite:', error);
+      setActionStatus('error');
+      setStatusMessage('Failed to delete invite');
     } finally {
       setIsProcessing(false);
     }
@@ -195,6 +270,22 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
                         <span className="text-gray-500 dark:text-gray-400">Status</span>
                         <span className="text-gray-900 dark:text-white">{notification.read ? 'Read' : 'Unread'}</span>
                       </div>
+                      {notification.type === 'invite' && (notification as any).status && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">Invite Status</span>
+                          <span className={`font-medium ${
+                            (notification as any).status === 'accepted'
+                              ? 'text-green-600'
+                              : (notification as any).status === 'declined'
+                              ? 'text-red-600'
+                              : 'text-yellow-600'
+                          }`}>
+                            {(notification as any).status === 'accepted' && 'Accepted'}
+                            {(notification as any).status === 'declined' && 'Declined'}
+                            {((notification as any).status === 'pending' || (notification as any).status === 'seen') && 'Pending'}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500 dark:text-gray-400">Time</span>
                         <span className="text-gray-900 dark:text-white">{formatTime(notification.createdAt)}</span>
@@ -225,13 +316,18 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
                         <>
                           <button
                             onClick={handleAcceptInvite}
-                            disabled={isProcessing}
+                            disabled={isProcessing || (notification as any).status === 'accepted' || (notification as any).status === 'declined'}
                             className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
                             {isProcessing ? (
                               <>
                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                 Processing...
+                              </>
+                            ) : (notification as any).status === 'accepted' ? (
+                              <>
+                                <Check className="w-4 h-4" />
+                                Already Accepted
                               </>
                             ) : (
                               <>
@@ -242,11 +338,37 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
                           </button>
                           <button
                             onClick={handleDeclineInvite}
-                            disabled={isProcessing}
+                            disabled={isProcessing || (notification as any).status === 'accepted' || (notification as any).status === 'declined'}
                             className="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
-                            <XIcon className="w-4 h-4" />
-                            Decline Invitation
+                            {(notification as any).status === 'declined' ? (
+                              <>
+                                <XIcon className="w-4 h-4" />
+                                Already Declined
+                              </>
+                            ) : (
+                              <>
+                                <XIcon className="w-4 h-4" />
+                                Decline Invitation
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={handleDeleteNotification}
+                            disabled={isProcessing || (notification as any).status === 'accepted'}
+                            className="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {(notification as any).status === 'deleted' ? (
+                              <>
+                                <Trash2 className="w-4 h-4" />
+                                Already Deleted
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-4 h-4" />
+                                Delete Notification
+                              </>
+                            )}
                           </button>
                         </>
                       )}
