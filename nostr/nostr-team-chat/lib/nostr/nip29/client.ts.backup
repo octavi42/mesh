@@ -1,0 +1,518 @@
+import { Relay } from 'nostr-tools/relay';
+import type { Filter } from 'nostr-tools/filter';
+import type {
+  NostrEvent,
+  EventHandler,
+  EOSEHandler,
+} from './types';
+
+type SubscriptionFilter = Filter;
+
+export class NIP29RelayClient {
+  private relay: Relay | null = null;
+  private subscriptions: Map<string, { close: () => void }> = new Map();
+  private fetchSubscriptions: Set<{ close: () => void }> = new Set();
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+  private maxSubscriptions = 15; // Leave room for temporary fetch subscriptions
+  private isAuthenticated = false;
+  private authChallenge: string | null = null;
+
+  constructor(private relayUrl: string) {}
+
+  async connect(): Promise<void> {
+    if (this.relay?.connected) {
+      console.log('✅ Already connected to relay');
+      await this.ensureAuthenticated();
+      return;
+    }
+
+    try {
+      console.log(`🔌 Connecting to relay: ${this.relayUrl}`);
+      this.relay = await Relay.connect(this.relayUrl);
+
+      // Set up authentication handlers
+      this.setupAuthHandlers();
+
+      console.log(`✅ Connected to NIP-29 relay: ${this.relayUrl}`);
+      this.reconnectAttempts = 0;
+
+      // Try to authenticate immediately after connection
+      await this.attemptProactiveAuth();
+
+    } catch (error) {
+      console.error('❌ Failed to connect to relay:', error);
+      this.handleReconnect();
+      throw error;
+    }
+  }
+
+  private setupAuthHandlers(): void {
+    if (!this.relay) {
+      console.warn('⚠️ Cannot setup auth handlers: relay not available');
+      return;
+    }
+
+    console.log('🔧 Setting up authentication handlers for relay:', this.relayUrl);
+
+    // Set up the auth callback handler
+    (this.relay as any)._onauth = (challenge: string) => {
+      console.log('🔐 Received AUTH challenge from relay:', {
+        challenge,
+        relayUrl: this.relayUrl,
+        currentAuthStatus: this.isAuthenticated
+      });
+
+      this.authChallenge = challenge;
+      this.authenticateWithRelay().catch(error => {
+        console.error('❌ Failed to authenticate with relay in callback:', error);
+      });
+    };
+
+    console.log('✅ Auth handlers set up successfully');
+  }
+
+  private async waitForNostr(maxAttempts: number = 10): Promise<boolean> {
+    for (let i = 0; i < maxAttempts; i++) {
+      if (window.nostr) {
+        console.log('✅ Nostr extension found after', i, 'attempts');
+        return true;
+      }
+      console.log('⏳ Waiting for Nostr extension... attempt', i + 1);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return false;
+  }
+
+  private async authenticateWithRelay(): Promise<void> {
+    if (!this.relay || !this.authChallenge) {
+      console.warn('⚠️ Cannot authenticate: missing relay or challenge', {
+        relay: !!this.relay,
+        challenge: !!this.authChallenge
+      });
+      return;
+    }
+
+    // Wait for Nostr extension to be available
+    const nostrAvailable = await this.waitForNostr();
+    if (!nostrAvailable) {
+      console.error('❌ Cannot authenticate: Nostr extension not available after waiting');
+      return;
+    }
+
+    try {
+      console.log('🔐 Responding to AUTH challenge from relay...', {
+        relayUrl: this.relayUrl,
+        challenge: this.authChallenge,
+        currentAuthStatus: this.isAuthenticated
+      });
+
+      // Create the auth event manually according to NIP-42
+      const pubkey = await window.nostr!.getPublicKey();
+      const authEvent = {
+        kind: 22242,
+        content: '',
+        tags: [
+          ['relay', this.relayUrl],
+          ['challenge', this.authChallenge]
+        ],
+        created_at: Math.floor(Date.now() / 1000),
+        pubkey: pubkey
+      };
+
+      console.log('🔐 Signing AUTH event (kind 22242):', {
+        challenge: this.authChallenge,
+        relay: this.relayUrl,
+        pubkey: pubkey
+      });
+
+      console.log('⏳ Please check nsec.app for signing request...');
+
+      // Sign the auth event
+      const signedAuthEvent = await window.nostr!.signEvent(authEvent);
+
+      console.log('✅ AUTH event signed, sending to relay...');
+
+      // Send the AUTH event to the relay
+      const authResponsePromise = this.relay.publish(signedAuthEvent);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('AUTH response timeout after 10 seconds')), 10000)
+      );
+
+      await Promise.race([authResponsePromise, timeoutPromise]);
+
+      console.log('✅ Authentication completed successfully');
+      this.isAuthenticated = true;
+
+    } catch (error: any) {
+      const errorMessage = error?.message || error;
+
+      console.error('❌ Failed to authenticate with relay:', {
+        error: errorMessage,
+        stack: error?.stack,
+        relayUrl: this.relayUrl,
+        challenge: this.authChallenge
+      });
+
+      this.isAuthenticated = false;
+
+      // Provide user-friendly error messages
+      if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+        throw new Error('Authentication timed out. Please ensure nsec.app is open and you approve the signing request.');
+      } else if (errorMessage.includes('user rejected') || errorMessage.includes('cancelled')) {
+        throw new Error('You cancelled the authentication. Please try again and approve the signing request.');
+      } else if (errorMessage.includes('Extension not connected')) {
+        throw new Error('Nostr extension not connected. Please open nsec.app and try again.');
+      } else {
+        throw new Error(`Authentication failed: ${errorMessage}`);
+      }
+    }
+  }
+
+  private async handleReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnect attempts reached');
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+
+    console.log(`Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts})`);
+
+    setTimeout(() => {
+      this.connect().catch(console.error);
+    }, delay);
+  }
+
+  async disconnect(): Promise<void> {
+    if (!this.relay) return;
+
+    console.log(`🔌 Disconnecting and closing ${this.subscriptions.size} subscriptions + ${this.fetchSubscriptions.size} fetch subscriptions`);
+
+    this.subscriptions.forEach((sub, subId) => {
+      console.log(`🔌 Closing subscription on disconnect: ${subId}`);
+      sub.close();
+    });
+    this.subscriptions.clear();
+
+    this.fetchSubscriptions.forEach(sub => {
+      sub.close();
+    });
+    this.fetchSubscriptions.clear();
+
+    this.relay.close();
+    this.relay = null;
+
+    console.log('✅ Disconnected from relay');
+  }
+
+  async publishEvent(event: NostrEvent): Promise<void> {
+    // Ensure we're connected before publishing
+    if (!this.isConnected()) {
+      console.log('🔌 Relay not connected, attempting to connect...');
+      await this.connect();
+    }
+
+    if (!this.relay || !this.relay.connected) {
+      throw new Error('Not connected to relay');
+    }
+
+    try {
+      console.log('📤 Publishing event:', {
+        kind: event.kind,
+        id: event.id,
+        tags: event.tags,
+        content: event.content.substring(0, 100),
+        relayUrl: this.relayUrl,
+        relayConnected: this.relay.connected
+      });
+
+      // Add a timeout wrapper to prevent hanging
+      const publishPromise = this.relay.publish(event);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Custom publish timeout after 10 seconds')), 10000);
+      });
+
+      const result = await Promise.race([publishPromise, timeoutPromise]);
+      console.log('✅ Event published successfully:', {
+        kind: event.kind,
+        id: event.id,
+        result
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to publish event:', {
+        kind: event.kind,
+        id: event.id,
+        error: error?.message || error,
+        stack: error?.stack,
+        tags: event.tags,
+        relayUrl: this.relayUrl,
+        relayConnected: this.relay?.connected
+      });
+      throw error;
+    }
+  }
+
+  subscribe(
+    filters: SubscriptionFilter | SubscriptionFilter[],
+    onEvent: EventHandler,
+    onEOSE?: EOSEHandler
+  ): string {
+    if (!this.relay || !this.relay.connected) {
+      throw new Error('Not connected to relay');
+    }
+
+    // Check subscription limit
+    if (this.subscriptions.size >= this.maxSubscriptions) {
+      console.warn(`⚠️ Subscription limit reached (${this.maxSubscriptions}), cleaning up old subscriptions`);
+      this.cleanupOldestSubscription();
+    }
+
+    const filtersArray = Array.isArray(filters) ? filters : [filters];
+    const subId = Math.random().toString(36).substring(7);
+
+    const sub = this.relay.subscribe(filtersArray, {
+      onevent: onEvent,
+      oneose: onEOSE,
+    });
+
+    this.subscriptions.set(subId, sub);
+
+    console.log(`📡 Subscribed: ${subId} (${this.subscriptions.size}/${this.maxSubscriptions})`);
+
+    return subId;
+  }
+
+  private cleanupOldestSubscription(): void {
+    const oldestSubId = this.subscriptions.keys().next().value;
+    if (oldestSubId) {
+      console.log('🧹 Cleaning up oldest subscription:', oldestSubId);
+      this.unsubscribe(oldestSubId);
+    }
+  }
+
+  private cleanupFetchSubscriptions(): void {
+    if (this.fetchSubscriptions.size > 3) {
+      console.log(`🧹 Cleaning up ${this.fetchSubscriptions.size} fetch subscriptions`);
+      this.fetchSubscriptions.forEach(sub => {
+        sub.close();
+      });
+      this.fetchSubscriptions.clear();
+    }
+  }
+
+  unsubscribe(subId: string): void {
+    const sub = this.subscriptions.get(subId);
+    if (sub) {
+      sub.close();
+      this.subscriptions.delete(subId);
+      console.log(`🔌 Unsubscribed: ${subId} (${this.subscriptions.size}/${this.maxSubscriptions} remaining)`);
+    }
+  }
+
+  unsubscribeAll(): void {
+    console.log(`🔌 Closing ${this.subscriptions.size} subscriptions`);
+    this.subscriptions.forEach((sub, subId) => {
+      console.log(`🔌 Closing subscription: ${subId}`);
+      sub.close();
+    });
+    this.subscriptions.clear();
+    console.log('✅ All subscriptions closed');
+  }
+
+  isConnected(): boolean {
+    return this.relay?.connected || false;
+  }
+
+  async forceReauth(): Promise<void> {
+    console.log('🔄 Forcing re-authentication with relay...');
+    this.isAuthenticated = false;
+    this.authChallenge = null;
+
+    if (this.relay && this.relay.connected) {
+      // Try to trigger a new AUTH challenge by doing a subscription that requires auth
+      await this.attemptProactiveAuth();
+    } else {
+      await this.connect();
+    }
+  }
+
+  getRelayUrl(): string {
+    return this.relayUrl;
+  }
+
+  getSubscriptionCount(): number {
+    return this.subscriptions.size;
+  }
+
+  getActiveSubscriptions(): string[] {
+    return Array.from(this.subscriptions.keys());
+  }
+
+  getAuthenticationStatus(): boolean {
+    return this.isAuthenticated && this.relay?.connected;
+  }
+
+  async ensureAuthenticated(): Promise<void> {
+    if (!this.isAuthenticated && this.authChallenge) {
+      console.log('🔐 Ensuring authentication...');
+      await this.authenticateWithRelay();
+    }
+  }
+
+  private async attemptProactiveAuth(): Promise<void> {
+    console.log('🔐 Waiting for relay to send AUTH challenge (NIP-42 requires relay to initiate)...');
+
+    // Don't attempt proactive auth - wait for relay to send AUTH challenge
+    // NIP-42 specifies that relays should send AUTH challenges when needed
+    // Trying to authenticate without a challenge can cause timeouts
+
+    // Instead, trigger a subscription that might require auth to prompt the challenge
+    try {
+      // Try to subscribe to something that might require auth
+      // This will prompt the relay to send AUTH challenge if needed
+      const testFilter = { kinds: [9021], limit: 1 };
+
+      const sub = this.relay!.subscribe([testFilter], {
+        onevent: () => {}, // Ignore events
+        oneose: () => {
+          console.log('✅ Test subscription completed without auth requirement');
+        },
+        onclose: (reason: string) => {
+          if (reason && reason.includes('auth-required')) {
+            console.log('🔐 Auth required detected via test subscription - waiting for challenge...');
+          }
+        }
+      });
+
+      // Close the test subscription after a short delay
+      setTimeout(() => {
+        sub.close();
+      }, 1000);
+
+    } catch (error) {
+      console.log('⚠️ Test subscription failed (this is normal):', error);
+    }
+  }
+
+  async fetchEvents(
+    filters: SubscriptionFilter | SubscriptionFilter[],
+    retryCount: number = 0
+  ): Promise<NostrEvent[]> {
+    // Ensure we're connected before fetching
+    if (!this.isConnected()) {
+      console.log('🔌 Relay not connected, attempting to connect...');
+      await this.connect();
+    }
+
+    // Clean up any old fetch subscriptions before creating new ones
+    this.cleanupFetchSubscriptions();
+
+    return new Promise((resolve, reject) => {
+      const events: NostrEvent[] = [];
+      let sub: unknown;
+
+      const timeout = setTimeout(() => {
+        if (sub && typeof sub === 'object' && sub !== null && 'close' in sub) {
+          this.fetchSubscriptions.delete(sub);
+          (sub as any).close();
+        }
+        reject(new Error('Fetch timeout'));
+      }, 10000);
+
+      const filtersArray = Array.isArray(filters) ? filters : [filters];
+
+      if (!this.relay || !this.relay.connected) {
+        clearTimeout(timeout);
+        reject(new Error('Not connected to relay'));
+        return;
+      }
+
+      console.log(`📡 Creating fetch subscription (${this.fetchSubscriptions.size + this.subscriptions.size}/20 total)`);
+
+      sub = this.relay.subscribe(filtersArray, {
+        onevent: (event) => {
+          events.push(event);
+        },
+        oneose: () => {
+          clearTimeout(timeout);
+          this.fetchSubscriptions.delete(sub);
+          if (sub && typeof sub === 'object' && sub !== null && 'close' in sub) {
+            (sub as any).close();
+          }
+          resolve(events);
+        },
+        onclose: (reason: string) => {
+          clearTimeout(timeout);
+          this.fetchSubscriptions.delete(sub);
+          if (reason && reason !== 'closed by caller') {
+            console.log('🔌 Fetch subscription closed unexpectedly:', reason);
+
+            // Handle auth-required errors
+            if (reason.includes('auth-required')) {
+              console.log('🔐 Authentication required for this request - trying to handle...');
+
+              // Prevent infinite retry loops
+              if (retryCount >= 2) {
+                reject(new Error('Authentication required but max retries exceeded'));
+                return;
+              }
+
+              // Try to authenticate and retry the request
+              // Generate a challenge if we don't have one
+              if (!this.authChallenge) {
+                this.authChallenge = Math.random().toString(36).substring(2, 15);
+              }
+
+              this.authenticateWithRelay()
+                .then(() => {
+                  console.log('🔐 Authentication successful, retrying fetch...');
+                  // Retry the original request after successful authentication
+                  this.fetchEvents(filters, retryCount + 1)
+                    .then(resolve)
+                    .catch(reject);
+                })
+                .catch((authError: any) => {
+                  reject(new Error(`Authentication failed: ${authError?.message || 'Unknown auth error'}`));
+                });
+            } else {
+              reject(new Error(`Subscription closed: ${reason}`));
+            }
+          } else {
+            console.log('📥 Fetch completed, returning', events.length, 'events');
+            resolve(events);
+          }
+        },
+      });
+
+      // Track the temporary subscription
+      this.fetchSubscriptions.add(sub);
+    });
+  }
+}
+
+let globalClient: NIP29RelayClient | null = null;
+
+export function getGlobalNIP29Client(relayUrl?: string): NIP29RelayClient {
+  if (!globalClient) {
+    const url = relayUrl || process.env.NEXT_PUBLIC_NIP29_RELAY_URL || 'wss://groups.contextio.app';
+    console.log('🔧 Creating new NIP29RelayClient for:', url);
+    globalClient = new NIP29RelayClient(url);
+  }
+
+  // Check if connection is stale and recreate if needed
+  if (globalClient && globalClient.relay && !globalClient.relay.connected) {
+    console.log('⚠️ Detected stale relay connection, will reconnect on next operation');
+  }
+
+  return globalClient;
+}
+
+export async function disconnectGlobalClient(): Promise<void> {
+  if (globalClient) {
+    await globalClient.disconnect();
+    globalClient = null;
+  }
+}

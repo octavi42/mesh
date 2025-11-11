@@ -835,29 +835,57 @@ export async function getInviteStatus(
     // Sort by timestamp (most recent first)
     stateEvents.sort((a, b) => b.created_at - a.created_at);
 
-    // Check the most recent state
+    // Check for state events
     if (stateEvents.length === 0) {
       console.log(`🔍 No state events found for invite ${inviteCode}, returning 'pending'`);
       return 'pending';
     }
 
-    const latestEvent = stateEvents[0];
-    const result = (() => {
-      switch (latestEvent.kind) {
-        case 9021: // JOIN_REQUEST - means accepted
-          return 'accepted';
-        case 9023: // DECLINE
-          return 'declined';
-        case 9024: // SEEN
-          return 'seen';
-        case 9025: // DELETE
-          return 'deleted';
-        default:
-          return 'pending';
-      }
-    })();
+    // Apply business logic to resolve conflicting states
+    // Priority order: deleted > accepted > declined > seen
+    const hasAccepted = stateEvents.some(e => e.kind === 9021);
+    const hasDeclined = stateEvents.some(e => e.kind === 9023);
+    const hasSeen = stateEvents.some(e => e.kind === 9024);
+    const hasDeleted = stateEvents.some(e => e.kind === 9025);
 
-    console.log(`🔍 Latest state for invite ${inviteCode}:`, { kind: latestEvent.kind, status: result });
+    console.log(`🔍 Invite ${inviteCode} state summary:`, {
+      hasAccepted,
+      hasDeclined,
+      hasSeen,
+      hasDeleted,
+      totalEvents: stateEvents.length,
+      eventKinds: stateEvents.map(e => e.kind)
+    });
+
+    // Apply state resolution logic
+    let result: 'pending' | 'seen' | 'accepted' | 'declined' | 'deleted';
+
+    if (hasDeleted) {
+      // Deleted state takes precedence over everything
+      result = 'deleted';
+    } else if (hasAccepted) {
+      // Accepted state takes precedence over declined/seen
+      result = 'accepted';
+    } else if (hasDeclined) {
+      // Declined takes precedence over seen
+      result = 'declined';
+    } else if (hasSeen) {
+      result = 'seen';
+    } else {
+      // Fallback to most recent event (shouldn't happen given our checks above)
+      const latestEvent = stateEvents[0];
+      result = (() => {
+        switch (latestEvent.kind) {
+          case 9021: return 'accepted';
+          case 9023: return 'declined';
+          case 9024: return 'seen';
+          case 9025: return 'deleted';
+          default: return 'pending';
+        }
+      })();
+    }
+
+    console.log(`🔍 Resolved state for invite ${inviteCode}:`, { result, reason: 'business_logic' });
     return result;
   } catch (error) {
     console.error('Failed to fetch invite status:', error);

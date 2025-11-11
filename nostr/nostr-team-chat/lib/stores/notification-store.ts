@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { type Notification } from '@/lib/db/schema';
-import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client';
+import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client-transition';
 import { getInviteStatus } from '@/lib/nostr/invites';
 
 // Extend notification interface to include status
@@ -43,9 +43,21 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
 
           const client = getGlobalNIP29Client();
 
-          // Ensure client is connected
-          if (!client.isConnected()) {
-            await client.connect();
+          // Wait for NDK to be initialized if needed
+          // This prevents "NDK not set" errors during early component rendering
+          try {
+            if (!client.isConnected()) {
+              await client.connect();
+            }
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('NDK not set')) {
+              console.log('⏳ NDK not ready yet, delaying notification fetch...');
+              // Try again in 1 second
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              await client.connect();
+            } else {
+              throw error;
+            }
           }
 
           // Fetch invite notification events from the last X hours
@@ -234,15 +246,28 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
 
       updateNotificationStatus: (notificationId: string, status: NotificationWithStatus['status']) => {
         const currentNotifications = get().notifications;
-        const updatedNotifications = currentNotifications.map(n =>
-          n.id === notificationId ? { ...n, status } : n
-        );
-
-        set({
-          notifications: updatedNotifications
+        const updatedNotifications = currentNotifications.map(n => {
+          if (n.id === notificationId) {
+            // Update both status and read state based on new status
+            const updatedNotification = {
+              ...n,
+              status,
+              // Update read status: mark as read if seen, accepted, or declined
+              read: status === 'seen' || status === 'accepted' || status === 'declined' || n.read
+            };
+            return updatedNotification;
+          }
+          return n;
         });
 
-        console.log('🔄 Updated notification status:', { notificationId, status });
+        const unreadCount = updatedNotifications.filter(n => !n.read).length;
+
+        set({
+          notifications: updatedNotifications,
+          unreadCount
+        });
+
+        console.log('🔄 Updated notification status:', { notificationId, status, unreadCount });
       },
 
       getUnreadNotifications: () => {

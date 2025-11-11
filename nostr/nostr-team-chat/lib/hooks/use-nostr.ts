@@ -1,10 +1,10 @@
 /**
- * React Hook for Nostr Integration
- * Provides easy-to-use Nostr functionality with proper state management
+ * React Hook for Nostr Integration using nostr-login
+ * Simplified version that relies on nostr-login for all authentication
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { nostrWebAdapter, type NostrConnectionState } from '@/lib/nostr/web-adapter';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 export interface UseNostrResult {
   // Connection state
@@ -18,82 +18,180 @@ export interface UseNostrResult {
   // Actions
   connect: () => Promise<void>;
   refresh: () => Promise<void>;
-  signEvent: (event: any) => Promise<any>;
+  reconnect: () => Promise<void>;
+  signEvent: (event: Record<string, unknown>) => Promise<Record<string, unknown>>;
   getPublicKey: () => Promise<string>;
-  getRelays: () => Promise<Record<string, any> | null>;
+  getRelays: () => Promise<Record<string, unknown> | null>;
 
   // Utilities
   supportsNIP: (nipNumber: number) => boolean;
+  checkHealth: () => Promise<{ healthy: boolean; error?: string }>;
 }
 
 /**
- * Custom hook for Nostr functionality
+ * Custom hook for Nostr functionality using nostr-login
  */
 export function useNostr(): UseNostrResult {
-  const [state, setState] = useState<NostrConnectionState>(nostrWebAdapter.getState());
+  const { isAuthenticated, pubkey } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const [extensionName, setExtensionName] = useState<string>('');
 
-  // Subscribe to state changes
+  // Check if window.nostr is available
+  const isAvailable = typeof window !== 'undefined' && !!window.nostr;
+
+  // Detect extension name
   useEffect(() => {
-    const unsubscribe = nostrWebAdapter.onStateChange(setState);
-    return unsubscribe;
-  }, []);
+    if (typeof window === 'undefined') return;
 
-  // Connect to extension
+    if ((window as any).alby) {
+      setExtensionName('Alby');
+    } else if ((window as any).nos2x) {
+      setExtensionName('nos2x');
+    } else if (window.nostr) {
+      // Check if it's nostr-login managed
+      setExtensionName('Nostr Login');
+    }
+  }, [isAvailable]);
+
+  // Launch nostr-login modal for authentication
   const connect = useCallback(async () => {
     try {
-      await nostrWebAdapter.connect();
+      setIsLoading(true);
+      setError(undefined);
+
+      const { launch } = await import('nostr-login');
+      await launch('welcome');
     } catch (error) {
-      console.error('Failed to connect to Nostr extension:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to launch nostr-login';
+      setError(errorMessage);
+      console.error('Failed to launch nostr-login:', error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  // Refresh connection
+  // Refresh connection (same as connect for nostr-login)
   const refresh = useCallback(async () => {
+    await connect();
+  }, [connect]);
+
+  // Manual reconnect (same as connect for nostr-login)
+  const reconnect = useCallback(async () => {
+    await connect();
+  }, [connect]);
+
+  // Sign event using window.nostr
+  const signEvent = useCallback(async (event: Record<string, unknown>) => {
+    if (!window.nostr) {
+      throw new Error('Nostr not available. Please connect first.');
+    }
+
     try {
-      await nostrWebAdapter.refresh();
+      return await window.nostr.signEvent(event);
     } catch (error) {
-      console.error('Failed to refresh Nostr connection:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sign event';
+
+      if (errorMessage.includes('not found') || errorMessage.includes('undefined')) {
+        throw new Error('Connection to key storage lost. Please check if nsec.app tab is still open and reconnect.');
+      }
+
+      throw new Error(errorMessage);
     }
   }, []);
 
-  // Sign event
-  const signEvent = useCallback(async (event: any) => {
-    return await nostrWebAdapter.signEvent(event);
-  }, []);
-
-  // Get public key
+  // Get public key using window.nostr
   const getPublicKey = useCallback(async () => {
-    return await nostrWebAdapter.getPublicKey();
+    if (!window.nostr) {
+      throw new Error('Nostr not available. Please connect first.');
+    }
+
+    try {
+      return await window.nostr.getPublicKey();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get public key';
+
+      if (errorMessage.includes('not found') || errorMessage.includes('undefined')) {
+        throw new Error('Connection to key storage lost. Please check if nsec.app tab is still open and reconnect.');
+      }
+
+      throw new Error(errorMessage);
+    }
   }, []);
 
-  // Get relays
+  // Get relays from extension
   const getRelays = useCallback(async () => {
-    return await nostrWebAdapter.getRelays();
+    if (!window.nostr) return null;
+
+    try {
+      if ((window.nostr as any).getRelays) {
+        return await (window.nostr as any).getRelays();
+      }
+      return null;
+    } catch (error) {
+      console.warn('Failed to get relays from extension:', error);
+      return null;
+    }
   }, []);
 
   // Check NIP support
   const supportsNIP = useCallback((nipNumber: number) => {
-    return nostrWebAdapter.supportsNIP(nipNumber);
+    if (!window.nostr) return false;
+
+    switch (nipNumber) {
+      case 4: // NIP-04 (encrypted DMs)
+        return !!(window.nostr as any).nip04;
+      case 44: // NIP-44 (encrypted events)
+        return !!(window.nostr as any).nip44;
+      default:
+        return false;
+    }
+  }, []);
+
+  // Check extension health
+  const checkHealth = useCallback(async () => {
+    if (!window.nostr) {
+      return { healthy: false, error: 'Extension not found' };
+    }
+
+    try {
+      const pubkey = await Promise.race([
+        window.nostr.getPublicKey(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+      ]);
+
+      return { healthy: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      if (errorMessage.includes('not found') || errorMessage.includes('undefined')) {
+        return { healthy: false, error: 'Connection to key storage lost - nsec.app tab may be closed' };
+      }
+
+      return { healthy: false, error: errorMessage };
+    }
   }, []);
 
   return {
-    // State
-    isAvailable: state.isAvailable,
-    isConnected: state.isConnected,
-    isLoading: state.isLoading,
-    extensionName: state.extensionName,
-    pubkey: state.pubkey,
-    error: state.error,
+    // State - derived from auth store and window.nostr
+    isAvailable,
+    isConnected: isAuthenticated && !!pubkey && isAvailable,
+    isLoading,
+    extensionName: extensionName || 'Nostr Extension',
+    pubkey,
+    error,
 
     // Actions
     connect,
     refresh,
+    reconnect,
     signEvent,
     getPublicKey,
     getRelays,
 
     // Utilities
     supportsNIP,
+    checkHealth,
   };
 }
 
@@ -107,15 +205,8 @@ export function useNostrReady(): boolean {
 
 /**
  * Hook that automatically connects when extension becomes available
+ * Note: With nostr-login, this is handled automatically, so this just returns the nostr state
  */
 export function useNostrAutoConnect(): UseNostrResult {
-  const nostr = useNostr();
-
-  useEffect(() => {
-    if (nostr.isAvailable && !nostr.isConnected && !nostr.isLoading) {
-      nostr.connect().catch(console.error);
-    }
-  }, [nostr.isAvailable, nostr.isConnected, nostr.isLoading, nostr.connect]);
-
-  return nostr;
+  return useNostr();
 }

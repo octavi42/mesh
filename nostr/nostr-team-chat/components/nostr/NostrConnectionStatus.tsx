@@ -7,6 +7,7 @@
 
 import { AlertCircle, CheckCircle, Loader2, RefreshCw, Zap } from 'lucide-react';
 import { useNostr } from '@/lib/hooks/use-nostr';
+import { NostrLoginButton } from '@/components/auth/NostrLoginButton';
 
 interface NostrConnectionStatusProps {
   className?: string;
@@ -20,15 +21,6 @@ export function NostrConnectionStatus({
   onConnect
 }: NostrConnectionStatusProps) {
   const nostr = useNostr();
-
-  const handleConnect = async () => {
-    try {
-      await nostr.connect();
-      onConnect?.();
-    } catch (error) {
-      console.error('Failed to connect:', error);
-    }
-  };
 
   const handleRefresh = async () => {
     try {
@@ -85,13 +77,7 @@ export function NostrConnectionStatus({
           <AlertCircle className="w-4 h-4" />
           <span className="text-sm">Nostr extension detected</span>
         </div>
-        <button
-          onClick={handleConnect}
-          className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-        >
-          <Zap className="w-3 h-3" />
-          Connect
-        </button>
+        <NostrLoginButton variant="inline" />
         {showDetails && nostr.error && (
           <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
             {nostr.error}

@@ -7,6 +7,8 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { IconBar } from './IconBar';
 import { Sidebar } from './Sidebar';
 import { AccountSheet } from '@/components/sheets/account-sheet';
+import { ConnectionManager } from '@/components/ui/connection-manager';
+import { ConnectionHealthMonitor, ReconnectButton } from '@/components/auth/ConnectionHealthMonitor';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -104,6 +106,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Sidebar isOpen={sidebarOpen} />
 
       <main className="flex-1 overflow-hidden">
+        <ConnectionHealthMonitor />
+        <ReconnectButton />
+        <ConnectionManager />
         {children}
       </main>
     </div>

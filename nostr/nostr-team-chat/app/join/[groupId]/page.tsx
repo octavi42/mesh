@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Zap, CheckCircle, AlertCircle, Loader2, ArrowRight, UserPlus } from 'lucide-react';
-import { acceptRelayInvite, isWorkspaceMember } from '@/lib/nostr/invites';
+import { acceptRelayInvite, isWorkspaceAdmin } from '@/lib/nostr/invites';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store';
 
@@ -75,7 +75,7 @@ export default function JoinPage() {
       // Check if user is already a member (if authenticated)
       if (isAuthenticated && pubkey) {
         try {
-          const isMember = await isWorkspaceMember(preAuth.fullGroupId, pubkey);
+          const isMember = await isWorkspaceAdmin(preAuth.fullGroupId, pubkey);
           if (isMember) {
             console.log('ℹ️ User is already a member of this workspace');
             setStatus('already-member');

@@ -51,8 +51,16 @@ export function useNIP29Workspaces() {
       return;
     }
 
-    if (!ndk || !pubkey || !isConnected) {
-      console.log('⏭️ Skipping NIP-29 workspace subscription: missing requirements');
+    if (!ndk || !pubkey) {
+      console.log('⏭️ Skipping NIP-29 workspace subscription: missing basic requirements');
+      return;
+    }
+
+    // Check if we have a signer (required for authenticated access)
+    if (!ndk.signer) {
+      console.log('⏭️ Skipping NIP-29 workspace subscription: no signer attached', {
+        message: 'Use "Connect to Relay" button to attach signer and fetch workspaces'
+      });
       return;
     }
 
@@ -277,10 +285,14 @@ export function useNIP29Workspaces() {
           }))
         });
 
-        // Check if we have properly connected/authenticated relays
-        const connectedRelays = allRelays.filter(r => r.status === 2 || r.status === 5 || r.status === 6);
-        if (connectedRelays.length === 0) {
-          console.warn('📡 No connected/authenticated relays available, waiting...');
+        // Check if we have usable relays - be more inclusive for status checks
+        const usableRelays = allRelays.filter(relay => {
+          // Accept any status >= 1 (connected states) or explicit connectivity status
+          // This includes status 7 which seems to be an authenticated state
+          return relay.status >= 1 || relay.connectivity?.status === 'connected';
+        });
+        if (usableRelays.length === 0) {
+          console.warn('📡 No connected relays available, waiting...');
           // Wait a bit for authentication
           await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -451,7 +463,7 @@ export function useNIP29Workspaces() {
       }
     };
 
-  }, [ndk, pubkey, isConnected]); // Run when auth/connection is ready, but only once per session
+  }, [ndk, pubkey, ndk?.signer]); // Run when signer is ready, but only once per session
 }
 
 // Hook to create a new workspace

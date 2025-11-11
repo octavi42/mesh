@@ -7,6 +7,7 @@ import { SHEET_ANIMATIONS } from '@/lib/constants/sheet-animations';
 import { NotificationDetailSheet } from './notification-detail-sheet';
 import { useNotificationStore } from '@/lib/stores/notification-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useNotificationSync } from '@/lib/hooks/use-notification-sync';
 import type { Notification } from '@/lib/db/schema';
 import './notifications-sheet.css';
 
@@ -27,12 +28,40 @@ export function NotificationsSheet({ trigger }: NotificationsSheetProps) {
     markAsRead
   } = useNotificationStore();
 
+  // Enable real-time notification sync
+  useNotificationSync();
+
   // Fetch notifications from relay when user pubkey becomes available
   useEffect(() => {
     if (pubkey) {
       console.log('🔄 Fetching fresh notifications from relay for user:', pubkey);
       fetchNotificationsFromRelay(pubkey, 24); // Last 24 hours
     }
+  }, [pubkey, fetchNotificationsFromRelay]);
+
+  // Refresh notifications when app regains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      if (pubkey) {
+        console.log('🔄 App focused, refreshing notifications for user:', pubkey);
+        fetchNotificationsFromRelay(pubkey, 24);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && pubkey) {
+        console.log('🔄 App became visible, refreshing notifications for user:', pubkey);
+        fetchNotificationsFromRelay(pubkey, 24);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [pubkey, fetchNotificationsFromRelay]);
 
   // Filter notifications for current user

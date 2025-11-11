@@ -1,202 +1,148 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { LogIn, LogOut, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
-import { useAuthStore } from '@/lib/auth/auth-state-manager';
-import type { AuthMethod } from '@/lib/auth/types';
+import { useState } from 'react';
+import { LogIn, LogOut, User } from 'lucide-react';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 interface NostrLoginButtonProps {
   className?: string;
+  variant?: 'button' | 'inline';
 }
 
-export function NostrLoginButton({ className = '' }: NostrLoginButtonProps) {
-  const router = useRouter();
-  const {
-    state,
-    session,
-    capabilities,
-    error,
-    isAuthenticated,
-    isLoading,
-    canRetry,
-    getRecommendedMethod,
-    dispatch,
-  } = useAuthStore();
+export function NostrLoginButton({ className = '', variant = 'button' }: NostrLoginButtonProps) {
+  const { isAuthenticated, pubkey, clearAuth } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (method?: AuthMethod) => {
-    const authMethod = method || getRecommendedMethod();
-    if (!authMethod) {
-      console.warn('No authentication method available');
-      return;
+  const handleLogin = async () => {
+    try {
+      setIsLoading(true);
+      const { launch } = await import('nostr-login');
+
+      console.log('🚀 Launching nostr-login modal...');
+
+      // Launch with specific screen for better UX
+      await launch('welcome');
+
+      console.log('✅ nostr-login modal launched successfully');
+    } catch (error) {
+      console.error('❌ Failed to launch nostr-login:', error);
+
+      // If popup blocked or other issue, provide guidance
+      if (error instanceof Error) {
+        if (error.message.includes('popup') || error.message.includes('blocked')) {
+          const userConfirmed = confirm(
+            'Popup blocked! This prevents nsec.app from opening.\n\n' +
+            'Please allow popups for this site and try again.\n\n' +
+            'Click OK to manually open nsec.app in a new tab.'
+          );
+          if (userConfirmed) {
+            window.open('https://nsec.app', '_blank');
+            alert(
+              'nsec.app opened in a new tab.\n\n' +
+              'Instructions:\n' +
+              '1. Complete the setup in nsec.app\n' +
+              '2. Keep that tab active and visible\n' +
+              '3. Return here and try connecting again\n\n' +
+              'Note: nsec.app must stay active to respond to signing requests.'
+            );
+          }
+        }
+      }
+    } finally {
+      setIsLoading(false);
     }
-
-    await dispatch({ type: 'LOGIN', method: authMethod });
   };
 
   const handleLogout = async () => {
-    await dispatch({ type: 'LOGOUT' });
-  };
-
-  const handleRetry = async () => {
-    if (error?.retryable) {
-      await dispatch({ type: 'CHECK_CAPABILITIES' });
+    try {
+      setIsLoading(true);
+      const { logout } = await import('nostr-login');
+      await logout();
+      clearAuth();
+    } catch (error) {
+      console.error('Failed to logout:', error);
+      clearAuth(); // Clear local state even if nostr-login logout fails
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleEnterApp = () => {
-    router.push('/app');
-  };
-
-  // Loading state
-  if (isLoading()) {
-    return (
-      <div className={`flex items-center gap-2 px-5 py-2.5 bg-gray-200 dark:bg-gray-700 rounded-lg ${className}`}>
-        <RefreshCw className="w-4 h-4 animate-spin" />
-        <span className="text-gray-600 dark:text-gray-400">
-          {getLoadingMessage(state)}
-        </span>
-      </div>
-    );
-  }
-
-  // Error state
-  if (state === 'error' && error) {
-    return (
-      <div className={`flex items-center gap-2 ${className}`}>
-        <div className="flex items-center gap-2 px-5 py-2.5 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded-lg">
-          <AlertCircle className="w-4 h-4" />
-          <span className="text-sm">{error.message}</span>
-        </div>
-        {canRetry() && (
+  if (isAuthenticated && pubkey) {
+    if (variant === 'inline') {
+      return (
+        <div className={`flex items-center gap-2 text-sm text-green-600 ${className}`}>
+          <User className="w-4 h-4" />
+          <span className="font-medium">
+            {pubkey.slice(0, 8)}...{pubkey.slice(-4)}
+          </span>
           <button
-            onClick={handleRetry}
-            className="px-3 py-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+            onClick={handleLogout}
+            disabled={isLoading}
+            className="text-xs text-gray-500 hover:text-red-600 transition-colors disabled:opacity-50"
           >
-            Retry
+            <LogOut className="w-3 h-3" />
           </button>
-        )}
-      </div>
-    );
-  }
+        </div>
+      );
+    }
 
-  // Authenticated state
-  if (isAuthenticated() && session) {
     return (
       <div className={`flex items-center gap-3 ${className}`}>
-        <button
-          onClick={handleEnterApp}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
-        >
-          Enter App
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2 text-green-600">
+          <User className="w-4 h-4" />
+          <span className="text-sm font-medium">
+            {pubkey.slice(0, 8)}...{pubkey.slice(-4)}
+          </span>
+        </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+          disabled={isLoading}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
         >
           <LogOut className="w-4 h-4" />
-          Logout
+          {isLoading ? 'Logging out...' : 'Logout'}
         </button>
       </div>
     );
   }
 
-  // Unauthenticated state - show login options based on capabilities
-  if (state === 'unauthenticated' && capabilities) {
-    const recommendedMethod = getRecommendedMethod();
-
+  if (variant === 'inline') {
     return (
-      <div className={`flex items-center gap-2 ${className}`}>
-        {/* Primary login button */}
-        <button
-          onClick={() => handleLogin(recommendedMethod || 'extension')}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
-        >
-          <LogIn className="w-4 h-4" />
-          {getLoginButtonText(recommendedMethod)}
-        </button>
-
-        {/* Alternative methods if available */}
-        {capabilities.availableMethods.length > 1 && (
-          <div className="relative group">
-            <button className="px-3 py-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg text-sm transition-colors">
-              More Options
-            </button>
-            <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-              <div className="py-1 min-w-40">
-                {capabilities.availableMethods
-                  .filter(method => method !== recommendedMethod)
-                  .map(method => (
-                    <button
-                      key={method}
-                      onClick={() => handleLogin(method)}
-                      className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      {getMethodDisplayName(method)}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <button
+        onClick={handleLogin}
+        disabled={isLoading}
+        className={`flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 ${className}`}
+      >
+        <LogIn className="w-4 h-4" />
+        {isLoading ? 'Opening nsec.app...' : 'Connect Keys'}
+      </button>
     );
   }
 
-  // Default fallback
   return (
     <button
-      onClick={() => handleLogin()}
-      className={`flex items-center gap-2 px-5 py-2.5 bg-gray-400 text-white rounded-lg font-medium cursor-not-allowed ${className}`}
-      disabled
+      onClick={handleLogin}
+      disabled={isLoading}
+      className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
     >
       <LogIn className="w-4 h-4" />
-      Connect Nostr
+      {isLoading ? 'Opening nsec.app...' : 'Connect with Nostr'}
     </button>
   );
 }
 
-function getLoadingMessage(state: string): string {
-  switch (state) {
-    case 'checking-capabilities':
-      return 'Detecting auth options...';
-    case 'checking-session':
-      return 'Checking session...';
-    case 'authenticating':
-      return 'Connecting...';
-    case 'refreshing':
-      return 'Refreshing...';
-    default:
-      return 'Loading...';
-  }
-}
+/**
+ * Simple status indicator showing connection state
+ */
+export function NostrConnectionIndicator({ className = '' }: { className?: string }) {
+  const { isAuthenticated } = useAuthStore();
 
-function getLoginButtonText(method: AuthMethod | null): string {
-  switch (method) {
-    case 'extension':
-      return 'Connect Extension';
-    case 'mobile':
-      return 'Connect Mobile';
-    case 'remote':
-      return 'Connect Remote';
-    case 'local':
-      return 'Use Local Key';
-    default:
-      return 'Connect Nostr';
-  }
-}
-
-function getMethodDisplayName(method: AuthMethod): string {
-  switch (method) {
-    case 'extension':
-      return 'Browser Extension';
-    case 'mobile':
-      return 'Mobile App';
-    case 'remote':
-      return 'Remote Signer';
-    case 'local':
-      return 'Local Key';
-    default:
-      return method;
-  }
+  return (
+    <div
+      className={`w-2 h-2 rounded-full ${
+        isAuthenticated ? 'bg-green-400' : 'bg-gray-400'
+      } ${className}`}
+      title={isAuthenticated ? 'Connected to Nostr' : 'Not connected'}
+    />
+  );
 }

@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { UserPlus, CheckCircle, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
-import { acceptRelayInvite, getInviteForPage, isWorkspaceMember } from '@/lib/nostr/invites';
+import { acceptRelayInvite, getInviteByCode, isWorkspaceAdmin } from '@/lib/nostr/invites';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store';
+import { useNotificationStore } from '@/lib/stores/notification-store';
 
 interface InviteData {
   inviteCode: string;
@@ -34,6 +35,7 @@ export default function InvitePage() {
 
   const { pubkey, isAuthenticated } = useAuthStore();
   const { fetchWorkspaces } = useWorkspaceStore();
+  const { updateNotificationStatus } = useNotificationStore();
 
   // Load invite data from localStorage or relay
   const loadInviteData = useCallback(async () => {
@@ -44,7 +46,7 @@ export default function InvitePage() {
       console.log('🔍 Looking for invite:', inviteCode);
 
       // Use improved invite retrieval function
-      const invite = await getInviteForPage(inviteCode);
+      const invite = await getInviteByCode(inviteCode);
 
       if (!invite) {
         console.log('❌ Invite not found:', inviteCode);
@@ -65,7 +67,7 @@ export default function InvitePage() {
       // Check if user is already a member (if authenticated)
       if (isAuthenticated && pubkey) {
         try {
-          const isMember = await isWorkspaceMember(invite.fullGroupId, pubkey);
+          const isMember = await isWorkspaceAdmin(invite.fullGroupId, pubkey);
           if (isMember) {
             console.log('ℹ️ User is already a member of this workspace');
             setStatus('already-member');
@@ -113,6 +115,22 @@ export default function InvitePage() {
       );
 
       console.log('✅ Invite accepted successfully:', { eventId });
+
+      // Update any related notifications in the store
+      try {
+        const notifications = useNotificationStore.getState().notifications;
+        const relatedNotification = notifications.find(n =>
+          n.type === 'invite' &&
+          n.data?.inviteCode === inviteData.inviteCode
+        );
+
+        if (relatedNotification) {
+          console.log('🔄 Updating related notification status to accepted');
+          updateNotificationStatus(relatedNotification.id, 'accepted');
+        }
+      } catch (error) {
+        console.warn('Failed to update notification status:', error);
+      }
 
       // Refresh workspaces to get the new workspace
       await fetchWorkspaces();

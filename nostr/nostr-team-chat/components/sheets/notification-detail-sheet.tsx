@@ -10,6 +10,7 @@ import { forceRefreshWorkspaces } from '@/lib/hooks/use-nip29-workspaces';
 import { useNDK } from '@/lib/hooks/use-ndk';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
+import { acceptInviteWithRetry, declineInviteWithRetry, deleteInviteWithRetry, handleNotificationError } from '@/lib/utils/notification-utils';
 import type { Notification } from '@/lib/db/schema';
 import './notification-detail-sheet.css';
 
@@ -69,33 +70,27 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
 
       console.log('🎯 Accepting relay invite:', { inviteCode, groupId });
 
-      // Accept the invite via relay (production method)
-      console.log('📤 Sending join request to relay...');
-
       // Show user that they need to approve the signing request
       setStatusMessage('Please approve the signing request in your Nostr extension (e.g., Alby)...');
 
-      // Add timeout to prevent infinite hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Signing timeout - please check your Nostr extension and try again')), 45000)
-      );
+      // Use retry logic for accepting invite
+      await acceptInviteWithRetry(notification.id, async () => {
+        // Add timeout to prevent infinite hanging
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Signing timeout - please check your Nostr extension and try again')), 45000)
+        );
 
-      const acceptPromise = acceptRelayInvite(groupId, inviteCode, 'Accepted invitation');
+        const acceptPromise = acceptRelayInvite(groupId, inviteCode, 'Accepted invitation');
+        const { eventId } = await Promise.race([acceptPromise, timeoutPromise]);
+        console.log('✅ Join request sent successfully:', eventId);
+      });
 
-      const { eventId } = await Promise.race([acceptPromise, timeoutPromise]);
-      console.log('✅ Join request sent successfully:', eventId);
-
-      // Update notification status to accepted
-      updateNotificationStatus(notification.id, 'accepted');
-
-      // Only proceed with success actions if we got here without timeout
+      // Only proceed with success actions if we got here without errors
       console.log('🔄 Forcing workspace refresh...');
       forceRefreshWorkspaces();
 
       setActionStatus('success');
       setStatusMessage(`Successfully joined workspace! The workspace should appear in your list shortly.`);
-
-      console.log('✅ Invite accepted via relay:', { eventId, groupId, inviteCode });
 
       // Remove the notification after a short delay to show the accepted status
       setTimeout(() => {
@@ -112,15 +107,8 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
       console.error('❌ Failed to accept invite:', error);
       setActionStatus('error');
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      if (errorMessage.includes('timeout') || errorMessage.includes('Signing timeout')) {
-        setStatusMessage('Signing timed out. Please check your Nostr extension (like Alby) and ensure popups are allowed, then try again.');
-      } else if (errorMessage.includes('User rejected') || errorMessage.includes('cancelled')) {
-        setStatusMessage('You cancelled the signing request. Click "Accept Invitation" again if you want to join the workspace.');
-      } else {
-        setStatusMessage(`Failed to join workspace: ${errorMessage}`);
-      }
+      const friendlyMessage = handleNotificationError(error as Error, 'accept invitation');
+      setStatusMessage(friendlyMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -135,11 +123,10 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
     try {
       const { inviteCode, groupId } = notification.data;
 
-      // Send decline event to relay
-      await declineInvite(groupId as string, inviteCode as string);
-
-      // Update notification status
-      updateNotificationStatus(notification.id, 'declined');
+      // Use retry logic for declining invite
+      await declineInviteWithRetry(notification.id, async () => {
+        await declineInvite(groupId as string, inviteCode as string);
+      });
 
       setActionStatus('success');
       setStatusMessage('Invite declined');
@@ -152,7 +139,9 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
     } catch (error) {
       console.error('Failed to decline invite:', error);
       setActionStatus('error');
-      setStatusMessage('Failed to decline invite');
+
+      const friendlyMessage = handleNotificationError(error as Error, 'decline invitation');
+      setStatusMessage(friendlyMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -167,11 +156,10 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
     try {
       const { inviteCode, groupId } = notification.data;
 
-      // Send delete event to relay
-      await deleteInvite(groupId as string, inviteCode as string);
-
-      // Update notification status to deleted
-      updateNotificationStatus(notification.id, 'deleted');
+      // Use retry logic for deleting invite
+      await deleteInviteWithRetry(notification.id, async () => {
+        await deleteInvite(groupId as string, inviteCode as string);
+      });
 
       setActionStatus('success');
       setStatusMessage('Invite deleted');
@@ -184,7 +172,9 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
     } catch (error) {
       console.error('Failed to delete invite:', error);
       setActionStatus('error');
-      setStatusMessage('Failed to delete invite');
+
+      const friendlyMessage = handleNotificationError(error as Error, 'delete invitation');
+      setStatusMessage(friendlyMessage);
     } finally {
       setIsProcessing(false);
     }

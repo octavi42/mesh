@@ -509,10 +509,13 @@ export class DataManager {
     return Promise.race([
       new Promise<void>((resolve) => {
         const checkConnection = () => {
-          const connectedRelays = Array.from(this.ndk.pool.relays.values())
-            .filter(r => r.status === 2 || r.status === 5 || r.status === 6);
+          const usableRelays = Array.from(this.ndk.pool.relays.values())
+            .filter(relay => {
+              // Accept any status >= 1 (connected states) including status 7 (authenticated)
+              return relay.status >= 1 || relay.connectivity?.status === 'connected';
+            });
 
-          if (connectedRelays.length > 0) {
+          if (usableRelays.length > 0) {
             resolve();
           } else {
             setTimeout(checkConnection, 100);

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import NDK, { NDKEvent, NDKSigner, NDKUser } from '@nostr-dev-kit/ndk';
 import { NDKSubscription } from '@nostr-dev-kit/ndk';
 
@@ -12,6 +12,14 @@ interface NDKContextValue {
   attachSigner: (signer: NDKSigner) => Promise<void>;
   publish: (event: NDKEvent) => Promise<void>;
   subscribe: (filters: any) => NDKSubscription | null;
+  checkSignerHealth: () => Promise<boolean>;
+  connectionStatus: ConnectionStatus;
+}
+
+interface ConnectionStatus {
+  isHealthy: boolean;
+  lastPingTime: number;
+  isSignerResponsive: boolean;
 }
 
 const NDKContext = createContext<NDKContextValue | null>(null);
@@ -23,71 +31,71 @@ interface NDKProviderProps {
 
 export function NDKProvider({
   children,
-  relayUrls = [
-    'wss://groups.contextio.app'
-  ]
+  relayUrls: relayUrlsProp = ['wss://groups.contextio.app']
 }: NDKProviderProps) {
   const [ndk, setNdk] = useState<NDK | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [user, setUser] = useState<NDKUser | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
+    isHealthy: true,
+    lastPingTime: Date.now(),
+    isSignerResponsive: true
+  });
+
+  const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const initializeNDK = async () => {
-      console.log('🔧 Initializing NDK (without connecting to relays yet)');
+      console.log('🔧 Initializing NDK with signer-first approach');
       setIsConnecting(true);
 
       try {
-        // Create NDK instance but don't connect yet since groups.contextio.app requires auth
+        const { getBunkerRelays, requiresBunkerRelay, getAuthStatus } = await import('@/lib/nostr/signer-manager');
+        const authStatus = getAuthStatus();
+
+        const relayUrls = requiresBunkerRelay(authStatus.authMethod)
+          ? [...relayUrlsProp, ...getBunkerRelays()]
+          : relayUrlsProp;
+
+        let signer = null;
+
+        // Check for existing auth session
+        const storedPubkey = localStorage.getItem('nostr-pubkey');
+        const authMethod = localStorage.getItem('nostr-auth-method');
+        const hasExtension = typeof window !== 'undefined' && window.nostr;
+
+        // Create signer if we have an active session (like test app does)
+        if (authMethod === 'extension' && hasExtension) {
+          const { NDKNip07Signer } = await import('@nostr-dev-kit/ndk');
+          signer = new NDKNip07Signer();
+          console.log('🔑 Created NDKNip07Signer for extension auth');
+        } else if (authMethod === 'nip46') {
+          const storedBunkerToken = localStorage.getItem('nostr-bunker-token');
+          if (storedBunkerToken && storedPubkey) {
+            const prelude = await import('@nostr-dev-kit/ndk');
+            const { NDKNip46Signer } = prelude;
+            signer = new NDKNip46Signer(new NDK({ explicitRelayUrls: relayUrls }), storedPubkey, storedBunkerToken);
+            console.log('🔑 Created NDKNip46Signer for NIP-46 auth');
+          }
+        } else if (!authMethod && hasExtension) {
+          // No stored method but extension available - this is nsec.app
+          const { NDKNip07Signer } = await import('@nostr-dev-kit/ndk');
+          signer = new NDKNip07Signer();
+          console.log('🔑 Created NDKNip07Signer for nsec.app (detected)');
+        }
+
+        // Create NDK instance WITH signer attached (this is the key difference)
         const ndkInstance = new NDK({
           explicitRelayUrls: relayUrls,
           outboxRelayUrls: relayUrls,
+          signer: signer, // Attach signer IMMEDIATELY
         });
 
-        // Set up event listeners
+        // Set up basic event listeners
         ndkInstance.pool.on('relay:connect', (relay) => {
           console.log('✅ NDK connected to relay:', relay.url);
-
-          // Set up explicit auth policy like the working groups_relay implementation
-          relay.authPolicy = async (relay, challenge) => {
-            try {
-              console.log('🔐 Custom auth policy triggered for:', relay.url, 'challenge:', challenge?.slice(0, 16));
-
-              // Get the signer from the NDK instance
-              const signer = ndkInstance.signer;
-              if (!signer) {
-                console.warn('⚠️ No signer available for auth yet - auth will be retried when signer is attached');
-                throw new Error("No signer available");
-              }
-
-              console.log('🔐 Signer found, creating auth event...');
-
-              // Create an auth event
-              const { NDKEvent } = await import('@nostr-dev-kit/ndk');
-              const authEvent = new NDKEvent(ndkInstance);
-              authEvent.kind = 22242;
-
-              // Remove trailing slash from relay URL to match server expectations
-              const cleanRelayUrl = relay.url.replace(/\/$/, '');
-
-              authEvent.tags = [
-                ["relay", cleanRelayUrl],
-                ["challenge", challenge]
-              ];
-              authEvent.created_at = Math.floor(Date.now() / 1000);
-
-              // Sign the event
-              await authEvent.sign(signer);
-
-              console.log('🔐 Auth event created and signed:', authEvent.id?.slice(0, 8));
-
-              // Return the signed event
-              return authEvent;
-            } catch (error) {
-              console.error("❌ Auth policy error:", error);
-              throw error;
-            }
-          };
         });
 
         ndkInstance.pool.on('relay:disconnect', (relay) => {
@@ -100,34 +108,43 @@ export function NDKProvider({
 
         ndkInstance.pool.on('relay:auth', async (relay, challenge) => {
           console.log('🔐 NDK AUTH challenge from relay:', relay.url, 'challenge:', challenge?.slice(0, 16));
-          console.log('🔐 Relay status before auth:', relay.status);
-          console.log('🔐 NDK signer available:', !!ndkInstance.signer);
-          console.log('🔐 Relay object details:', {
-            url: relay.url,
-            status: relay.status,
-            hasConnectivity: !!relay.connectivity,
-            connectivityStatus: relay.connectivity?.status,
-            hasAuth: !!relay.auth,
-            hasSocket: !!relay.socket
-          });
-
-          // Auth policy should handle this automatically now
-          console.log('🔐 Auth policy should handle authentication...');
-
-          // Check if auth was successful
-          setTimeout(() => {
-            console.log('🔐 Relay status after auth delay:', relay.status);
-            console.log('🔐 Final relay state:', {
-              status: relay.status,
-              connectivity: relay.connectivity?.status,
-              authenticated: relay.authenticated
-            });
-          }, 3000);
         });
 
-        // Don't connect to relays yet - wait for signer to be attached
+        // Connect immediately if we have a signer (like test app)
+        if (signer) {
+          console.log('🔌 Connecting to relays with pre-attached signer...');
+          await ndkInstance.connect();
+
+          // Give it time for authentication (test app uses 3000ms)
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // Check connection status
+          const allRelays = Array.from(ndkInstance.pool.relays.values());
+          const connectedRelay = allRelays.find(relay => relay.status === 1);
+
+          if (connectedRelay) {
+            console.log('✅ Successfully connected to relay:', connectedRelay.url);
+            setIsConnected(true);
+
+            // Try to get user from signer
+            try {
+              const user = await signer.user();
+              setUser(user);
+              console.log('✅ User retrieved from signer:', user.pubkey.slice(0, 8));
+            } catch (error) {
+              console.warn('⚠️ Could not get user from signer:', error);
+            }
+          } else {
+            console.warn('⚠️ No connected relays after initial connection attempt');
+          }
+        }
+
         setNdk(ndkInstance);
-        console.log('✅ NDK initialized (ready for signer attachment)');
+
+        const { setGlobalNDKInstance } = await import('@/lib/nostr/ndk-relay-client');
+        setGlobalNDKInstance(ndkInstance);
+
+        console.log('✅ NDK initialized with signer-first approach');
       } catch (error) {
         console.error('❌ Failed to initialize NDK:', error);
       } finally {
@@ -137,7 +154,6 @@ export function NDKProvider({
 
     initializeNDK();
 
-    // Cleanup on unmount
     return () => {
       if (ndk) {
         console.log('🧹 Cleaning up NDK connections');
@@ -146,112 +162,144 @@ export function NDKProvider({
     };
   }, []);
 
-  const attachSigner = async (signer: NDKSigner) => {
-    if (!ndk) {
-      console.warn('⚠️ NDK not initialized yet, cannot attach signer');
-      return;
+  const checkSignerHealth = async (): Promise<boolean> => {
+    if (!ndk?.signer) {
+      setConnectionStatus(prev => ({
+        ...prev,
+        isHealthy: false,
+        isSignerResponsive: false
+      }));
+      return false;
     }
 
-    console.log('🔑 Attaching signer to NDK');
-    ndk.signer = signer;
-
-    // Get user from signer
-    const userFromSigner = await signer.user();
-    setUser(userFromSigner);
-
-    console.log('✅ Signer attached, user:', userFromSigner.pubkey.slice(0, 8));
-
-    // Now connect to relays with authentication capability
-    console.log('🔌 Connecting to relays with authentication...');
-    console.log('🔐 Signer check before connect:', !!ndk.signer);
-    console.log('🔐 User check before connect:', !!userFromSigner);
-
     try {
-      await ndk.connect();
+      const pubkey = await Promise.race([
+        (ndk.signer as any).user?.() || ndk.signer.getPublicKey?.(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+      ]);
 
-      // Force reconnection to trigger auth with signer now available
-      console.log('🔐 Forcing relay reconnection with signer available...');
-      const relays = Array.from(ndk.pool.relays.values());
-      for (const relay of relays) {
-        if (relay.status !== 1) { // Not connected
-          try {
-            console.log('🔄 Reconnecting to relay:', relay.url);
-            await relay.connect();
-          } catch (error) {
-            console.warn('⚠️ Failed to reconnect to relay:', relay.url, error);
-          }
-        }
-      }
-
-      // Wait for actual authentication, not just connection
-      console.log('🔐 Waiting for relay authentication...');
-
-      const authPromise = new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          console.error('❌ Authentication timeout after 10 seconds');
-          reject(new Error('Authentication timeout'));
-        }, 10000);
-
-        const checkAuth = () => {
-          const allRelays = Array.from(ndk.pool.relays.values());
-          console.log('🔍 Checking relay authentication status:', allRelays.map(r => ({
-            url: r.url,
-            status: r.status,
-            authenticated: r.authenticated
-          })));
-
-          // Look for authenticated relay (status 5 = READY/authenticated)
-          const authRelay = allRelays.find(r => r.status === 5);
-
-          if (authRelay) {
-            console.log('✅ Relay authenticated successfully:', authRelay.url, 'Status:', authRelay.status);
-            clearTimeout(timeout);
-            resolve();
-          }
-        };
-
-        // Listen for authentication events
-        ndk.pool.on('relay:auth', () => {
-          console.log('🔐 Auth event received, checking status...');
-          setTimeout(checkAuth, 100); // Small delay to let status update
-        });
-
-        // Also listen for direct authentication success
-        ndk.pool.on('relay:authed', (relay) => {
-          console.log('🔐 Relay authenticated event:', relay.url);
-          clearTimeout(timeout);
-          resolve();
-        });
-
-        // Check immediately in case already authenticated
-        checkAuth();
-
-        // Also check periodically during the timeout period
-        const checkInterval = setInterval(() => {
-          checkAuth();
-        }, 500);
-
-        // Clear interval when done
-        const originalResolve = resolve;
-        const originalReject = reject;
-        resolve = (...args) => {
-          clearInterval(checkInterval);
-          originalResolve(...args);
-        };
-        reject = (...args) => {
-          clearInterval(checkInterval);
-          originalReject(...args);
-        };
+      const isHealthy = !!pubkey;
+      setConnectionStatus({
+        isHealthy,
+        lastPingTime: Date.now(),
+        isSignerResponsive: isHealthy
       });
 
-      await authPromise;
-      setIsConnected(true);
-      console.log('✅ Successfully connected and authenticated to relays');
-
+      return isHealthy;
     } catch (error) {
-      console.error('❌ Failed to connect or authenticate to relays:', error);
-      setIsConnected(false);
+      console.warn('⚠️ Signer health check failed:', error);
+      setConnectionStatus(prev => ({
+        ...prev,
+        isHealthy: false,
+        isSignerResponsive: false
+      }));
+      return false;
+    }
+  };
+
+  const startKeepAlive = () => {
+    if (keepAliveIntervalRef.current) {
+      clearInterval(keepAliveIntervalRef.current);
+    }
+
+    keepAliveIntervalRef.current = setInterval(async () => {
+      if (ndk?.signer) {
+        try {
+          await (ndk.signer as any).user?.();
+          setConnectionStatus(prev => ({
+            ...prev,
+            lastPingTime: Date.now(),
+            isSignerResponsive: true
+          }));
+        } catch (error) {
+          console.warn('⚠️ Keep-alive ping failed - signer may be unresponsive');
+          setConnectionStatus(prev => ({
+            ...prev,
+            isSignerResponsive: false
+          }));
+        }
+      }
+    }, 60000);
+  };
+
+  const startHealthMonitoring = () => {
+    if (healthCheckIntervalRef.current) {
+      clearInterval(healthCheckIntervalRef.current);
+    }
+
+    healthCheckIntervalRef.current = setInterval(async () => {
+      const timeSinceLastPing = Date.now() - connectionStatus.lastPingTime;
+
+      if (timeSinceLastPing > 90000) { // 90 seconds without response
+        console.warn(`⚠️ No signer response for ${Math.floor(timeSinceLastPing / 1000)}s - may be suspended`);
+        setConnectionStatus(prev => ({
+          ...prev,
+          isHealthy: false
+        }));
+      }
+    }, 30000);
+  };
+
+  const attachSigner = async (signer: NDKSigner, retryCount: number = 0) => {
+    if (!ndk) {
+      console.warn('⚠️ NDK not initialized yet, cannot attach signer');
+      throw new Error('NDK not initialized');
+    }
+
+    console.log('🔑 Attaching signer to existing NDK instance (post-creation)...');
+    ndk.signer = signer;
+
+    const authMethod = localStorage.getItem('nostr-auth-method');
+    const needsAuthPolicy = authMethod !== 'nip46';
+
+    if (needsAuthPolicy) {
+      console.log('🔐 Setting up auth policy for NIP-07/extension authentication...');
+      for (const relay of ndk.pool.relays.values()) {
+        relay.authPolicy = async (relay, challenge) => {
+          try {
+            const { NDKEvent } = await import('@nostr-dev-kit/ndk');
+            const authEvent = new NDKEvent(ndk);
+            authEvent.kind = 22242;
+            authEvent.tags = [
+              ["relay", relay.url.replace(/\/$/, '')],
+              ["challenge", challenge]
+            ];
+            authEvent.created_at = Math.floor(Date.now() / 1000);
+            await authEvent.sign(ndk.signer!);
+            return authEvent;
+          } catch (error) {
+            console.error('❌ Auth policy error:', error);
+            throw error;
+          }
+        };
+      }
+    }
+
+    try {
+      console.log('🔍 Getting user from signer...');
+      const userFromSigner = await Promise.race([
+        signer.user(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Signer user() timeout')), 6000))
+      ]);
+      setUser(userFromSigner);
+      console.log('✅ Signer attached and user retrieved');
+    } catch (error) {
+      console.error('❌ Failed to get user from signer:', error);
       throw error;
+    }
+
+    console.log('🔌 Connecting to relays with newly attached signer...');
+    await ndk.connect();
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    const allRelays = Array.from(ndk.pool.relays.values());
+    const connectedRelay = allRelays.find(relay => relay.status === 1);
+
+    if (connectedRelay) {
+      console.log('✅ Connected to relay after signer attachment:', connectedRelay.url);
+      setIsConnected(true);
+    } else {
+      console.warn('⚠️ No relay connection after signer attachment');
     }
   };
 
@@ -295,6 +343,8 @@ export function NDKProvider({
     attachSigner,
     publish,
     subscribe,
+    checkSignerHealth,
+    connectionStatus
   };
 
   return (

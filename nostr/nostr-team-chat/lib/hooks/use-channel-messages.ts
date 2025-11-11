@@ -5,6 +5,16 @@ import { useChatStore } from '@/lib/stores/chat-store';
 import { NDKKind } from '@nostr-dev-kit/ndk';
 import { toast } from 'sonner';
 
+// Helper to detect nsec.app usage
+const isNsecAppStorage = (): boolean => {
+  const authMethod = localStorage.getItem('nostr-auth-method');
+  const hasExtension = typeof window !== 'undefined' && window.nostr;
+  return authMethod === 'nsec' || (!authMethod && hasExtension && window.location.hostname !== 'nsec.app');
+};
+
+// Adaptive timeout constants - extended for nsec.app service worker wake-up
+const CHECK_SIGNER_HEALTH_TIMEOUT = isNsecAppStorage() ? 30000 : 3000;
+
 export interface Message {
   id: string;
   channelId: string;
@@ -14,6 +24,34 @@ export interface Message {
   replyTo?: string;
   isPending?: boolean;
 }
+
+const checkSignerHealth = async (ndk: any, checkOnly: boolean = false): Promise<boolean> => {
+  if (!ndk?.signer) {
+    if (!checkOnly) {
+      toast.error('No signer available. Please ensure nsec.app is connected.', {
+        description: 'Try refreshing nsec.app if it appears unresponsive.'
+      });
+    }
+    return false;
+  }
+
+  try {
+    const pubkey = await Promise.race([
+      (ndk.signer as any).user?.() || ndk.signer.getPublicKey?.(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), CHECK_SIGNER_HEALTH_TIMEOUT))
+    ]);
+
+    return !!pubkey;
+  } catch (error) {
+    if (!checkOnly) {
+      console.error('❌ Signer health check failed:', error);
+      toast.error('Connection to key storage lost', {
+        description: 'nsec.app may have become inactive. Please check the nsec.app tab and reconnect.'
+      });
+    }
+    return false;
+  }
+};
 
 export function useChannelMessages(channelId: string) {
   const { ndk, publish, isConnected } = useNDK();
@@ -27,14 +65,25 @@ export function useChannelMessages(channelId: string) {
       channelId,
       hasNdk: !!ndk,
       isConnected,
+      hasSigner: !!ndk?.signer,
       ndkStatus: ndk ? 'available' : 'missing'
     });
 
-    if (!ndk || !channelId || !isConnected) {
-      console.log('⏭️ Skipping channel messages subscription: missing requirements', {
+    // Check if we have the minimum requirements for fetching messages
+    if (!ndk || !channelId) {
+      console.log('⏭️ Skipping channel messages subscription: missing basic requirements', {
         hasNdk: !!ndk,
-        hasChannelId: !!channelId,
-        isConnected
+        hasChannelId: !!channelId
+      });
+      return;
+    }
+
+    // Check if we have a signer (required for authenticated relay access)
+    if (!ndk.signer) {
+      console.log('⏭️ Skipping channel messages subscription: no signer attached', {
+        hasSigner: !!ndk.signer,
+        isConnected,
+        message: 'Use "Connect to Relay" button to attach signer and fetch messages'
       });
       return;
     }
@@ -191,21 +240,34 @@ export function useChannelMessages(channelId: string) {
 
     const initializeMessages = async () => {
       try {
-        // Verify relay authentication before proceeding
-        const authenticatedRelays = Array.from(ndk.pool.relays.values()).filter(r => r.status === 5);
-        if (authenticatedRelays.length === 0) {
-          console.error('❌ No authenticated relays available for message fetching');
-          console.log('Available relays:', Array.from(ndk.pool.relays.values()).map(r => ({
-            url: r.url,
-            status: r.status,
-            authenticated: r.authenticated
-          })));
+        // Small delay to ensure NDK connection status is fully updated
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Check relay status with improved logic
+        const allRelays = Array.from(ndk.pool.relays.values());
+        console.log('🔍 Checking relay status with improved logic');
+        console.log('🔍 Total relays:', allRelays.length);
+
+        if (allRelays.length === 0) {
+          console.error('❌ No relays found in NDK pool at all');
           setIsLoading(false);
-          setLoadingChannel(false); // Clear chat store loading state on error
+          setLoadingChannel(false);
           return;
         }
 
-        console.log('✅ Found authenticated relays:', authenticatedRelays.map(r => r.url));
+        // Log relay info and check status
+        const usableRelays = allRelays.filter(relay => {
+          const isUsable = relay.status >= 1 || relay.connectivity?.status === 'connected';
+          console.log(`🔍 Relay ${relay.url} status:`, {
+            status: relay.status,
+            statusName: ['disconnected', 'connecting', 'connected', 'reconnecting', 'error', 'authenticated', 'connected_readonly'][relay.status] || `unknown_${relay.status}`,
+            authenticated: relay.authenticated,
+            connectivity: relay.connectivity?.status,
+            isUsable: isUsable
+          });
+          return isUsable;
+        });
+        console.log('✅ Found usable relays:', usableRelays.map(r => r.url));
 
         // PHASE 1: HISTORICAL MESSAGES FETCH (like working test app)
         console.log('📜 PHASE 1: Fetching historical messages...');
@@ -213,7 +275,7 @@ export function useChannelMessages(channelId: string) {
         const filter = {
           kinds: [9, 11] as NDKKind[], // GroupChatMessage (NIP-29) and EncryptedDM
           "#h": [workspaceId], // Filter by group ID
-          limit: 250 // Match working test app limit
+          limit: 50 // Reduce limit to test if it's a performance issue
         };
 
         // Also fetch deletion events to process deleted messages
@@ -223,11 +285,293 @@ export function useChannelMessages(channelId: string) {
           limit: 100
         };
 
-        console.log('📜 Message fetch filter:', filter);
-        console.log('🗑️ Deletion fetch filter:', deletionFilter);
+        console.log('📜 Message fetch filter:', JSON.stringify(filter, null, 2));
+        console.log('🗑️ Deletion fetch filter:', JSON.stringify(deletionFilter, null, 2));
+        console.log('🔍 Channel parsing details:', {
+          originalChannelId: channelId,
+          parsedWorkspaceId: workspaceId,
+          parsedChannelName: channelName,
+          filterHTag: filter["#h"],
+          deletionFilterHTag: deletionFilter["#h"]
+        });
 
-        const historicalMessages = await ndk.fetchEvents(filter);
-        const deletionEvents = await ndk.fetchEvents(deletionFilter);
+        // Add more detailed authentication debugging
+        console.log('🔍 Authentication status before fetch:', {
+          userPubkey: pubkey?.slice(0, 8),
+          fullPubkey: pubkey,
+          ndkSigner: ndk.signer ? 'present' : 'missing',
+          relayAuth: Array.from(ndk.pool.relays.values()).map(r => ({
+            url: r.url,
+            status: r.status,
+            authenticated: r.authenticated
+          }))
+        });
+
+        // Test if the user has access to this specific workspace
+        console.log('🔍 Testing workspace access:', {
+          workspaceId,
+          userPubkey: pubkey,
+          testingAccess: true
+        });
+
+        // Define timeout utility function
+        const timeoutPromise = async <T>(promise: Promise<T>, timeoutMs: number, description: string): Promise<T> => {
+          return Promise.race([
+            promise,
+            new Promise<T>((_, reject) =>
+              setTimeout(() => reject(new Error(`${description} timed out after ${timeoutMs}ms`)), timeoutMs)
+            )
+          ]);
+        };
+
+        // Check if user is member of the workspace by querying workspace metadata
+        console.log('📋 Checking workspace membership...');
+        try {
+          const membershipFilter = {
+            kinds: [39002] as NDKKind[], // Group members list
+            "#h": [workspaceId],
+            limit: 1
+          };
+
+          const membershipResult = await timeoutPromise(
+            ndk.fetchEvents(membershipFilter),
+            5000,
+            'Workspace membership check'
+          );
+
+          console.log('📋 Membership check result:', membershipResult.size, 'events found');
+
+          if (membershipResult.size > 0) {
+            const memberEvent = Array.from(membershipResult)[0];
+            const members = memberEvent.tags
+              .filter((tag: string[]) => tag[0] === 'p')
+              .map((tag: string[]) => tag[1]);
+
+            const isMember = members.includes(pubkey || '');
+            console.log('👥 User membership status:', {
+              isMember,
+              totalMembers: members.length,
+              userInList: isMember ? 'YES' : 'NO',
+              membersList: members.map(m => m.slice(0, 8))
+            });
+          } else {
+            console.log('⚠️ No membership data found - this might be an unmanaged group');
+          }
+        } catch (membershipError) {
+          console.warn('⚠️ Failed to check workspace membership:', membershipError);
+        }
+
+        // Add timeout to prevent hanging
+        console.log('📡 Starting fetch with 15s timeout...');
+
+        let historicalMessages, deletionEvents;
+
+        const authMethod = localStorage.getItem('nostr-auth-method');
+        const needsHealthCheck = authMethod !== 'nip46'; // Skip health check for NIP-46
+
+        // Debug: Print current auth state
+        console.log('🔍 Auth debug info:', {
+          authMethod,
+          hasWindowNostr: !!window.nostr,
+          needsHealthCheck,
+          hasNdk: !!ndk,
+          hasNdkSigner: !!ndk?.signer,
+          bunkerToken: localStorage.getItem('nostr-bunker-token')?.slice(0, 20) + '...'
+        });
+
+        try {
+          console.log('📡 Fetching historical messages...');
+
+          // Check signer health for ALL methods
+          // Note: Even NIP-46 (nostr-login) uses a popup initially that can be suspended
+          console.log('📡 Checking signer health...');
+          if (!(await checkSignerHealth(ndk))) {
+            console.error('❌ Signer health check failed - aborting subscription');
+            setMessages([]);
+            setIsLoading(false);
+
+            const errorMsg = authMethod === 'nip46'
+              ? 'Nostr Connect connection lost. Please reconnect.'
+              : 'Cannot connect to key storage. Please ensure nsec.app is active.';
+
+            toast.error(errorMsg, {
+              description: authMethod === 'nip46'
+                ? 'The authorization may have expired. Please log in again.'
+                : 'Please ensure key storage is active.'
+            });
+            return;
+          }
+          console.log('✅ Signer health check passed');
+          console.log('📡 Testing relay connection with simple filter first...');
+
+          // Test 1: Try a very simple filter to see if the relay responds at all
+          const testFilter = { kinds: [1] as NDKKind[], limit: 1 };
+          console.log('📡 Testing with basic filter:', testFilter);
+
+          try {
+            const testResult = await timeoutPromise(
+              ndk.fetchEvents(testFilter),
+              5000,
+              'Basic connectivity test'
+            );
+            console.log('✅ Basic connectivity test passed:', testResult.size, 'events');
+          } catch (testError) {
+            console.warn('⚠️ Basic connectivity test failed:', testError);
+          }
+
+          // Test 2: Try simplified group filter first
+          console.log('📡 Testing simplified group filter...');
+          try {
+            const simpleGroupFilter = { kinds: [9] as NDKKind[], limit: 5 };
+            const simpleGroupResult = await timeoutPromise(
+              ndk.fetchEvents(simpleGroupFilter),
+              5000,
+              'Simple group filter test'
+            );
+            console.log('✅ Simple group filter test passed:', simpleGroupResult.size, 'events');
+          } catch (simpleError) {
+            console.warn('⚠️ Simple group filter test failed:', simpleError);
+          }
+
+          // Test 3: Now try the actual group filter
+          console.log('📡 Fetching historical messages with group filter...');
+
+          // Try alternative method: direct subscription with manual collection
+          console.log('📡 Attempting alternative method: manual subscription...');
+
+          try {
+            historicalMessages = await new Promise<Set<any>>((resolve, reject) => {
+              const messages = new Set();
+
+              // Check relay authentication status before subscribing
+              const authenticatedRelays = Array.from(ndk.pool.relays.values())
+                .filter(relay => relay.authenticated);
+
+              console.log('🔐 Pre-subscription auth check:', {
+                authenticatedRelays: authenticatedRelays.length,
+                totalRelays: ndk.pool.relays.size,
+                relayDetails: Array.from(ndk.pool.relays.values()).map(r => ({
+                  url: r.url,
+                  status: r.status,
+                  authenticated: r.authenticated
+                }))
+              });
+
+              if (authenticatedRelays.length === 0) {
+                console.warn('⚠️ No authenticated relays - subscription may fail');
+                console.warn('💡 This usually means nsec.app is inactive or auth failed');
+              }
+
+              const subscription = ndk.subscribe(filter);
+
+              let eoseReceived = false;
+              let eventCount = 0;
+              const timeout = setTimeout(() => {
+                if (!eoseReceived) {
+                  console.warn(`⚠️ Manual subscription timed out after 15s (received ${eventCount} events)`);
+                  subscription.stop();
+
+                  if (eventCount > 0) {
+                    console.log('✅ Received some events, proceeding with partial results');
+                    resolve(messages);
+                  } else {
+                    reject(new Error(`Subscription timed out - no events received (auth status: ${authenticatedRelays.length} relays authenticated)`));
+                  }
+                }
+              }, 15000); // Increased timeout
+
+              subscription.on('event', (event) => {
+                eventCount++;
+                console.log(`📨 Received event ${eventCount} via manual subscription:`, event.id?.slice(0, 8));
+                messages.add(event);
+              });
+
+              subscription.on('eose', () => {
+                console.log(`✅ EOSE received via manual subscription (${eventCount} events total)`);
+                eoseReceived = true;
+                clearTimeout(timeout);
+                subscription.stop();
+                resolve(messages);
+              });
+
+              subscription.on('close', (reason) => {
+                console.log('🔚 Subscription closed, reason:', reason);
+                if (!eoseReceived) {
+                  clearTimeout(timeout);
+
+                  if (eventCount > 0) {
+                    console.log(`✅ Subscription closed but received ${eventCount} events - proceeding`);
+                    resolve(messages);
+                  } else {
+                    const errorMsg = authenticatedRelays.length === 0
+                      ? 'Subscription closed without EOSE - no authenticated relays (key storage may be inactive)'
+                      : 'Subscription closed without EOSE';
+                    reject(new Error(errorMsg));
+                  }
+                }
+              });
+
+              // Enhanced error handling
+              subscription.on('error', (error) => {
+                console.error('❌ Subscription error:', error);
+                clearTimeout(timeout);
+
+                if (eventCount > 0) {
+                  console.log(`✅ Error occurred but received ${eventCount} events - proceeding`);
+                  resolve(messages);
+                } else {
+                  reject(error);
+                }
+              });
+
+              console.log('📡 Manual subscription started with enhanced error handling');
+            });
+
+            console.log('✅ Historical messages fetch completed via manual subscription');
+          } catch (manualError) {
+            const errorMessage = manualError instanceof Error ? manualError.message : 'Unknown error';
+            console.error('❌ Manual subscription failed:', errorMessage);
+
+            // Provide specific guidance for common nsec.app issues
+            if (errorMessage.includes('no authenticated relays') || errorMessage.includes('nsec.app may be inactive')) {
+              console.error('💡 This error suggests nsec.app authentication issues:');
+              console.error('💡 1. Ensure nsec.app tab is active and visible');
+              console.error('💡 2. Check if you granted permissions to this domain');
+              console.error('💡 3. Try refreshing nsec.app if it becomes unresponsive');
+              console.error('💡 4. Consider switching to a different key management method if issues persist');
+            }
+
+            // Fallback to original fetchEvents method
+            console.log('📡 Falling back to fetchEvents...');
+            try {
+              historicalMessages = await timeoutPromise(
+                ndk.fetchEvents(filter),
+                20000, // Longer timeout for fallback
+                'Historical messages fetch (fallback)'
+              );
+              console.log('✅ Historical messages fetch completed via fetchEvents fallback');
+            } catch (fallbackError) {
+              console.error('❌ Both subscription and fetchEvents failed:', fallbackError);
+              historicalMessages = new Set(); // Empty set to prevent crashes
+            }
+          }
+        } catch (error) {
+          console.error('❌ Historical messages fetch failed:', error);
+          historicalMessages = new Set(); // Empty set as fallback
+        }
+
+        try {
+          console.log('📡 Fetching deletion events...');
+          deletionEvents = await timeoutPromise(
+            ndk.fetchEvents(deletionFilter),
+            10000,
+            'Deletion events fetch'
+          );
+          console.log('✅ Deletion events fetch completed');
+        } catch (error) {
+          console.error('❌ Deletion events fetch failed:', error);
+          deletionEvents = new Set(); // Empty set as fallback
+        }
 
         console.log(`📜 Fetched ${historicalMessages.size} historical messages and ${deletionEvents.size} deletion events for group ${workspaceId}:`, {
           filter,
@@ -247,13 +591,35 @@ export function useChannelMessages(channelId: string) {
           }))
         });
 
-        // Check if we got any messages and log potential issues
+        // Check if we got any messages and log potential issues with specific guidance
         if (historicalMessages.size === 0) {
           console.warn('⚠️ No historical messages fetched. Possible issues:');
-          console.warn('- Authentication may have failed');
-          console.warn('- Group ID may be incorrect:', workspaceId);
-          console.warn('- No messages exist for this group/channel combination');
-          console.warn('- Relay may be rejecting requests');
+
+          const authenticatedRelays = Array.from(ndk.pool.relays.values())
+            .filter(relay => relay.authenticated);
+          const connectedRelays = Array.from(ndk.pool.relays.values())
+            .filter(relay => relay.status === 1);
+
+          if (authenticatedRelays.length === 0) {
+            console.warn('❌ PRIMARY ISSUE: No authenticated relays');
+            console.warn('💡 This is usually caused by nsec.app being inactive or unresponsive');
+            console.warn('💡 Solutions:');
+            console.warn('💡 - Keep nsec.app tab active and visible while using this app');
+            console.warn('💡 - Grant permission when nsec.app prompts for signing');
+            console.warn('💡 - Refresh nsec.app if it becomes unresponsive');
+          } else if (connectedRelays.length === 0) {
+            console.warn('❌ Network connectivity issues - no relays connected');
+          } else {
+            console.warn('- Group ID may be incorrect:', workspaceId);
+            console.warn('- No messages exist for this group/channel combination:', channelName);
+            console.warn('- User may not have access to this workspace');
+          }
+
+          console.warn('🔍 Current relay status:', {
+            connected: connectedRelays.length,
+            authenticated: authenticatedRelays.length,
+            total: ndk.pool.relays.size
+          });
         }
 
         // Build set of deleted message IDs from deletion events
@@ -307,17 +673,20 @@ export function useChannelMessages(channelId: string) {
         if (!liveSubscription) {
           console.warn('⚠️ Could not create live message subscription - NDK not ready');
           setIsLoading(false);
-          setLoadingChannel(false); // Clear chat store loading state on error
+          setLoadingChannel(false);
           return;
         }
 
-        // Handle live messages and deletion events
+        // Enhanced live subscription with better error handling
+        let liveEventCount = 0;
+
         liveSubscription.on('event', (event) => {
+          liveEventCount++;
+          console.log(`🔴 Live event ${liveEventCount}:`, event.kind, event.id?.slice(0, 8));
+
           if (event.kind === 9005) {
-            // Handle deletion event
             processDeletionEvent(event);
           } else {
-            // Handle regular message
             processMessage(event, true);
           }
         });
@@ -325,16 +694,28 @@ export function useChannelMessages(channelId: string) {
         liveSubscription.on('eose', () => {
           console.log('✅ Live message subscription EOSE - real-time messages active');
           setIsLoading(false);
-          setLoadingChannel(false); // Clear chat store loading state
+          setLoadingChannel(false);
         });
 
-        // Cleanup function
+        liveSubscription.on('close', (reason) => {
+          console.warn('⚠️ Live subscription closed:', reason);
+          // Don't clear loading state here as it might just be a temporary disconnect
+          // The subscription will be recreated when the effect re-runs
+        });
+
+        liveSubscription.on('error', (error) => {
+          console.error('❌ Live subscription error:', error);
+          // Log but don't crash - real-time updates just won't work
+        });
+
+        // Enhanced cleanup function
         return () => {
-          console.log('🛑 Stopping message subscriptions for channel:', channelId);
+          console.log(`🛑 Stopping message subscriptions for channel: ${channelId} (received ${liveEventCount} live events)`);
           try {
             liveSubscription.stop();
+            console.log('✅ Live subscription stopped cleanly');
           } catch (error) {
-            console.log('Error stopping message subscription:', error);
+            console.warn('Error stopping message subscription:', error);
           }
         };
 
@@ -352,7 +733,7 @@ export function useChannelMessages(channelId: string) {
     return () => {
       console.log('🛑 Cleanup triggered for channel:', channelId);
     };
-  }, [ndk, channelId, isConnected]);
+  }, [ndk, channelId, ndk?.signer]); // Depend on signer instead of isConnected
 
   const sendMessage = async (content: string, replyTo?: string) => {
     if (!ndk || !pubkey) {

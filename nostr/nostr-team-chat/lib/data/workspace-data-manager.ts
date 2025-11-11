@@ -178,26 +178,25 @@ export class WorkspaceDataManager {
         const checkConnection = () => {
           attempts++;
           const allRelays = Array.from(this.ndk.pool.relays.values());
-          const connectedRelays = allRelays.filter(r => r.status === 2 || r.status === 5 || r.status === 6);
-          const authenticatedRelays = allRelays.filter(r => r.status === 5);
+          const usableRelays = allRelays.filter(relay => {
+            // Accept any status >= 1 (connected states) including status 7 (authenticated)
+            return relay.status >= 1 || relay.connectivity?.status === 'connected';
+          });
 
           console.log(`🔍 WorkspaceDataManager connection check attempt ${attempts}:`, {
             totalRelays: allRelays.length,
-            connectedRelays: connectedRelays.length,
-            authenticatedRelays: authenticatedRelays.length,
+            usableRelays: usableRelays.length,
             relayStates: allRelays.map(r => ({
               url: r.url,
               status: r.status,
-              isAuthenticated: r.status === 5
+              connectivity: r.connectivity?.status,
+              isUsable: r.status === 1 || r.connectivity?.status === 'connected'
             }))
           });
 
-          // Prefer authenticated relays (status 5), fall back to connected (status 2, 6)
-          if (authenticatedRelays.length > 0) {
-            console.log('✅ Found authenticated relays, proceeding with workspace data fetch');
-            resolve();
-          } else if (connectedRelays.length > 0 && attempts > 30) { // After 3 seconds, accept connected relays
-            console.log('⚠️ No authenticated relays found after 3s, proceeding with connected relays');
+          // Check if we have usable relays
+          if (usableRelays.length > 0) {
+            console.log('✅ Found usable relays, proceeding with workspace data fetch');
             resolve();
           } else {
             setTimeout(checkConnection, 100);

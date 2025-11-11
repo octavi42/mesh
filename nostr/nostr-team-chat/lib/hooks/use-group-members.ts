@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client';
+import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client-transition';
 import { NIP29EventKind } from '@/lib/nostr/nip29/types';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 

@@ -80,6 +80,43 @@ export default function HomePage() {
             </button>
           </div>
 
+          <div className="mt-16 max-w-3xl mx-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm">
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+                Secure Authentication Options
+              </h2>
+              <div className="space-y-6 text-left">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">
+                    🏆 Browser Extension - Recommended for NIP-42
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    Install Alby, nos2x, or Nostore for the best experience. Extensions support NIP-42 relay authentication and don't have popup suspension issues.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">
+                    🔌 Nostr Connect (NIP-46) - Mobile/Backup
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    Use nsec.app or njump.me when extensions aren't available. Note: Limited NIP-42 support may cause authentication issues with some relays.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">
+                    🔑 Local Private Key - Quick Start
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    Store an encrypted private key locally. Great for testing and quick access.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-950 rounded-lg text-sm text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+                ⚠️ <strong>Important:</strong> This relay requires NIP-42 authentication. Browser extensions provide the best support. If you experience "keys not responding" errors, please install Alby or nos2x extension.
+              </div>
+            </div>
+          </div>
+
           <div className="mt-20 grid md:grid-cols-3 gap-8 text-left">
             <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
               <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-950 rounded-xl flex items-center justify-center mb-4">

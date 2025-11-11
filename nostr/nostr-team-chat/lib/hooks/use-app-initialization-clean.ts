@@ -63,45 +63,9 @@ export function useAppInitialization() {
       try {
         console.log('🚀 Initializing app for authenticated user:', pubkey.slice(0, 8));
 
-        // Create a signer from window.nostr if available
-        let signerAttached = false;
-
-        if (typeof window !== 'undefined' && window.nostr) {
-          console.log('🔑 Creating NDK signer from window.nostr');
-
-          const { NDKNip07Signer } = await import('@nostr-dev-kit/ndk');
-          const signer = new NDKNip07Signer();
-
-          // Attach signer to NDK
-          await attachSigner(signer);
-          console.log('✅ Signer attached to NDK');
-          signerAttached = true;
-        } else {
-          console.warn('⚠️ window.nostr not available initially, will retry when nostr-login is ready');
-        }
-
-        // If signer wasn't attached, set up a retry mechanism for when nostr-login becomes ready
-        if (!signerAttached && typeof window !== 'undefined') {
-          const retrySignerAttachment = async () => {
-            if (window.nostr && !signerAttached) {
-              try {
-                console.log('🔑 Retrying NDK signer attachment after nostr-login ready');
-                const { NDKNip07Signer } = await import('@nostr-dev-kit/ndk');
-                const signer = new NDKNip07Signer();
-                await attachSigner(signer);
-                console.log('✅ Signer attached to NDK (retry)');
-                signerAttached = true;
-              } catch (error) {
-                console.error('❌ Failed to retry signer attachment:', error);
-              }
-            }
-          };
-
-          // Retry after a delay to allow nostr-login to initialize
-          setTimeout(retrySignerAttachment, 2000);
-          setTimeout(retrySignerAttachment, 5000);
-          setTimeout(retrySignerAttachment, 10000);
-        }
+        // Don't auto-attach signer - let user manually connect when they're ready
+        console.log('✅ User is authenticated, but not auto-connecting to relays');
+        console.log('💡 User can manually connect using the "Connect to Relay" button when ready');
 
         // Clear the timeout since initialization completed successfully
         if (initializationTimeout) {
