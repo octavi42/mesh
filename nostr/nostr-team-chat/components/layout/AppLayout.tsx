@@ -7,7 +7,6 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { IconBar } from './IconBar';
 import { Sidebar } from './Sidebar';
 import { AccountSheet } from '@/components/sheets/account-sheet';
-import { ConnectionManager } from '@/components/ui/connection-manager';
 import { ConnectionHealthMonitor, ReconnectButton } from '@/components/auth/ConnectionHealthMonitor';
 
 interface AppLayoutProps {
@@ -108,7 +107,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main className="flex-1 overflow-hidden">
         <ConnectionHealthMonitor />
         <ReconnectButton />
-        <ConnectionManager />
         {children}
       </main>
     </div>
