@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client-transition';
+import { waitForNDKInitialization } from '@/lib/nostr/ndk-relay-client';
 import { NIP29EventKind } from '@/lib/nostr/nip29/types';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 
@@ -150,8 +151,18 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
 
     try {
       setError(null);
-      const client = getGlobalNIP29Client();
 
+      // Wait for NDK to be initialized before proceeding
+      let client;
+      try {
+        client = await waitForNDKInitialization(8000);
+        console.log('✅ NDK ready for group members fetch');
+      } catch (error) {
+        console.log('⏳ NDK not ready for group members, skipping for now');
+        return [];
+      }
+
+      // Connect if needed
       if (!client.isConnected()) {
         await client.connect();
       }

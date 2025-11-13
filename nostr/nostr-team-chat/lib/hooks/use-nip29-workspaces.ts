@@ -34,6 +34,19 @@ export function useNIP29Workspaces() {
   const { pubkey } = useAuthStore();
   const { addWorkspace, setLoading, setError, workspaces } = useWorkspaceStore();
   const subscriptionActiveRef = useRef(true);
+  const lastPubkeyRef = useRef<string | null>(null);
+
+  // Reset workspace session when pubkey changes (new authentication)
+  useEffect(() => {
+    if (pubkey && lastPubkeyRef.current && lastPubkeyRef.current !== pubkey) {
+      console.log('🔄 Pubkey changed, resetting workspace session:', {
+        old: lastPubkeyRef.current?.slice(0, 8),
+        new: pubkey.slice(0, 8)
+      });
+      resetWorkspaceSession();
+    }
+    lastPubkeyRef.current = pubkey;
+  }, [pubkey]);
 
   useEffect(() => {
     console.log('🔍 useNIP29Workspaces effect triggered:', {
@@ -47,7 +60,13 @@ export function useNIP29Workspaces() {
 
     // Only run once per session - never during navigation
     if (workspacesFetched) {
-      console.log('⏭️ Workspaces already fetched this session, skipping');
+      console.log('⏭️ Workspaces already fetched this session, skipping', {
+        workspacesFetched,
+        hasNdk: !!ndk,
+        hasPubkey: !!pubkey,
+        hasSigner: !!ndk?.signer,
+        pubkey: pubkey?.slice(0, 8)
+      });
       return;
     }
 

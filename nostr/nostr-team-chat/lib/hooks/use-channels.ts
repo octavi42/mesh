@@ -2,6 +2,7 @@ import React from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Channel } from '@/lib/db/schema';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29';
+import { waitForNDKInitialization } from '@/lib/nostr/ndk-relay-client';
 
 export function useChannels(workspaceId: string | null) {
   return useLiveQuery(
@@ -100,7 +101,17 @@ export async function syncChannelsForWorkspace(workspaceId: string): Promise<voi
   try {
     console.log('🔄 Syncing channels for workspace:', workspaceId);
 
-    const client = getGlobalNIP29Client();
+    // Wait for NDK to be initialized before proceeding
+    let client;
+    try {
+      client = await waitForNDKInitialization(8000);
+      console.log('✅ NDK ready for channel sync');
+    } catch (error) {
+      console.log('⏳ NDK not ready for channel sync, skipping for now');
+      return;
+    }
+
+    // Connect if needed
     if (!client.isConnected()) {
       await client.connect();
     }

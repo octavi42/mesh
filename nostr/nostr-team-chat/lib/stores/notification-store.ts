@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { type Notification } from '@/lib/db/schema';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client-transition';
+import { waitForNDKInitialization } from '@/lib/nostr/ndk-relay-client';
 import { getInviteStatus } from '@/lib/nostr/invites';
 
 // Extend notification interface to include status
@@ -41,23 +42,20 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
           console.log('📱 Fetching notifications from relay for user:', userPubkey);
           set({ isLoading: true });
 
-          const client = getGlobalNIP29Client();
-
-          // Wait for NDK to be initialized if needed
-          // This prevents "NDK not set" errors during early component rendering
+          // Wait for NDK to be initialized before proceeding
+          let client;
           try {
-            if (!client.isConnected()) {
-              await client.connect();
-            }
+            client = await waitForNDKInitialization(8000);
+            console.log('✅ NDK ready for notifications');
           } catch (error) {
-            if (error instanceof Error && error.message.includes('NDK not set')) {
-              console.log('⏳ NDK not ready yet, delaying notification fetch...');
-              // Try again in 1 second
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              await client.connect();
-            } else {
-              throw error;
-            }
+            console.log('⏳ NDK not ready for notifications, skipping for now');
+            set({ isLoading: false });
+            return;
+          }
+
+          // Connect if needed
+          if (!client.isConnected()) {
+            await client.connect();
           }
 
           // Fetch invite notification events from the last X hours

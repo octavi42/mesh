@@ -38,9 +38,19 @@ export const useAuthStore = create<AuthState>()(
           loading: false,
         });
 
-        // Only start subscription if pubkey actually changed (to prevent duplicates)
+        // Reset workspace session on pubkey change and start invites
         if (pubkey && pubkeyChanged) {
           console.log('🔔 Pubkey changed, restarting invite subscription for user:', pubkey);
+
+          // Force reset workspace session for fresh data fetch
+          try {
+            const { resetWorkspaceSession } = require('../hooks/use-nip29-workspaces');
+            resetWorkspaceSession();
+            console.log('🔄 Workspace session reset due to pubkey change');
+          } catch (error) {
+            console.warn('Failed to reset workspace session:', error);
+          }
+
           stopListeningForInvites(); // Stop existing subscription
           startListeningForInvites(pubkey).catch(error => {
             console.error('Failed to start invite subscription:', error);
@@ -66,26 +76,53 @@ export const useAuthStore = create<AuthState>()(
 
       checkAuth: async () => {
         console.log('🔍 checkAuth called');
-        set({ loading: true });
+        const currentState = get();
+
+        // Only set loading if not already being managed by hydration
+        if (!currentState.loading) {
+          set({ loading: true });
+        }
 
         if (typeof window === 'undefined') {
           set({ loading: false });
           return;
         }
 
-        const currentState = get();
         const hasPersistedAuth = currentState.pubkey && currentState.isAuthenticated;
 
         if (hasPersistedAuth) {
-          console.log('✅ Found persisted auth, keeping user logged in:', currentState.pubkey);
-          set({ loading: false });
-          return;
+          console.log('✅ Found persisted auth, keeping user logged in:', currentState.pubkey?.slice(0, 8));
+
+          // For persisted auth, try to verify it's still valid
+          if (window.nostr) {
+            try {
+              const pubkey = await window.nostr.getPublicKey();
+              if (pubkey === currentState.pubkey) {
+                console.log('✅ Persisted auth verified with window.nostr');
+                set({ loading: false });
+                return;
+              } else {
+                console.log('⚠️ Persisted pubkey mismatch, clearing auth');
+                get().clearAuth();
+                return;
+              }
+            } catch (error) {
+              console.log('⚠️ Could not verify persisted auth with window.nostr:', error);
+              // Keep the persisted auth but set loading false
+              set({ loading: false });
+              return;
+            }
+          } else {
+            console.log('ℹ️ No window.nostr available, trusting persisted auth');
+            set({ loading: false });
+            return;
+          }
         }
 
         if (window.nostr) {
           try {
             const pubkey = await window.nostr.getPublicKey();
-            console.log('✅ Got pubkey from window.nostr:', pubkey);
+            console.log('✅ Got pubkey from window.nostr:', pubkey?.slice(0, 8));
             get().setPubkey(pubkey);
             return;
           } catch (error) {
@@ -153,12 +190,36 @@ export const useAuthStore = create<AuthState>()(
         return (state, error) => {
           if (error) {
             console.error('❌ Auth store hydration error:', error);
+            if (state) {
+              state.hasHydrated = true;
+              state.loading = false;
+            }
           } else {
             console.log('✅ Auth store hydrated with state:', state);
-            // Mark as hydrated after successful hydration
             if (state) {
               state.hasHydrated = true;
               console.log('🏁 Auth store: hasHydrated set to true');
+
+              // If we have persisted auth, verify it's still valid
+              if (state.pubkey && state.isAuthenticated) {
+                console.log('🔍 Found persisted auth, will verify asynchronously...');
+
+                // Use setTimeout to handle async verification without blocking hydration
+                setTimeout(async () => {
+                  try {
+                    console.log('🔍 Starting async auth verification...');
+                    await state.checkAuth();
+                    console.log('✅ Async auth verification complete');
+                  } catch (error) {
+                    console.error('❌ Async auth verification failed:', error);
+                    // Clear auth if verification fails
+                    state.clearAuth();
+                  }
+                }, 0);
+              } else {
+                console.log('ℹ️ No persisted auth found, setting loading to false');
+                state.loading = false;
+              }
             }
           }
         };

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { db, type Message } from '@/lib/db/schema';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29';
+import { waitForNDKInitialization } from '@/lib/nostr/ndk-relay-client';
 import type { NostrEvent } from '@/lib/nostr/nip29/types';
 import { toast } from 'sonner';
 
@@ -113,7 +114,15 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
           console.log('⚠️ Using remote signer - may need external app');
         }
 
-        const client = getGlobalNIP29Client();
+        let client;
+        try {
+          client = await waitForNDKInitialization(8000);
+          console.log('✅ NDK ready for message sending');
+        } catch (error) {
+          console.log('⏳ NDK not ready for message sending, skipping');
+          toast.error('Connection not ready, please wait...');
+          return;
+        }
 
         if (!client.isConnected()) {
           console.log('🔌 Connecting to relay...');
@@ -285,7 +294,18 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
     try {
       console.log('📥 Loading messages for channel:', channelId, 'group:', groupId);
 
-      const client = getGlobalNIP29Client();
+      let client;
+      try {
+        client = await waitForNDKInitialization(8000);
+        console.log('✅ NDK ready for loading messages');
+      } catch (error) {
+        console.log('⏳ NDK not ready for loading messages, skipping');
+        set(state => ({
+          ...state,
+          loadingChannels: { ...state.loadingChannels, [channelId]: false }
+        }));
+        return;
+      }
 
       // Ensure connection is stable
       if (!client.isConnected()) {
@@ -440,7 +460,14 @@ export const useMessageStore = create<MessageStore>((set, get) => ({
       try {
         console.log('📡 Subscribing to channel:', channelId, 'group:', groupId);
 
-        const client = getGlobalNIP29Client();
+        let client;
+        try {
+          client = await waitForNDKInitialization(8000);
+          console.log('✅ NDK ready for message subscription');
+        } catch (error) {
+          console.log('⏳ NDK not ready for message subscription, skipping');
+          return;
+        }
 
         // Ensure connection is stable
         if (!client.isConnected()) {

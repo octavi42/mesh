@@ -42,6 +42,7 @@ export class NDKRelayClient {
 
   private getNDK(): NDK {
     if (!this.ndkInstance) {
+      console.error('❌ NDK not set when requested. Components should wait for NDK initialization.');
       throw new Error('NDK not set - call setNDK() first');
     }
     return this.ndkInstance;
@@ -156,8 +157,20 @@ export class NDKRelayClient {
   isConnected(): boolean {
     const ndk = this.getNDK();
     const connectedRelays = Array.from(ndk.pool.relays.values())
-      .filter(relay => relay.status >= 1 || relay.connectivity?.status === 'connected'); // Accept any connected state
-    return connectedRelays.length > 0;
+      .filter(relay => {
+        const isConnected = relay.status >= 1 || relay.connectivity?.status === 'connected';
+        console.log('🔍 Relay connection check:', {
+          url: relay.url,
+          status: relay.status,
+          connectivityStatus: relay.connectivity?.status,
+          isConnected
+        });
+        return isConnected;
+      });
+
+    const hasConnections = connectedRelays.length > 0;
+    console.log(`🔍 Overall connection status: ${hasConnections} (${connectedRelays.length}/${ndk.pool.relays.size} relays)`);
+    return hasConnections;
   }
 
   async forceReauth(): Promise<void> {
@@ -253,11 +266,41 @@ export function getGlobalNDKClient(relayUrl?: string): NDKRelayClient {
     globalNDKClient = new NDKRelayClient(url);
   }
 
+  // Check if NDK instance is actually set
+  if (!(globalNDKClient as any).ndkInstance) {
+    console.warn('⚠️ Global NDK client requested but NDK instance not set yet. Components should wait for initialization.');
+  }
+
   return globalNDKClient;
 }
 
 export function isGlobalNDKClientInitialized(): boolean {
-  return globalNDKClient !== null;
+  return globalNDKClient !== null && (globalNDKClient as any).ndkInstance !== null;
+}
+
+export function waitForNDKInitialization(timeoutMs = 10000): Promise<NDKRelayClient> {
+  return new Promise((resolve, reject) => {
+    if (isGlobalNDKClientInitialized()) {
+      resolve(getGlobalNDKClient());
+      return;
+    }
+
+    console.log(`⏳ Waiting for NDK initialization (timeout: ${timeoutMs}ms)...`);
+
+    const startTime = Date.now();
+    const checkInterval = setInterval(() => {
+      if (isGlobalNDKClientInitialized()) {
+        clearInterval(checkInterval);
+        console.log(`✅ NDK initialized after ${Date.now() - startTime}ms`);
+        resolve(getGlobalNDKClient());
+      } else if (Date.now() - startTime > timeoutMs) {
+        clearInterval(checkInterval);
+        console.warn(`⚠️ NDK initialization timeout after ${timeoutMs}ms - this is non-fatal, continuing...`);
+        // Don't reject - instead provide a fallback that allows graceful degradation
+        reject(new Error(`NDK initialization timeout after ${timeoutMs}ms. This may be temporary - please try refreshing if data doesn't load.`));
+      }
+    }, 250); // Reduced frequency to be less aggressive
+  });
 }
 
 export function setGlobalNDKInstance(ndk: NDK): void {

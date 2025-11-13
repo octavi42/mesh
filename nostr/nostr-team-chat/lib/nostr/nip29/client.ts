@@ -4,7 +4,8 @@
 export {
   getGlobalNDKClient as getGlobalNIP29Client,
   disconnectGlobalNDKClient as disconnectGlobalClient,
-  NDKRelayClient as NIP29RelayClient
+  NDKRelayClient as NIP29RelayClient,
+  isGlobalNDKClientInitialized
 } from '@/lib/nostr/ndk-relay-client';
 
 // Re-export types for compatibility

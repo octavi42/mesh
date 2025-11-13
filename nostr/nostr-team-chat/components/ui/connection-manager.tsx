@@ -18,13 +18,13 @@ export function ConnectionManager() {
   // Don't show if not authenticated
   if (!pubkey) return null;
 
-  // Don't show if already connected
+  // Show minimal success message if already connected
   if (isConnected) {
     return (
       <div className="m-4 p-3 bg-green-50 border border-green-200 rounded-lg">
         <div className="flex items-center gap-2">
           <CheckCircle className="h-5 w-5 text-green-500" />
-          <span className="text-green-700 font-medium">Connected to relay - messages should load automatically</span>
+          <span className="text-green-700 font-medium">✅ Connected to relay - messages should load automatically</span>
         </div>
       </div>
     );
@@ -36,7 +36,7 @@ export function ConnectionManager() {
       <div className="m-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex items-center gap-2">
           <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />
-          <span className="text-blue-700 font-medium">Connecting to relay...</span>
+          <span className="text-blue-700 font-medium">🔄 Automatically connecting to relay...</span>
         </div>
       </div>
     );
@@ -209,11 +209,11 @@ export function ConnectionManager() {
 
           <div className="flex-1">
             <div className="font-medium text-gray-900 mb-2">
-              Relay Connection Required
+              Manual Relay Connection
             </div>
 
             <div className="text-sm text-gray-700 mb-3">
-              To load messages, you need to connect to the relay. This requires nsec.app to be active.
+              Auto-connection didn't work. You can manually connect to the relay if needed.
             </div>
 
             {error && (
@@ -271,7 +271,7 @@ export function ConnectionManager() {
                 disabled={isConnecting}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                {isConnecting ? 'Connecting...' : 'Connect to Relay'}
+                {isConnecting ? 'Connecting...' : 'Manual Connect'}
               </Button>
 
               {showRetry && !isConnecting && (
