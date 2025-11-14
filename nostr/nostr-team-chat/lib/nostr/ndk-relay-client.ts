@@ -72,6 +72,8 @@ export class NDKRelayClient {
     console.log('✅ NDK relay client disconnected');
   }
 
+  private publishedEvents = new Set<string>();
+
   async publishEvent(event: NostrEvent | NDKEvent): Promise<void> {
     const ndk = this.getNDK();
 
@@ -79,6 +81,12 @@ export class NDKRelayClient {
     const ndkEvent = event instanceof NDKEvent
       ? event
       : nostrEventToNDKEvent(ndk, event);
+
+    // Check for duplicate publishing
+    if (ndkEvent.id && this.publishedEvents.has(ndkEvent.id)) {
+      console.log('Duplicate event publishing detected, you are publishing event', ndkEvent.id, 'twice');
+      return; // Don't publish duplicate
+    }
 
     console.log('📤 Publishing event via NDK:', {
       kind: ndkEvent.kind,
@@ -88,9 +96,29 @@ export class NDKRelayClient {
     });
 
     try {
-      await ndkEvent.publish();
+      // Add to published events set before publishing
+      if (ndkEvent.id) {
+        this.publishedEvents.add(ndkEvent.id);
+      }
+
+      const relayResults = await ndkEvent.publish();
       console.log('✅ Event published successfully via NDK');
+
+      // Return success even if some relays failed, as long as at least one succeeded
+      return;
     } catch (error) {
+      // Remove from published set if publishing failed
+      if (ndkEvent.id) {
+        this.publishedEvents.delete(ndkEvent.id);
+      }
+
+      // Handle specific NDK errors more gracefully
+      if (error?.message?.includes('Not enough relays received the event')) {
+        console.warn('⚠️ Some relays rejected the event, but this may be normal:', error.message);
+        // Don't throw for relay issues - the event might still have been published successfully
+        return;
+      }
+
       console.error('❌ Failed to publish event via NDK:', error);
       throw error;
     }

@@ -24,3 +24,16 @@ body {
 #nlmodal iframe {
   z-index: 999999 !important;
 }
+
+/* Fix for nostr-login z-index classes that may cause CSS errors */
+.z-\[150\] {
+  z-index: 150 !important;
+}
+
+/* Ensure all nostr-login elements appear above other components */
+[class*="nostr-login"],
+[id*="nostr"],
+[id*="nlauth"],
+div[style*="z-index"] {
+  z-index: 999999 !important;
+}

@@ -45,62 +45,183 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
           // Wait for NDK to be initialized before proceeding
           let client;
           try {
-            client = await waitForNDKInitialization(8000);
+            console.log('⏳ Waiting for NDK initialization for notifications...');
+            client = await waitForNDKInitialization(15000); // Increased timeout
             console.log('✅ NDK ready for notifications');
           } catch (error) {
-            console.log('⏳ NDK not ready for notifications, skipping for now');
+            console.error('❌ NDK not ready for notifications:', error);
             set({ isLoading: false });
             return;
           }
 
-          // Connect if needed
-          if (!client.isConnected()) {
-            await client.connect();
+          // Check if client has proper authentication capabilities
+          const clientInstance = (client as any).ndkInstance;
+          if (!clientInstance) {
+            console.error('❌ NDK client missing NDK instance for notifications');
+            set({ isLoading: false });
+            return;
           }
 
-          // Fetch invite notification events from the last X hours
+          console.log('🔍 NDK state for notifications:', {
+            hasSigner: !!clientInstance.signer,
+            hasUser: !!clientInstance.user,
+            relayCount: clientInstance.pool?.relays?.size || 0
+          });
+
+          // Connect if needed
+          if (!client.isConnected()) {
+            console.log('🔌 Client not connected, attempting to connect...');
+            try {
+              await client.connect();
+              console.log('✅ Client connected successfully for notifications');
+            } catch (connectError) {
+              console.error('❌ Failed to connect client for notifications:', connectError);
+              set({ isLoading: false });
+              return;
+            }
+          } else {
+            console.log('✅ Client already connected for notifications');
+          }
+
+          // Fetch invite events from the last X hours
+          // The app publishes both Kind 9009 (actual invites) and Kind 1 (notification events)
           const since = Math.floor(Date.now() / 1000) - (hoursBack * 60 * 60);
-          const filter = {
-            kinds: [1], // Text notes used for invite notifications
-            '#p': [userPubkey], // Events that tag this user
-            '#t': ['invite'], // Must have invite tag
-            since: since
-          };
+          const filters = [
+            {
+              kinds: [9009], // KIND_GROUP_CREATE_INVITE_9009 - actual invite events
+              '#p': [userPubkey], // Events that tag this user
+              since: since
+            },
+            {
+              kinds: [1], // Text notes used for invite notifications
+              '#p': [userPubkey], // Events that tag this user
+              '#t': ['invite'], // Must have invite tag
+              since: since
+            }
+          ];
 
-          console.log('📡 Fetching notifications with filter:', filter);
+          console.log('📡 Fetching notifications with filters:', filters);
+          console.log('📡 Looking for notifications since:', new Date(since * 1000).toISOString());
 
-          const events = await client.fetchEvents([filter]);
-          console.log(`📨 Found ${events.length} notification events from relay`);
+          let events;
+          try {
+            events = await client.fetchEvents(filters);
+            console.log(`📨 Found ${events.length} notification events from relay`);
+
+            // Log event details for debugging
+            if (events.length > 0) {
+              console.log('📨 Event details:', events.map(e => ({
+                id: e.id,
+                kind: e.kind,
+                created_at: e.created_at,
+                created_at_iso: new Date(e.created_at * 1000).toISOString(),
+                pubkey: e.pubkey.slice(0, 8),
+                tags: e.tags,
+                content: e.content?.substring(0, 100)
+              })));
+            } else {
+              console.log('📨 No events found. Debug info:', {
+                userPubkey: userPubkey.slice(0, 8),
+                since,
+                sinceISO: new Date(since * 1000).toISOString(),
+                hoursBack,
+                filters
+              });
+            }
+          } catch (fetchError) {
+            console.error('❌ Failed to fetch notification events:', fetchError);
+            set({ isLoading: false });
+            return;
+          }
 
           // Convert events to notifications
           const notifications: NotificationWithStatus[] = [];
 
           for (const event of events) {
             try {
-              // Parse the invite notification content
-              const inviteData = JSON.parse(event.content);
+              console.log('📨 Processing notification event:', { id: event.id, kind: event.kind, tags: event.tags });
 
-              // Verify this is an invite notification
-              if (inviteData.type !== 'invite') {
+              let inviteCode: string;
+              let groupId: string;
+              let workspaceName: string;
+              let inviterName: string;
+              let message: string;
+
+              if (event.kind === 9009) {
+                // Parse Kind 9009 invite events - these have invite details in tags, not content
+                console.log('📨 Processing Kind 9009 invite event');
+
+                // Extract invite details from tags (based on relay implementation)
+                const inviteCodeTag = event.tags.find(tag => tag[0] === 'code');
+                const groupIdTag = event.tags.find(tag => tag[0] === 'h'); // group hash
+                const invitedUserTag = event.tags.find(tag => tag[0] === 'p');
+
+                // Verify this invite is for our user
+                if (!invitedUserTag || invitedUserTag[1] !== userPubkey) {
+                  console.log('📨 Skipping invite not for this user:', invitedUserTag?.[1]);
+                  continue;
+                }
+
+                inviteCode = inviteCodeTag?.[1] || 'unknown';
+                const localGroupId = groupIdTag?.[1] || 'unknown';
+                groupId = localGroupId !== 'unknown' ? `'${localGroupId}` : 'unknown';
+                workspaceName = `Group ${localGroupId.slice(0, 8)}`; // Use group hash as fallback
+                inviterName = 'Group Admin'; // We don't have inviter name from Kind 9009 events
+                message = `You have been invited to join a workspace (code: ${inviteCode})`;
+
+              } else if (event.kind === 1) {
+                // Parse Kind 1 notification events - these have structured content
+                console.log('📨 Processing Kind 1 notification event');
+
+                let inviteData;
+                try {
+                  inviteData = JSON.parse(event.content);
+                } catch (parseError) {
+                  console.warn('📨 Failed to parse Kind 1 event content:', parseError);
+                  continue;
+                }
+
+                // Verify this is an invite notification
+                if (inviteData.type !== 'invite') {
+                  console.log('📨 Skipping non-invite Kind 1 event');
+                  continue;
+                }
+
+                // Extract invite details from parsed content and tags
+                const inviteCodeTag = event.tags.find(tag => tag[0] === 'invite_code');
+                const groupIdTag = event.tags.find(tag => tag[0] === 'group_id');
+
+                inviteCode = inviteData.inviteCode || inviteCodeTag?.[1] || 'unknown';
+                groupId = inviteData.fullGroupId || (groupIdTag ? `'${groupIdTag[1]}` : 'unknown');
+                workspaceName = inviteData.workspaceName || inviteData.groupName || 'Unknown Workspace';
+                inviterName = inviteData.inviterName || 'Someone';
+                message = inviteData.message || `${inviterName} invited you to join ${workspaceName}`;
+
+              } else {
+                console.log('📨 Skipping unsupported event kind:', event.kind);
                 continue;
               }
 
-              // Extract invite details
-              const inviteCodeTag = event.tags.find(tag => tag[0] === 'invite_code');
-              const groupIdTag = event.tags.find(tag => tag[0] === 'group_id');
-
-              const inviteCode = inviteData.inviteCode || inviteCodeTag?.[1] || 'unknown';
-              const groupId = inviteData.fullGroupId || (groupIdTag ? `relay'${groupIdTag[1]}` : 'unknown');
-
-              // Fetch invite status from relay
+              // Fetch invite status from relay (with timeout to prevent hanging)
               let status: NotificationWithStatus['status'] = 'pending';
               try {
                 if (inviteCode !== 'unknown' && groupId !== 'unknown') {
-                  status = await getInviteStatus(groupId, inviteCode, userPubkey);
+                  console.log(`📊 Fetching status for invite ${inviteCode}...`);
+
+                  // Add timeout to prevent hanging
+                  const statusPromise = getInviteStatus(groupId, inviteCode, userPubkey);
+                  const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Status fetch timeout')), 5000)
+                  );
+
+                  status = await Promise.race([statusPromise, timeoutPromise]) as any;
                   console.log(`📊 Fetched status for invite ${inviteCode}:`, { status, groupId, userPubkey });
+                } else {
+                  console.log(`📊 Skipping status fetch for invite ${inviteCode} - missing data`);
                 }
               } catch (error) {
-                console.warn('Failed to fetch invite status:', error);
+                console.warn(`📊 Failed to fetch invite status for ${inviteCode}, using default:`, error?.message || error);
+                status = 'pending'; // Default to pending if status fetch fails
               }
 
               // Skip notifications that have been deleted
@@ -109,17 +230,18 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
                 continue;
               }
 
+              // Create notification from parsed data
               const notification: NotificationWithStatus = {
                 id: event.id, // Use event ID as notification ID
                 userId: userPubkey,
                 type: 'invite',
                 title: 'Workspace Invitation',
-                message: inviteData.message || `You have been invited to join ${inviteData.workspaceName || 'a workspace'}`,
+                message,
                 data: {
                   inviteCode,
                   groupId,
-                  workspaceName: inviteData.workspaceName || inviteData.groupName || 'Unknown Workspace',
-                  inviterName: inviteData.inviterName || 'Someone',
+                  workspaceName,
+                  inviterName,
                   inviterPubkey: event.pubkey
                 },
                 // Mark as read if status is "seen", otherwise unread
@@ -129,8 +251,15 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
               };
 
               notifications.push(notification);
+              console.log('✅ Added notification to list:', {
+                id: notification.id,
+                inviteCode,
+                workspaceName,
+                status,
+                message
+              });
             } catch (error) {
-              console.warn('Failed to parse notification event:', event.id, error);
+              console.warn('❌ Failed to parse notification event:', event.id, error);
             }
           }
 

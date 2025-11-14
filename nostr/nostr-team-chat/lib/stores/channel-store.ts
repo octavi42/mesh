@@ -34,6 +34,19 @@ interface ChannelState {
   getChannelsForWorkspace: (workspaceId: string) => Channel[];
 }
 
+const getChannelStorageName = () => {
+  // Get current user's pubkey for account-specific storage
+  try {
+    const authStore = typeof window !== 'undefined' ?
+      JSON.parse(localStorage.getItem('nostr-auth') || '{}') : {};
+    const pubkey = authStore?.state?.pubkey;
+    return pubkey ? `channel-store-${pubkey.slice(0, 8)}` : 'channel-store';
+  } catch (error) {
+    console.warn('Failed to get channel storage name:', error);
+    return 'channel-store';
+  }
+};
+
 export const useChannelStore = create<ChannelState>()(
   persist(
     (set, get) => ({
@@ -111,7 +124,7 @@ export const useChannelStore = create<ChannelState>()(
       },
     }),
     {
-      name: 'channel-store',
+      name: getChannelStorageName(),
       partialize: (state) => ({
         channels: state.channels,
         currentChannelId: state.currentChannelId,

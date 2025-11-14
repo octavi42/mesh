@@ -44,9 +44,20 @@ export const useAuthStore = create<AuthState>()(
 
           // Force reset workspace session for fresh data fetch
           try {
-            const { resetWorkspaceSession } = require('../hooks/use-nip29-workspaces');
-            resetWorkspaceSession();
-            console.log('🔄 Workspace session reset due to pubkey change');
+            import('../hooks/use-nip29-workspaces').then(({ forceRefreshWorkspaces }) => {
+              forceRefreshWorkspaces();
+              console.log('🔄 Workspace session reset due to pubkey change');
+            }).catch(error => {
+              console.warn('Failed to reset workspace session:', error);
+            });
+
+            // Also refresh channels for the new account
+            import('../hooks/use-channels').then(({ refreshAllChannelsForUser }) => {
+              refreshAllChannelsForUser();
+              console.log('🔄 Channel refresh triggered due to pubkey change');
+            }).catch(error => {
+              console.warn('Failed to refresh channels:', error);
+            });
           } catch (error) {
             console.warn('Failed to reset workspace session:', error);
           }
@@ -168,6 +179,24 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         console.log('🚪 LOGOUT CALLED');
         console.trace('Logout stack trace:');
+
+        // Clear any active workspace subscriptions
+        const currentPubkey = get().pubkey;
+        if (currentPubkey) {
+          try {
+            // Import and clear active subscriptions for this user
+            import('../hooks/use-nip29-workspaces').then(({ clearUserSubscription }) => {
+              if (clearUserSubscription) {
+                clearUserSubscription(currentPubkey.slice(0, 8));
+              }
+            }).catch(error => {
+              console.warn('Failed to clear workspace subscription:', error);
+            });
+          } catch (error) {
+            console.warn('Failed to clear workspace subscription:', error);
+          }
+        }
+
         set({
           pubkey: null,
           npub: null,

@@ -5,21 +5,14 @@ import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { NDKKind } from '@nostr-dev-kit/ndk';
 import type { Workspace } from '@/lib/stores/workspace-store-clean';
 
-// Only process managed group events - no content discovery for unmanaged groups
-// This ensures we only show workspaces for properly structured groups
+// Real-time workspace synchronization - follows the same pattern as message sync
+// This ensures workspaces are always up-to-date across accounts and devices
 
-// Global flag to ensure workspace fetching happens only once per session
-let workspacesFetched = false;
-
-// Function to reset the session (call on user logout)
-export function resetWorkspaceSession() {
-  workspacesFetched = false;
-  console.log('🔄 Workspace session reset - will fetch on next mount');
-}
+// Track active subscriptions per user to avoid duplicates
+const activeSubscriptions = new Map<string, string>();
 
 // Function to force refresh workspaces (for debugging deleted groups)
 export function forceRefreshWorkspaces() {
-  workspacesFetched = false;
   console.log('🔄 Forcing workspace refresh - clearing cache and refetching');
 
   // Clear the workspace store
@@ -29,24 +22,19 @@ export function forceRefreshWorkspaces() {
   console.log('✅ Workspace cache cleared, will refetch on next component mount');
 }
 
+// Function to clear active subscription for a specific user (on logout)
+export function clearUserSubscription(userKey: string) {
+  if (activeSubscriptions.has(userKey)) {
+    activeSubscriptions.delete(userKey);
+    console.log('🧹 Cleared workspace subscription for user:', userKey);
+  }
+}
+
 export function useNIP29Workspaces() {
   const { ndk, isConnected } = useNDK();
   const { pubkey } = useAuthStore();
-  const { addWorkspace, setLoading, setError, workspaces } = useWorkspaceStore();
+  const { addWorkspace, setLoading, setError, workspaces, setWorkspaces } = useWorkspaceStore();
   const subscriptionActiveRef = useRef(true);
-  const lastPubkeyRef = useRef<string | null>(null);
-
-  // Reset workspace session when pubkey changes (new authentication)
-  useEffect(() => {
-    if (pubkey && lastPubkeyRef.current && lastPubkeyRef.current !== pubkey) {
-      console.log('🔄 Pubkey changed, resetting workspace session:', {
-        old: lastPubkeyRef.current?.slice(0, 8),
-        new: pubkey.slice(0, 8)
-      });
-      resetWorkspaceSession();
-    }
-    lastPubkeyRef.current = pubkey;
-  }, [pubkey]);
 
   useEffect(() => {
     console.log('🔍 useNIP29Workspaces effect triggered:', {
@@ -54,21 +42,8 @@ export function useNIP29Workspaces() {
       hasPubkey: !!pubkey,
       isConnected,
       pubkey: pubkey?.slice(0, 8),
-      workspacesFetched,
       existingWorkspaces: workspaces.length
     });
-
-    // Only run once per session - never during navigation
-    if (workspacesFetched) {
-      console.log('⏭️ Workspaces already fetched this session, skipping', {
-        workspacesFetched,
-        hasNdk: !!ndk,
-        hasPubkey: !!pubkey,
-        hasSigner: !!ndk?.signer,
-        pubkey: pubkey?.slice(0, 8)
-      });
-      return;
-    }
 
     if (!ndk || !pubkey) {
       console.log('⏭️ Skipping NIP-29 workspace subscription: missing basic requirements');
@@ -83,14 +58,17 @@ export function useNIP29Workspaces() {
       return;
     }
 
-    console.log('🔍 Starting NIP-29 workspace data fetching for user:', pubkey.slice(0, 8));
-    workspacesFetched = true; // Mark as fetched immediately
+    // Prevent duplicate subscriptions for the same user
+    const userKey = pubkey.slice(0, 8);
+    if (activeSubscriptions.has(userKey)) {
+      console.log('⏭️ Workspace subscription already active for user:', userKey);
+      return;
+    }
+
+    console.log('🔍 Starting real-time NIP-29 workspace sync for user:', userKey);
     setLoading(true);
 
-    // Note: We've removed content discovery to only show managed groups
-    // Existing cached workspaces will gradually be replaced as we fetch managed ones
-
-    // Track processed groups to avoid duplicates
+    // Track processed groups and member/admin data
     const processedGroups = new Set<string>();
     const groupAdmins = new Map<string, string[]>(); // groupId -> admin pubkeys
     const groupMembers = new Map<string, string[]>(); // groupId -> member pubkeys
@@ -287,58 +265,39 @@ export function useNIP29Workspaces() {
 
     const initializeWorkspaces = async () => {
       try {
-        // PHASE 1: HISTORICAL DATA FETCH (like working test app)
+        // Mark this user as having an active subscription
+        activeSubscriptions.set(userKey, 'active');
+
+        // PHASE 1: HISTORICAL DATA FETCH (like message pattern)
         console.log('📜 PHASE 1: Fetching historical workspace data...');
 
-        // Wait for relay authentication like working test app does
+        // Wait for relay authentication
         const pool = ndk.pool;
         const allRelays = Array.from(pool.relays.values());
-        console.log('📡 Relay status check before fetch:', {
-          totalRelays: allRelays.length,
-          relayStates: allRelays.map(r => ({
-            url: r.url,
-            status: r.status,
-            connectivity: r.connectivity,
-            hasAuth: r.hasAuth,
-            statusName: ['disconnected', 'connecting', 'connected', 'reconnecting', 'error', 'authenticated', 'connected_readonly'][r.status] || `unknown_${r.status}`
-          }))
-        });
-
-        // Check if we have usable relays - be more inclusive for status checks
         const usableRelays = allRelays.filter(relay => {
-          // Accept any status >= 1 (connected states) or explicit connectivity status
-          // This includes status 7 which seems to be an authenticated state
           return relay.status >= 1 || relay.connectivity?.status === 'connected';
         });
+
         if (usableRelays.length === 0) {
           console.warn('📡 No connected relays available, waiting...');
-          // Wait a bit for authentication
           await new Promise(resolve => setTimeout(resolve, 2000));
-
-          const relaysAfterWait = Array.from(pool.relays.values());
-          console.log('📡 Relay status after wait:', relaysAfterWait.map(r => ({
-            url: r.url,
-            status: r.status,
-            hasAuth: r.hasAuth
-          })));
         }
 
-        // MANAGED GROUPS ONLY: Fetch only proper group metadata events
-        console.log('📜 Fetching managed group metadata events...');
-        const metadataFilter = {
+        // Fetch all workspace-related events
+        const workspaceFilter = {
           kinds: [39000, 39001, 39002, 9007] as NDKKind[]
         };
-        console.log('📜 Metadata filter:', metadataFilter);
-        const managedGroupEvents = await ndk.fetchEvents(metadataFilter);
-        console.log(`📜 Found ${managedGroupEvents.size} managed group events`);
-
-        // Fetch deletion events to filter out deleted groups
-        console.log('📜 Fetching group deletion events...');
         const deletionFilter = {
           kinds: [9008] as NDKKind[]
         };
-        const deletionEvents = await ndk.fetchEvents(deletionFilter);
-        console.log(`📜 Found ${deletionEvents.size} deletion events`);
+
+        console.log('📜 Fetching workspace events...');
+        const [workspaceEvents, deletionEvents] = await Promise.all([
+          ndk.fetchEvents(workspaceFilter),
+          ndk.fetchEvents(deletionFilter)
+        ]);
+
+        console.log(`📜 Found ${workspaceEvents.size} workspace events, ${deletionEvents.size} deletion events`);
 
         // Build set of deleted group IDs
         const deletedGroupIds = new Set<string>();
@@ -346,125 +305,152 @@ export function useNIP29Workspaces() {
           const groupId = event.tags.find((tag: string[]) => tag[0] === 'h')?.[1];
           if (groupId) {
             deletedGroupIds.add(groupId);
-            console.log('📜 Group marked as deleted:', groupId, 'from event:', event.id?.slice(0, 8));
           }
         });
 
-        console.log('📜 Total deleted groups found:', deletedGroupIds.size, 'IDs:', Array.from(deletedGroupIds));
-
-        // DETAILED DEBUGGING: Log group IDs discovered from managed events only
-        const discoveredGroupIds = new Set<string>();
-        if (managedGroupEvents.size > 0) {
-          console.log(`📜 Processing ${managedGroupEvents.size} managed group events...`);
-
-          Array.from(managedGroupEvents).forEach((e, index) => {
-            const groupId = e.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
-            if (groupId) {
-              discoveredGroupIds.add(groupId);
-              if (index < 10) { // Log first 10 events for debugging
-                console.log(`📜 Managed event ${index + 1}:`, {
-                  id: e.id?.slice(0, 8),
-                  kind: e.kind,
-                  extractedGroupId: groupId,
-                  relay: e.relay?.url
-                });
-              }
-            }
-          });
-
-          console.log(`📜 Discovered ${discoveredGroupIds.size} managed group IDs:`, Array.from(discoveredGroupIds));
-        } else {
-          console.log('📜 No managed group events found');
-        }
-
         let latestTimestamp = 0;
 
-        // Process managed group events only
-        managedGroupEvents.forEach((event) => {
+        // Process historical events
+        workspaceEvents.forEach((event) => {
           processEvent(event, false, deletedGroupIds);
           if (event.created_at && event.created_at > latestTimestamp) {
             latestTimestamp = event.created_at;
           }
         });
 
-        console.log('📜 Managed groups processing complete');
+        console.log('📜 Historical workspace processing complete');
 
-        // Sync channels for newly loaded workspaces
-        const managedWorkspaceIds = Array.from(processedGroups);
-        if (managedWorkspaceIds.length > 0) {
-          console.log('🔄 Syncing channels for managed workspaces:', managedWorkspaceIds);
-          // Import and sync channels for each workspace
+        // Sync channels for ALL loaded workspaces (both new and existing)
+        const allWorkspaceIds = Array.from(processedGroups);
+        if (allWorkspaceIds.length > 0) {
+          console.log('🔄 Scheduling channel sync for all workspaces:', allWorkspaceIds);
           setTimeout(async () => {
             try {
               const { syncChannelsForWorkspace } = await import('../hooks/use-channels');
-              for (const workspaceId of managedWorkspaceIds) {
+              for (const workspaceId of allWorkspaceIds) {
+                console.log('🔄 Syncing channels for workspace:', workspaceId);
                 await syncChannelsForWorkspace(workspaceId);
               }
-              console.log('✅ Channel sync completed for all managed workspaces');
+              console.log('✅ Channel sync completed for all workspaces');
             } catch (error) {
               console.error('❌ Failed to sync channels:', error);
             }
-          }, 1000); // Delay to ensure workspaces are fully loaded
+          }, 2000); // Increased delay to ensure workspaces are fully loaded
         }
 
+        // PHASE 2: LIVE SUBSCRIPTION (like message pattern)
+        console.log('🔴 PHASE 2: Starting live workspace subscription...');
 
-        // LIVE SUBSCRIPTION: Only subscribe to managed group events including deletions
-        console.log('🔴 Starting live subscription for managed group events including deletions...');
-
-        const managedGroupKinds = [39000, 39001, 39002, 9007, 9008] as NDKKind[];
-        const liveSubscription = ndk.subscribe({
-          kinds: managedGroupKinds,
+        const liveFilter = {
+          kinds: [39000, 39001, 39002, 9007, 9008, 9] as NDKKind[], // Added kind 9 for messages
           since: latestTimestamp + 1 // Only new events after historical data
-        });
+        };
 
-        console.log('🔴 Live subscription kinds (managed + deletion):', managedGroupKinds);
+        const liveSubscription = ndk.subscribe(liveFilter);
 
         if (!liveSubscription) {
-          console.warn('⚠️ Could not create live subscription - NDK not ready');
+          console.warn('⚠️ Could not create live workspace subscription');
           setLoading(false);
           return;
         }
 
         // Handle live events
         liveSubscription.on('event', (event) => {
+          console.log('🔴 LIVE workspace event:', event.kind, event.id?.slice(0, 8));
+
           if (event.kind === 9008) {
             // Handle group deletion
             const groupId = event.tags.find((tag: string[]) => tag[0] === 'h')?.[1];
             if (groupId) {
-              console.log('🔴 LIVE Group deletion event received:', groupId);
+              console.log('🔴 LIVE Group deletion:', groupId);
               deletedGroupIds.add(groupId);
-
-              // Remove from workspace store
               const store = useWorkspaceStore.getState();
               store.removeWorkspace(groupId);
-              console.log('🔴 LIVE Removed deleted workspace:', groupId);
+            }
+          } else if (event.kind === 9) {
+            // Handle new message events to discover channels
+            const groupId = event.tags.find((tag: string[]) => tag[0] === 'h')?.[1];
+            const channelTag = event.tags.find((tag: string[]) => tag[0] === 'c');
+
+            if (groupId && channelTag && channelTag[1] && !deletedGroupIds.has(groupId)) {
+              const channelName = channelTag[1];
+              console.log('🔴 LIVE New channel detected from message:', channelName, 'in workspace:', groupId);
+
+              // Check if we know about this workspace and if channel exists
+              const store = useWorkspaceStore.getState();
+              const workspace = store.workspaces.find(w => w.id === groupId);
+
+              if (workspace) {
+                // Add channel to database if it doesn't exist
+                setTimeout(async () => {
+                  try {
+                    const { db } = await import('@/lib/db/schema');
+                    const channelId = `${groupId}-${channelName}`;
+                    const existingChannel = await db.channels.get(channelId);
+
+                    if (!existingChannel) {
+                      console.log('🔴 Adding new channel from live message:', channelName);
+                      await db.channels.add({
+                        id: channelId,
+                        workspaceId: groupId,
+                        name: channelName,
+                        description: `Discussion in #${channelName}`,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now(),
+                      });
+                      console.log('✅ New channel added from live message:', channelName);
+                    }
+                  } catch (error) {
+                    console.error('❌ Failed to add channel from live message:', error);
+                  }
+                }, 100);
+              }
             }
           } else {
             processEvent(event, true, deletedGroupIds);
+
+            // If this is a new workspace being added, sync its channels
+            if (event.kind === 9007 || event.kind === 39000) {
+              const groupId = event.tags.find((tag: string[]) => tag[0] === 'h' || tag[0] === 'd')?.[1];
+              if (groupId && !deletedGroupIds.has(groupId)) {
+                console.log('🔴 LIVE New workspace detected, syncing channels:', groupId);
+                setTimeout(async () => {
+                  try {
+                    const { syncChannelsForWorkspace } = await import('../hooks/use-channels');
+                    await syncChannelsForWorkspace(groupId);
+                    console.log('✅ Channel sync completed for new workspace:', groupId);
+                  } catch (error) {
+                    console.error('❌ Failed to sync channels for new workspace:', error);
+                  }
+                }, 1000);
+              }
+            }
           }
         });
 
         liveSubscription.on('eose', () => {
-          console.log('✅ Live subscription EOSE - real-time updates active');
+          console.log('✅ Live workspace subscription active');
           setLoading(false);
         });
 
         // Cleanup function
         return () => {
-          console.log('🛑 Stopping NIP-29 workspace subscriptions');
+          console.log('🛑 Stopping workspace subscription for user:', userKey);
+          activeSubscriptions.delete(userKey);
           subscriptionActiveRef.current = false;
           try {
             liveSubscription.stop();
           } catch (error) {
-            console.log('Error stopping subscription:', error);
+            console.error('Error stopping workspace subscription:', error);
           }
           setLoading(false);
         };
 
       } catch (error) {
-        console.error('❌ Failed to fetch workspace data:', error);
-        setError(error instanceof Error ? error.message : 'Data fetching failed');
+        console.error('❌ Failed to initialize workspaces:', error);
+        setError(error instanceof Error ? error.message : 'Workspace initialization failed');
         setLoading(false);
+        activeSubscriptions.delete(userKey);
       }
     };
 
@@ -482,7 +468,7 @@ export function useNIP29Workspaces() {
       }
     };
 
-  }, [ndk, pubkey, ndk?.signer]); // Run when signer is ready, but only once per session
+  }, [ndk, pubkey, ndk?.signer]); // Run when signer is ready - real-time per account
 }
 
 // Hook to create a new workspace

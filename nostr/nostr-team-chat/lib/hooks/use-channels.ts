@@ -25,6 +25,25 @@ export async function refreshChannelsForWorkspace(workspaceId: string): Promise<
   }
 }
 
+// Force refresh channels for all workspaces for the current user
+export async function refreshAllChannelsForUser(): Promise<void> {
+  try {
+    console.log('🔄 Force refreshing all channels for current user');
+
+    // Get all workspaces for the current user
+    const workspaces = await db.workspaces ? await db.workspaces.toArray() : [];
+
+    // Sync channels for each workspace
+    for (const workspace of workspaces) {
+      await syncChannelsForWorkspace(workspace.id);
+    }
+
+    console.log('✅ Refreshed channels for all workspaces');
+  } catch (error) {
+    console.error('❌ Failed to refresh all channels:', error);
+  }
+}
+
 export function useChannel(channelId: string | null) {
   const [isLoading, setIsLoading] = React.useState(false);
   const [hasAttemptedSync, setHasAttemptedSync] = React.useState(false);
@@ -123,17 +142,14 @@ export async function syncChannelsForWorkspace(workspaceId: string): Promise<voi
     console.log('🔍 Fetching messages for localGroupId:', localGroupId);
 
     // Fetch all messages from the group to extract unique channel names
+    // Increased limit to ensure we get more comprehensive channel discovery
     const messages = await client.fetchEvents({
       kinds: [9], // GroupChatMessage
       '#h': [localGroupId],
-      limit: 1000
+      limit: 2000 // Increased limit for better channel discovery
     });
 
     console.log('📨 Found', messages.length, 'messages from relay');
-    if (messages.length > 0) {
-      console.log('📨 Sample message tags:', messages[0].tags);
-      console.log('📨 Sample message content preview:', messages[0].content.substring(0, 50));
-    }
 
     // Extract unique channel names from message 'c' tags
     const channelNames = new Set<string>();
@@ -145,6 +161,12 @@ export async function syncChannelsForWorkspace(workspaceId: string): Promise<voi
         console.log('📋 Found channel in message:', channelTag[1]);
         channelNames.add(channelTag[1]);
       }
+    }
+
+    // Also add a default 'general' channel if none exist yet
+    if (channelNames.size === 0) {
+      console.log('📋 No channels found, adding default general channel');
+      channelNames.add('general');
     }
 
     console.log('📋 All discovered channels:', Array.from(channelNames));

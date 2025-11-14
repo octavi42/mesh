@@ -43,6 +43,14 @@ interface WorkspaceState {
   getWorkspaceById: (id: string) => Workspace | null;
 }
 
+const getStorageName = () => {
+  // Get current user's pubkey for account-specific storage
+  const authStore = typeof window !== 'undefined' ?
+    JSON.parse(localStorage.getItem('nostr-auth') || '{}') : {};
+  const pubkey = authStore?.state?.pubkey;
+  return pubkey ? `workspace-store-${pubkey.slice(0, 8)}` : 'workspace-store-clean';
+};
+
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
     (set, get) => ({
@@ -137,8 +145,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         // Also clear from localStorage for complete reset
         if (typeof window !== 'undefined') {
           try {
-            localStorage.removeItem('workspace-store-clean');
-            console.log('🗑️ Cleared workspace localStorage completely');
+            const storageName = getStorageName();
+            localStorage.removeItem(storageName);
+            console.log('🗑️ Cleared workspace localStorage completely:', storageName);
           } catch (error) {
             console.warn('⚠️ Failed to clear localStorage:', error);
           }
@@ -157,7 +166,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       },
     }),
     {
-      name: 'workspace-store-clean',
+      name: getStorageName(),
       partialize: (state) => ({
         workspaces: state.workspaces,
         currentWorkspaceId: state.currentWorkspaceId,
