@@ -152,32 +152,31 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
 
   // Function to delete workspace from relay using NIP-29 deletion events
   const deleteWorkspaceFromRelay = async (workspaceId: string, workspaceName: string) => {
-    if (!ndk) {
-      throw new Error('NDK not available for workspace deletion');
-    }
-
     try {
       console.log('🗑️ Deleting workspace from relay:', workspaceId);
 
-      const { NDKEvent } = await import('@nostr-dev-kit/ndk');
+      // Use the proper NIP-29 event creation and client (same pattern as channel deletion)
+      const { deleteGroupEvent } = await import('@/lib/nostr/nip29/events');
+      const { getGlobalNIP29Client } = await import('@/lib/nostr/nip29');
 
-      // Create a workspace deletion event (kind 9008)
-      const deletionEvent = new NDKEvent(ndk);
-      deletionEvent.kind = 9008; // NIP-29 group deletion
-      deletionEvent.content = `Workspace "${workspaceName}" deleted by admin`;
+      // Extract local group ID for relay operations
+      const parts = workspaceId.split("'");
+      const localGroupId = parts.length === 2 ? parts[1] : workspaceId;
 
-      // Add group tag for the workspace being deleted
-      deletionEvent.tags = [
-        ['h', workspaceId] // Group ID tag
-      ];
+      // Create the deletion event using the proper NIP-29 function
+      const deleteEvent = await deleteGroupEvent(localGroupId);
 
-      console.log('🗑️ Creating workspace deletion event for group:', workspaceId);
+      console.log('🗑️ Created workspace deletion event:', {
+        kind: deleteEvent.kind,
+        tags: deleteEvent.tags,
+        groupId: localGroupId
+      });
 
-      // Sign and publish the deletion event
-      await deletionEvent.sign();
-      await deletionEvent.publish();
+      // Send via the authenticated NIP-29 client
+      const client = getGlobalNIP29Client();
+      await client.publishEvent(deleteEvent);
 
-      console.log('✅ Workspace deletion event published successfully with ID:', deletionEvent.id?.slice(0, 8));
+      console.log('✅ Workspace deletion event sent successfully with ID:', deleteEvent.id?.slice(0, 8));
 
     } catch (error) {
       console.error('❌ Failed to delete workspace from relay:', error);

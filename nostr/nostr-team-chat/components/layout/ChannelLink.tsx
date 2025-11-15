@@ -270,36 +270,53 @@ export function ChannelLink({
         }
       }
 
-      const { NDKEvent } = await import('@nostr-dev-kit/ndk');
+      // Use the proper NIP-29 client for authenticated publishing (same as working channel deletion)
+      const { deleteEventEvent } = await import('@/lib/nostr/nip29/events');
+      const { getGlobalNIP29Client } = await import('@/lib/nostr/nip29');
 
-      // Create a deletion event (kind 9005) that deletes all messages in this channel
-      const deletionEvent = new NDKEvent(ndkInstance);
-      deletionEvent.kind = 9005; // NIP-29 message deletion
-      deletionEvent.content = `Bulk deletion of channel #${channelName}`;
+      const client = getGlobalNIP29Client();
 
-      // Add group tag
-      deletionEvent.tags = [
-        ['h', groupId] // Group ID tag
-      ];
+      // Delete messages in batches (same pattern as use-delete-channel-actions.ts)
+      const batchSize = 5;
+      let deletedCount = 0;
 
-      // Add all message IDs as 'e' tags for deletion
-      messagesToDelete.forEach(message => {
-        if (message.id) {
-          deletionEvent.tags.push(['e', message.id]);
+      console.log(`🗑️ Deleting ${messagesToDelete.length} messages in batches of ${batchSize}`);
+
+      for (let i = 0; i < messagesToDelete.length; i += batchSize) {
+        const batch = messagesToDelete.slice(i, i + batchSize);
+
+        const deletionPromises = batch.map(async (message) => {
+          try {
+            // Use the proper NIP-29 event creation function
+            const deleteEvent = await deleteEventEvent(groupId, message.id);
+
+            console.log('🗑️ Sending deletion event:', {
+              kind: deleteEvent.kind,
+              messageId: message.id.slice(0, 8),
+              eventId: deleteEvent.id?.slice(0, 8)
+            });
+
+            await client.publishEvent(deleteEvent);
+            deletedCount++;
+
+          } catch (error) {
+            console.error('❌ Failed to delete message:', message.id.slice(0, 8), error);
+          }
+        });
+
+        await Promise.all(deletionPromises);
+
+        // Small delay between batches
+        if (i + batchSize < messagesToDelete.length) {
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
-      });
+      }
 
-      console.log('🗑️ Creating deletion event with', deletionEvent.tags.length - 1, 'message IDs:', {
-        groupId,
-        channelName,
-        messageIds: deletionEvent.tags.filter(tag => tag[0] === 'e').map(tag => tag[1].slice(0, 8))
-      });
+      console.log(`✅ Sent ${deletedCount}/${messagesToDelete.length} deletion events`);
 
-      // Sign and publish the deletion event
-      await deletionEvent.sign();
-      await deletionEvent.publish();
-
-      console.log('✅ Channel deletion event published successfully with ID:', deletionEvent.id?.slice(0, 8));
+      console.log('✅ Channel deletion completed successfully');
+      // Note: Individual messages are deleted via NIP-29 deleteEvent events (kind 9005)
+      // The channel will be considered "deleted" when all its messages are deleted
 
     } catch (error) {
       console.error('❌ Failed to delete channel from relay:', error);

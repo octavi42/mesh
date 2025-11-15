@@ -4,6 +4,7 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
 import { NDKKind } from '@nostr-dev-kit/ndk';
 import type { Workspace } from '@/lib/stores/workspace-store-clean';
+import { parseGroupMetadata } from '@/lib/nostr/nip29/utils';
 
 // Real-time workspace synchronization - follows the same pattern as message sync
 // This ensures workspaces are always up-to-date across accounts and devices
@@ -107,19 +108,28 @@ export function useNIP29Workspaces() {
           let isClosed = true;
           let isBroadcast = false;
 
-          for (const tag of event.tags) {
-            const [tagType, value] = tag;
-            switch (tagType) {
-              case 'name': groupName = value || groupName; break;
-              case 'about': about = value; break;
-              case 'picture': picture = value; break;
-              case 'private': isPrivate = true; break;
-              case 'public': isPrivate = false; break;
-              case 'open': isClosed = false; break;
-              case 'closed': isClosed = true; break;
-              case 'broadcast': isBroadcast = true; break;
-              case 'nonbroadcast': isBroadcast = false; break;
+          // Parse metadata from content using the proper NIP-29 utility
+          try {
+            const metadata = parseGroupMetadata(event.content || '');
+
+            console.log(`${logPrefix} Parsed metadata for ${groupId}:`, metadata);
+
+            if (metadata && typeof metadata === 'object') {
+              groupName = (metadata.name as string) || groupName;
+              about = metadata.about as string;
+              picture = metadata.picture as string;
+
+              // Handle boolean metadata
+              if (metadata.private === true) isPrivate = true;
+              if (metadata.public === true) isPrivate = false;
+              if (metadata.open === true) isClosed = false;
+              if (metadata.closed === true) isClosed = true;
+              if (metadata.broadcast === true) isBroadcast = true;
+            } else {
+              console.log(`${logPrefix} No valid metadata found for ${groupId}, using defaults`);
             }
+          } catch (parseError) {
+            console.warn(`${logPrefix} Failed to parse metadata for ${groupId}:`, parseError);
           }
 
           const workspace: Workspace = {
@@ -271,7 +281,8 @@ export function useNIP29Workspaces() {
         // PHASE 1: HISTORICAL DATA FETCH (like message pattern)
         console.log('📜 PHASE 1: Fetching historical workspace data...');
 
-        // Wait for relay authentication
+        // Wait for relay connection - simple approach
+        console.log('📡 Waiting for relay connections...');
         const pool = ndk.pool;
         const allRelays = Array.from(pool.relays.values());
         const usableRelays = allRelays.filter(relay => {
@@ -279,11 +290,13 @@ export function useNIP29Workspaces() {
         });
 
         if (usableRelays.length === 0) {
-          console.warn('📡 No connected relays available, waiting...');
+          console.warn('📡 No connected relays available, waiting 2s...');
           await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          console.log(`📡 Found ${usableRelays.length} connected relays`);
         }
 
-        // Fetch all workspace-related events
+        // Fetch all workspace-related events (simple approach)
         const workspaceFilter = {
           kinds: [39000, 39001, 39002, 9007] as NDKKind[]
         };
@@ -297,7 +310,7 @@ export function useNIP29Workspaces() {
           ndk.fetchEvents(deletionFilter)
         ]);
 
-        console.log(`📜 Found ${workspaceEvents.size} workspace events, ${deletionEvents.size} deletion events`);
+        console.log(`📜 Found ${workspaceEvents?.size || 0} workspace events, ${deletionEvents?.size || 0} deletion events`);
 
         // Build set of deleted group IDs
         const deletedGroupIds = new Set<string>();

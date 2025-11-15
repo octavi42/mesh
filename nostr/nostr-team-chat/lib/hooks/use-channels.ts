@@ -196,9 +196,92 @@ export async function syncChannelsForWorkspace(workspaceId: string): Promise<voi
     }
 
     if (channelsToAdd.length > 0) {
-      await db.channels.bulkAdd(channelsToAdd);
-      console.log('✅ Added', channelsToAdd.length, 'new channels:', channelsToAdd.map(c => c.name));
+      try {
+        await db.channels.bulkAdd(channelsToAdd);
+        console.log('✅ Added', channelsToAdd.length, 'new channels:', channelsToAdd.map(c => c.name));
+      } catch (error) {
+        // Handle constraint errors gracefully - might happen during concurrent operations
+        if (error instanceof Error && error.name === 'ConstraintError') {
+          console.log('⚠️ Some channels already exist, adding individually...', error.message);
+          // Fallback: add channels one by one, ignoring duplicates
+          for (const channel of channelsToAdd) {
+            try {
+              await db.channels.add(channel);
+              console.log('✅ Added channel:', channel.name);
+            } catch (addError) {
+              if (addError instanceof Error && addError.name === 'ConstraintError') {
+                console.log('🔄 Channel already exists:', channel.name);
+                // Update the existing channel instead
+                await db.channels.update(channel.id, {
+                  updatedAt: channel.updatedAt
+                });
+              } else {
+                console.warn('❌ Failed to add channel:', channel.name, addError);
+              }
+            }
+          }
+        } else {
+          throw error; // Re-throw if it's not a constraint error
+        }
+      }
     }
+
+    // CLEANUP TEMPORARILY DISABLED - Testing if this is causing fetch issues
+    console.log('⚠️ Channel cleanup disabled for debugging - skipping orphaned channel removal');
+
+    // TODO: Re-enable cleanup after confirming basic fetching works
+    // The cleanup logic was causing workspace/channel fetching issues
+
+    /*
+    // CONSERVATIVE CLEANUP: Only remove channels that are clearly orphaned
+    // Skip cleanup if we didn't find any messages at all (could be auth issue)
+    if (messages.length > 0 && channelNames.size > 0) {
+      console.log('🧹 Checking for orphaned channels (conservative mode)...');
+      const channelsToRemove: string[] = [];
+
+      for (const existingChannel of existingChannels) {
+        // Only remove if:
+        // 1. The channel doesn't exist in relay messages AND
+        // 2. We found other channels (so it's not a general fetch issue) AND
+        // 3. The channel is not 'general' (always keep general as fallback)
+        if (!channelNames.has(existingChannel.name) &&
+            channelNames.size > 1 &&
+            existingChannel.name !== 'general') {
+
+          // Additional safety: Check if channel has recent messages
+          const recentMessages = await db.messages
+            .where('channelId').equals(existingChannel.id)
+            .and(msg => msg.createdAt > Date.now() - (7 * 24 * 60 * 60 * 1000)) // Last 7 days
+            .count();
+
+          if (recentMessages === 0) {
+            channelsToRemove.push(existingChannel.id);
+            console.log(`🗑️ Channel "${existingChannel.name}" appears orphaned (no recent messages, not on relay)`);
+          } else {
+            console.log(`⚠️ Keeping "${existingChannel.name}" despite not being on relay (has recent messages)`);
+          }
+        }
+      }
+
+      if (channelsToRemove.length > 0) {
+        try {
+          console.log(`🗑️ Removing ${channelsToRemove.length} clearly orphaned channels...`);
+
+          for (const channelId of channelsToRemove) {
+            await db.messages.where('channelId').equals(channelId).delete();
+            await db.channels.delete(channelId);
+            console.log(`✅ Removed orphaned channel: ${channelId}`);
+          }
+        } catch (cleanupError) {
+          console.error('❌ Failed to cleanup channels:', cleanupError);
+        }
+      } else {
+        console.log('✅ No clearly orphaned channels found');
+      }
+    } else {
+      console.log('⚠️ Skipping cleanup - insufficient relay data (could be auth/connection issue)');
+    }
+    */
 
     console.log('✅ Channel sync completed for workspace:', workspaceId);
   } catch (error) {

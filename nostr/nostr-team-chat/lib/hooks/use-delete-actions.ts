@@ -15,7 +15,7 @@ export function useDeleteActions(groupId: string) {
     try {
       const deleteEvent = await deleteEventEvent(groupId, messageId);
       const client = getGlobalNIP29Client();
-      await client.sendEvent(deleteEvent);
+      await client.publishEvent(deleteEvent);
 
       // Optionally refresh messages or update local state
       toast.success('Message deleted');
@@ -35,7 +35,7 @@ export function useDeleteActions(groupId: string) {
     try {
       const deleteEvent = await deleteGroupEvent(groupId);
       const client = getGlobalNIP29Client();
-      await client.sendEvent(deleteEvent);
+      await client.publishEvent(deleteEvent);
 
       toast.success('Group deleted');
       // Redirect user away from deleted group
