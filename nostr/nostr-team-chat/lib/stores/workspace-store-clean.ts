@@ -109,7 +109,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       setLoading: (loading) => set({ isLoading: loading }),
 
       setError: (error) => {
-        console.error('❌ Workspace store error:', error);
+        if (error) {
+          console.error('❌ Workspace store error:', error);
+        }
         set({ error, isLoading: false });
       },
 

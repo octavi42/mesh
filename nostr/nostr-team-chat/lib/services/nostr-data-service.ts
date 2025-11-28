@@ -6,7 +6,7 @@ import {
   NIP29SubscriptionManager,
 } from '@/lib/nostr/nip29';
 import { NIP29EventKind } from '@/lib/nostr/nip29/types';
-import { parseGroupMetadata, extractAllTagValues, createGroupId, generateLocalGroupId } from '@/lib/nostr/nip29/utils';
+import { parseGroupMetadataFromTags, extractAllTagValues, createGroupId, generateLocalGroupId } from '@/lib/nostr/nip29/utils';
 
 export interface CreateWorkspaceParams {
   name: string;
@@ -196,9 +196,9 @@ export class NostrDataService {
 
       const updates: WorkspaceUpdates = {};
 
-      // Parse metadata
+      // Parse metadata from event tags (NIP-29 standard for relay-generated 39000 events)
       if (metadataEvents[0]) {
-        const metadata = parseGroupMetadata(metadataEvents[0].content);
+        const metadata = parseGroupMetadataFromTags(metadataEvents[0].tags);
         if (typeof metadata.name === 'string') {
           updates.name = metadata.name;
         }
@@ -274,7 +274,8 @@ export class NostrDataService {
       },
       (event) => {
         console.log('📡 Received metadata update for:', groupId);
-        const metadata = parseGroupMetadata(event.content);
+        // Parse metadata from event tags (NIP-29 standard for relay-generated 39000 events)
+        const metadata = parseGroupMetadataFromTags(event.tags);
         const updates: WorkspaceUpdates = {};
 
         if (typeof metadata.name === 'string') {

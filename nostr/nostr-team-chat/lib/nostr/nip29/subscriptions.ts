@@ -1,7 +1,11 @@
 import type { NIP29RelayClient } from './client';
 import type { NostrEvent, NIP29Group, SubscriptionFilter } from './types';
 import { NIP29EventKind } from './types';
-import { parseGroupMetadata, extractAllTagValues } from './utils';
+import { parseGroupMetadataFromTags, extractAllTagValues } from './utils';
+
+// Helper to cast NIP29EventKind to number for NDK compatibility
+const asKind = (kind: NIP29EventKind): number => kind as number;
+const asKinds = (...kinds: NIP29EventKind[]): number[] => kinds.map(k => k as number);
 
 export class NIP29SubscriptionManager {
   private subscriptions: Map<string, string> = new Map();
@@ -18,13 +22,14 @@ export class NIP29SubscriptionManager {
     const subId = this.client.subscribe(
       [
         {
-          kinds: [NIP29EventKind.GroupMetadata],
+          kinds: [asKind(NIP29EventKind.GroupMetadata)],
           '#d': [localGroupId],
           limit: 1,
         },
       ],
       (event: NostrEvent) => {
-        const metadata = parseGroupMetadata(event.content);
+        // Parse metadata from tags (NIP-29 standard for relay-generated 39000 events)
+        const metadata = parseGroupMetadataFromTags(event.tags);
         const update: Partial<NIP29Group> = {
           groupId,
           description: typeof metadata.about === 'string' ? metadata.about : undefined,
@@ -56,7 +61,7 @@ export class NIP29SubscriptionManager {
     const subId = this.client.subscribe(
       [
         {
-          kinds: [NIP29EventKind.GroupAdmins],
+          kinds: [asKind(NIP29EventKind.GroupAdmins)],
           '#d': [localGroupId],
           limit: 1,
         },
@@ -81,7 +86,7 @@ export class NIP29SubscriptionManager {
     const subId = this.client.subscribe(
       [
         {
-          kinds: [NIP29EventKind.GroupMembers],
+          kinds: [asKind(NIP29EventKind.GroupMembers)],
           '#d': [localGroupId],
           limit: 1,
         },
@@ -138,7 +143,7 @@ export class NIP29SubscriptionManager {
     const subId = this.client.subscribe(
       [
         {
-          kinds: [
+          kinds: asKinds(
             NIP29EventKind.AddUser,
             NIP29EventKind.RemoveUser,
             NIP29EventKind.EditMetadata,
@@ -146,7 +151,7 @@ export class NIP29SubscriptionManager {
             NIP29EventKind.RemovePermission,
             NIP29EventKind.DeleteEvent,
             NIP29EventKind.DeleteGroup,
-          ],
+          ),
           '#h': [groupId],
         },
       ],
@@ -164,7 +169,7 @@ export class NIP29SubscriptionManager {
     const subId = this.client.subscribe(
       [
         {
-          kinds: [NIP29EventKind.JoinRequest],
+          kinds: [asKind(NIP29EventKind.JoinRequest)],
           '#h': [groupId],
         },
       ],
@@ -182,7 +187,7 @@ export class NIP29SubscriptionManager {
     const subId = this.client.subscribe(
       [
         {
-          kinds: [NIP29EventKind.GroupMembers],
+          kinds: [asKind(NIP29EventKind.GroupMembers)],
           '#p': [myPubkey],
         },
       ],

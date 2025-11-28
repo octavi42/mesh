@@ -7,8 +7,11 @@ import {
   NIP29SubscriptionManager,
 } from '@/lib/nostr/nip29';
 import { NIP29EventKind } from '@/lib/nostr/nip29/types';
-import { parseGroupMetadata, extractAllTagValues, createGroupId, generateLocalGroupId } from '@/lib/nostr/nip29/utils';
+import { parseGroupMetadataFromTags, extractAllTagValues, createGroupId, generateLocalGroupId } from '@/lib/nostr/nip29/utils';
 import { useAuthStore } from './auth-store';
+
+// Helper to cast NIP29EventKind to number for NDK compatibility
+const asKind = (kind: NIP29EventKind): number => kind as number;
 
 interface WorkspaceStore {
   workspaces: NIP29Workspace[];
@@ -96,7 +99,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           set({ isLoading: false });
         } catch (error) {
           console.error('❌ Failed to initialize NIP-29 client:', error);
-          console.error('Error details:', error.message, error.stack);
+          const err = error instanceof Error ? error : new Error(String(error));
+          console.error('Error details:', err.message, err.stack);
           set({ error: 'Failed to connect to relay', isLoading: false });
         }
       },
@@ -185,12 +189,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
           return groupId;
         } catch (error) {
+          const err = error instanceof Error ? error : new Error(String(error));
           console.error('❌ Failed to create workspace:', {
-            error: error.message,
-            stack: error.stack,
+            error: err.message,
+            stack: err.stack,
             name
           });
-          set({ error: `Failed to create workspace: ${error.message}`, isLoading: false });
+          set({ error: `Failed to create workspace: ${err.message}`, isLoading: false });
           throw error;
         }
       },
@@ -230,7 +235,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           }
         } catch (error) {
           console.error('❌ Failed to fetch workspaces:', error);
-          console.error('Error details:', error.message, error.stack);
+          const err = error instanceof Error ? error : new Error(String(error));
+          console.error('Error details:', err.message, err.stack);
         }
       },
 
@@ -256,13 +262,13 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           console.log('✅ Client is connected, proceeding with discovery');
 
           console.log('🔎 Querying with filter:', {
-            kinds: [NIP29EventKind.GroupMembers],
+            kinds: [asKind(NIP29EventKind.GroupMembers)],
             '#p': [myPubkey],
             limit: 50,
           });
 
           const memberEvents = await client.fetchEvents({
-            kinds: [NIP29EventKind.GroupMembers],
+            kinds: [asKind(NIP29EventKind.GroupMembers)],
             '#p': [myPubkey],
             limit: 50,
           });
@@ -270,7 +276,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           console.log('📦 Found', memberEvents.length, 'potential groups');
 
           const allMetadataEvents = await client.fetchEvents({
-            kinds: [NIP29EventKind.GroupMetadata],
+            kinds: [asKind(NIP29EventKind.GroupMetadata)],
             limit: 20,
           });
           console.log('📋 All group metadata events on relay:', allMetadataEvents.length);
@@ -280,7 +286,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           });
 
           const allMemberEvents = await client.fetchEvents({
-            kinds: [NIP29EventKind.GroupMembers],
+            kinds: [asKind(NIP29EventKind.GroupMembers)],
             limit: 20,
           });
           console.log('📋 All member events on relay:', allMemberEvents.length);
@@ -380,19 +386,19 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           const localGroupId = parts.length === 2 ? parts[1] : groupId;
 
           const metadataEvents = await client.fetchEvents({
-            kinds: [NIP29EventKind.GroupMetadata],
+            kinds: [asKind(NIP29EventKind.GroupMetadata)],
             '#d': [localGroupId],
             limit: 1,
           });
 
           const adminsEvents = await client.fetchEvents({
-            kinds: [NIP29EventKind.GroupAdmins],
+            kinds: [asKind(NIP29EventKind.GroupAdmins)],
             '#d': [localGroupId],
             limit: 1,
           });
 
           const membersEvents = await client.fetchEvents({
-            kinds: [NIP29EventKind.GroupMembers],
+            kinds: [asKind(NIP29EventKind.GroupMembers)],
             '#d': [localGroupId],
             limit: 1,
           });
@@ -402,7 +408,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
           };
 
           if (metadataEvents[0]) {
-            const metadata = parseGroupMetadata(metadataEvents[0].content);
+            // Parse metadata from tags (NIP-29 standard for relay-generated 39000 events)
+            const metadata = parseGroupMetadataFromTags(metadataEvents[0].tags);
             if (typeof metadata.name === 'string') {
               updates.name = metadata.name;
             }

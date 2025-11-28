@@ -1,7 +1,7 @@
 import { getEventHash } from 'nostr-tools/pure';
 import type { UnsignedNostrEvent, NostrEvent, NIP29GroupMetadata } from './types';
 import { NIP29EventKind } from './types';
-import { formatGroupMetadata } from './utils';
+import { formatGroupMetadataAsTags } from './utils';
 
 function ensureNostrAvailable(): void {
   if (!window.nostr) {
@@ -32,20 +32,24 @@ export async function createGroupEvent(
   ensureNostrAvailable();
   const pubkey = await window.nostr!.getPublicKey();
 
-  const metadata: NIP29GroupMetadata = {
-    name,
-  };
-
-  if (about) metadata.about = about;
-  if (picture) metadata.picture = picture;
-  if (isOpen) metadata.open = true;
+  // Build tags according to NIP-29 spec for group creation (kind 9007)
+  const tags: string[][] = [['h', groupId]];
+  
+  // Add metadata as tags (relay may also accept JSON content, but tags are standard)
+  if (name) tags.push(['name', name]);
+  if (about) tags.push(['about', about]);
+  if (picture) tags.push(['picture', picture]);
+  
+  // Privacy flags - default to private, closed
+  tags.push(['private']);
+  tags.push([isOpen ? 'open' : 'closed']);
 
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.CreateGroup,
     pubkey,
     created_at: Math.floor(Date.now() / 1000),
-    tags: [['h', groupId]],
-    content: formatGroupMetadata(metadata),
+    tags,
+    content: '', // NIP-29: metadata in tags, content empty or optional reason
   };
 
   return signEvent(unsignedEvent);
@@ -108,12 +112,34 @@ export async function editMetadataEvent(
   ensureNostrAvailable();
   const pubkey = await window.nostr!.getPublicKey();
 
+  // Build metadata tags according to NIP-29 spec
+  const tags: string[][] = [['h', groupId]];
+  
+  // Add metadata fields as individual tags (not JSON content)
+  if (metadata.name) tags.push(['name', metadata.name]);
+  if (metadata.about) tags.push(['about', metadata.about]);
+  if (metadata.picture) tags.push(['picture', metadata.picture]);
+  
+  // Privacy flag - single value tag
+  if (metadata.public === true) {
+    tags.push(['public']);
+  } else {
+    tags.push(['private']);
+  }
+  
+  // Open/closed flag - single value tag
+  if (metadata.open === true) {
+    tags.push(['open']);
+  } else {
+    tags.push(['closed']);
+  }
+
   const unsignedEvent: UnsignedNostrEvent = {
     kind: NIP29EventKind.EditMetadata,
     pubkey,
     created_at: Math.floor(Date.now() / 1000),
-    tags: [['h', groupId]],
-    content: formatGroupMetadata(metadata),
+    tags,
+    content: '', // NIP-29: metadata goes in tags, content is empty
   };
 
   return signEvent(unsignedEvent);
