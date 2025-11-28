@@ -85,15 +85,7 @@ export function NDKProvider({
         });
 
         ndkInstance.pool.on('relay:error', (relay, error) => {
-          // Suppress common connection errors during initialization
-          const errorMessage = error?.message || error?.toString() || 'Unknown error';
-          if (errorMessage.includes('disconnected') ||
-              errorMessage.includes('WebSocket') ||
-              errorMessage.includes('connection failed')) {
-            console.debug('🔧 NDK relay connection issue (suppressed):', relay.url, errorMessage);
-          } else {
-            console.error('🚨 NDK relay error:', relay.url, error);
-          }
+          console.error('🚨 NDK relay error:', relay.url, error);
         });
 
         ndkInstance.pool.on('relay:auth', async (relay, challenge) => {
@@ -106,8 +98,7 @@ export function NDKProvider({
           await ndkInstance.connect();
           console.log('✅ Basic relay connectivity established');
         } catch (error) {
-          console.debug('🔧 Basic relay connection failed (expected during initialization):', error?.message || error);
-          // Don't treat this as an error - it's expected behavior without authentication
+          console.warn('⚠️ Basic relay connection failed (will retry with signer):', error);
         }
 
         // Set NDK instance immediately for global access
@@ -289,12 +280,7 @@ export function NDKProvider({
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Reconnect with signer
-    try {
-      await ndk.connect();
-    } catch (error) {
-      console.debug('🔧 Signer reconnection had issues (may be temporary):', error?.message || error);
-      // Don't throw - continue and check connection status below
-    }
+    await ndk.connect();
 
     // Give more time for authentication flow (especially for nsec.app)
     const isNsecApp = authMethod === 'nsec' || !authMethod && typeof window !== 'undefined' && window.nostr;

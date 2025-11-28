@@ -13,15 +13,17 @@ interface FetchOptions {
 }
 
 // Helper to wait for relay connection
+// NDK relay status: 0=disconnected, 1=connecting, 2=connected, etc.
 async function waitForRelayConnection(ndk: any, maxWaitMs: number = 10000): Promise<boolean> {
   const startTime = Date.now();
   
   while (Date.now() - startTime < maxWaitMs) {
     const relays = Array.from(ndk.pool.relays.values()) as any[];
-    const connectedRelay = relays.find((relay) => relay.status >= 1);
     
+    // Check for connected relay (status >= 1 means connecting or connected)
+    const connectedRelay = relays.find((relay) => relay.status >= 1);
     if (connectedRelay) {
-      console.log('✅ Relay connected:', connectedRelay.url);
+      console.log('✅ Relay connected:', connectedRelay.url, 'status:', connectedRelay.status);
       return true;
     }
     
@@ -85,6 +87,7 @@ export function useAuthenticatedWorkspaceFetch() {
 
     try {
       // Wait for relay connection with timeout
+      console.log('⏳ Waiting for relay connection...');
       const isConnected = await waitForRelayConnection(ndk, 10000);
       
       if (!isConnected) {
@@ -102,8 +105,9 @@ export function useAuthenticatedWorkspaceFetch() {
         }
       }
 
-      // Wait a bit for auth to complete after connection
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for auth to complete after connection (NIP-42 handshake)
+      console.log('⏳ Waiting for NIP-42 authentication to complete...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       console.log('📡 Fetching groups where user is a member...');
 
