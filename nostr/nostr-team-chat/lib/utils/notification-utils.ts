@@ -69,22 +69,6 @@ export const acceptInviteWithRetry = async (
 };
 
 /**
- * Wrapper for invite decline with retry logic
- */
-export const declineInviteWithRetry = async (
-  notificationId: string,
-  declineAction: () => Promise<void>
-): Promise<void> => {
-  return updateNotificationStatusWithRetry(notificationId, async () => {
-    await declineAction();
-
-    // Update status after successful decline
-    const { updateNotificationStatus } = useNotificationStore.getState();
-    updateNotificationStatus(notificationId, 'declined');
-  });
-};
-
-/**
  * Wrapper for marking invite as seen with retry logic
  */
 export const markInviteSeenWithRetry = async (

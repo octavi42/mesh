@@ -1,4 +1,4 @@
-import NDK, { NDKEvent, NDKFilter, NDKSubscription } from '@nostr-dev-kit/ndk';
+import NDK, { NDKEvent, NDKFilter, NDKSubscription, NDKRelaySet } from '@nostr-dev-kit/ndk';
 import type { NostrEvent, EventHandler, EOSEHandler } from '@/lib/nostr/nip29/types';
 
 // Type conversion helpers
@@ -101,8 +101,112 @@ export class NDKRelayClient {
         this.publishedEvents.add(ndkEvent.id);
       }
 
-      const relayResults = await ndkEvent.publish();
-      console.log('✅ Event published successfully via NDK');
+      // Get all connected relays for debugging
+      const connectedRelays = Array.from(ndk.pool.relays.values());
+      console.log('📤 Connected relays before publish:', connectedRelays.map(r => ({
+        url: r.url,
+        status: r.status,
+        authPolicy: (r as any).authPolicy
+      })));
+
+      // Get our target relay from the pool
+      // Try multiple URL formats since NDK might normalize URLs differently
+      let targetRelay = ndk.pool.relays.get(this.relayUrl);
+      if (!targetRelay) {
+        // Try with trailing slash
+        targetRelay = ndk.pool.relays.get(this.relayUrl + '/');
+      }
+      if (!targetRelay) {
+        // Try without trailing slash
+        targetRelay = ndk.pool.relays.get(this.relayUrl.replace(/\/$/, ''));
+      }
+      if (!targetRelay && connectedRelays.length > 0) {
+        // Last resort: use the first connected relay that matches our domain
+        const domain = new URL(this.relayUrl).hostname;
+        targetRelay = connectedRelays.find(r => r.url.includes(domain));
+        console.log('📤 Using domain match relay:', targetRelay?.url);
+      }
+      
+      console.log('📤 Looking for relay URL:', this.relayUrl, 'Pool keys:', Array.from(ndk.pool.relays.keys()));
+      
+      if (targetRelay) {
+        console.log('📤 Publishing to specific relay:', targetRelay.url, 'status:', targetRelay.status);
+        
+        // Ensure relay is fully connected before publishing
+        const statusNum = typeof targetRelay.status === 'number' ? targetRelay.status : 0;
+        if (statusNum < 5) {
+          console.log('⏳ Waiting for relay to be fully connected...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Create proper NDKRelaySet for publishing
+        const relaySet = NDKRelaySet.fromRelayUrls([targetRelay.url], ndk);
+        
+        // Try publishing with retry
+        let relayResults;
+        let lastError;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            console.log(`📤 Publish attempt ${attempt}/3...`);
+            relayResults = await ndkEvent.publish(relaySet);
+            if (relayResults && relayResults.size > 0) {
+              break; // Success
+            }
+            console.log(`⚠️ Attempt ${attempt} returned 0 relays, retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          } catch (err) {
+            lastError = err;
+            console.log(`⚠️ Attempt ${attempt} error:`, err);
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          }
+        }
+        
+        // Log detailed publish results
+        console.log('📤 Publish results:', {
+          eventId: ndkEvent.id,
+          relayCount: relayResults?.size || 0,
+          relays: relayResults ? Array.from(relayResults).map(r => r.url) : [],
+          connectedRelaysCount: connectedRelays.length,
+          lastError: lastError instanceof Error ? lastError.message : lastError
+        });
+        
+        if (!relayResults || relayResults.size === 0) {
+          console.error('❌ Event was NOT published to target relay after 3 attempts! Event ID:', ndkEvent.id);
+          console.log('🔍 Target relay state:', {
+            url: targetRelay.url,
+            status: targetRelay.status
+          });
+          // Throw error so caller knows publish failed
+          throw new Error(`Failed to publish event ${ndkEvent.id} to relay after 3 attempts`);
+        } else {
+          console.log('✅ Event published successfully via NDK to', relayResults.size, 'relay(s)');
+        }
+      } else {
+        // Fallback to default publish if target relay not found
+        console.warn('⚠️ Target relay not found in pool, using default publish');
+        const relayResults = await ndkEvent.publish();
+        
+        console.log('📤 Publish results (fallback):', {
+          eventId: ndkEvent.id,
+          relayCount: relayResults?.size || 0,
+          relays: relayResults ? Array.from(relayResults).map(r => r.url) : [],
+          connectedRelaysCount: connectedRelays.length
+        });
+        
+        if (!relayResults || relayResults.size === 0) {
+          console.warn('⚠️ Event was NOT published to any relays! Event ID:', ndkEvent.id);
+          
+          for (const relay of connectedRelays) {
+            console.log('🔍 Relay state after publish attempt:', {
+              url: relay.url,
+              status: relay.status,
+              authPolicy: (relay as any).authPolicy
+            });
+          }
+        } else {
+          console.log('✅ Event published successfully via NDK to', relayResults.size, 'relay(s)');
+        }
+      }
 
       // Return success even if some relays failed, as long as at least one succeeded
       return;
@@ -112,9 +216,11 @@ export class NDKRelayClient {
         this.publishedEvents.delete(ndkEvent.id);
       }
 
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
       // Handle specific NDK errors more gracefully
-      if (error?.message?.includes('Not enough relays received the event')) {
-        console.warn('⚠️ Some relays rejected the event, but this may be normal:', error.message);
+      if (errorMessage.includes('Not enough relays received the event')) {
+        console.warn('⚠️ Some relays rejected the event, but this may be normal:', errorMessage);
         // Don't throw for relay issues - the event might still have been published successfully
         return;
       }
@@ -186,10 +292,13 @@ export class NDKRelayClient {
     const ndk = this.getNDK();
     const connectedRelays = Array.from(ndk.pool.relays.values())
       .filter(relay => {
-        const isConnected = relay.status >= 1 || relay.connectivity?.status === 'connected';
+        // NDKRelayStatus: 0=DISCONNECTED, 1=DISCONNECTING, 2=RECONNECTING, 3=FLAPPING, 4=CONNECTING, 5=CONNECTED, 6=AUTH_REQUIRED, 7=AUTHENTICATING, 8=AUTHENTICATED
+        const statusNum = typeof relay.status === 'number' ? relay.status : 0;
+        const isConnected = statusNum >= 5; // CONNECTED or higher
         console.log('🔍 Relay connection check:', {
           url: relay.url,
           status: relay.status,
+          statusNum,
           connectivityStatus: relay.connectivity?.status,
           isConnected
         });
@@ -240,14 +349,16 @@ export class NDKRelayClient {
     const usableRelays = Array.from(ndk.pool.relays.values())
       .filter(relay => {
         // Check multiple authentication indicators
-        const isConnected = relay.status >= 1 || relay.connectivity?.status === 'connected';
-        const isAuthenticated = relay.status >= 5 || relay.authenticated === true;
+        // NDKRelayStatus: 0=DISCONNECTED, 1=DISCONNECTING, 2=RECONNECTING, 3=FLAPPING, 4=CONNECTING, 5=CONNECTED, 6=AUTH_REQUIRED, 7=AUTHENTICATING, 8=AUTHENTICATED
+        const statusNum = typeof relay.status === 'number' ? relay.status : 0;
+        const isConnected = statusNum >= 5;
+        const isAuthenticated = statusNum === 8; // AUTHENTICATED
 
         console.log('🔍 Relay auth status check:', {
           url: relay.url,
           status: relay.status,
+          statusNum,
           connectivityStatus: relay.connectivity?.status,
-          authenticated: relay.authenticated,
           isConnected,
           isAuthenticated
         });
@@ -273,7 +384,13 @@ export class NDKRelayClient {
     console.log('📡 Fetching events via NDK with filters:', filtersArray);
 
     try {
-      const events = await ndk.fetchEvents(filtersArray);
+      // Add timeout to prevent hanging
+      const fetchPromise = ndk.fetchEvents(filtersArray);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('NDK fetchEvents timeout after 10s')), 10000)
+      );
+      
+      const events = await Promise.race([fetchPromise, timeoutPromise]);
       const eventArray = Array.from(events).map(ndkEventToNostrEvent);
 
       console.log(`📥 Fetched ${eventArray.length} events via NDK`);

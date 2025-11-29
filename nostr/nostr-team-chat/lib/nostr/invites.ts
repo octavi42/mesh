@@ -686,45 +686,6 @@ export async function isWorkspaceAdmin(groupId: string, userPubkey: string): Pro
 }
 
 /**
- * Send an invite decline event to the relay
- */
-export async function declineInvite(
-  groupId: string,
-  inviteCode: string
-): Promise<{ eventId: string }> {
-  const client = getGlobalNIP29Client();
-
-  if (!client.isConnected()) {
-    await client.connect();
-  }
-
-  if (!window.nostr) {
-    throw new Error('Nostr extension not available');
-  }
-
-  const pubkey = await window.nostr.getPublicKey();
-  const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
-
-  const unsignedEvent = {
-    kind: 9023, // KIND_GROUP_INVITE_DECLINE_9023
-    pubkey,
-    created_at: Math.floor(Date.now() / 1000),
-    tags: [
-      ['h', localGroupId],
-      ['code', inviteCode]
-    ],
-    content: 'Declined invitation'
-  };
-
-  const signedEvent = await window.nostr.signEvent(unsignedEvent);
-  await client.publishEvent(signedEvent);
-
-  console.log('❌ Declined invite:', { groupId, inviteCode, eventId: signedEvent.id });
-
-  return { eventId: signedEvent.id };
-}
-
-/**
  * Send an invite seen event to the relay
  */
 export async function markInviteSeen(
@@ -783,6 +744,13 @@ export async function deleteInvite(
   const pubkey = await window.nostr.getPublicKey();
   const localGroupId = groupId.includes("'") ? groupId.split("'")[1] : groupId;
 
+  console.log('🗑️ [deleteInvite] Creating delete event:', {
+    groupId,
+    localGroupId,
+    inviteCode,
+    pubkey: pubkey.slice(0, 16) + '...'
+  });
+
   const unsignedEvent = {
     kind: 9025, // KIND_GROUP_INVITE_DELETE_9025
     pubkey,
@@ -794,10 +762,24 @@ export async function deleteInvite(
     content: 'Deleted invitation'
   };
 
-  const signedEvent = await window.nostr.signEvent(unsignedEvent);
-  await client.publishEvent(signedEvent);
+  console.log('🗑️ [deleteInvite] Unsigned event:', unsignedEvent);
 
-  console.log('🗑️ Deleted invite:', { groupId, inviteCode, eventId: signedEvent.id });
+  const signedEvent = await window.nostr.signEvent(unsignedEvent);
+  console.log('🗑️ [deleteInvite] Signed event id:', signedEvent.id);
+  
+  try {
+    await client.publishEvent(signedEvent);
+    console.log('🗑️ [deleteInvite] Successfully published delete event:', { 
+      groupId, 
+      localGroupId,
+      inviteCode, 
+      eventId: signedEvent.id,
+      tags: signedEvent.tags 
+    });
+  } catch (error) {
+    console.error('🗑️ [deleteInvite] Failed to publish delete event:', error);
+    throw new Error(`Failed to delete notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 
   return { eventId: signedEvent.id };
 }
@@ -820,17 +802,45 @@ export async function getInviteStatus(
 
   try {
     // Check for all invite state events for this user and invite
+    // Note: We cannot use '#code' filter because 'code' is not a single-letter tag
+    // and most relays only index single-letter tags. We filter by code locally instead.
     const filter = {
       kinds: [9021, 9023, 9024, 9025], // Join request, decline, seen, delete
       authors: [userPubkey],
       '#h': [localGroupId],
-      '#code': [inviteCode],
-      limit: 50
+      limit: 100 // Increased limit since we'll filter locally
     };
-    console.log(`🔍 Querying invite status with filter:`, filter);
+    console.log(`🔍 [getInviteStatus] Querying with:`, {
+      groupId,
+      localGroupId,
+      inviteCode,
+      userPubkey: userPubkey.slice(0, 16) + '...',
+      filter
+    });
 
-    const stateEvents = await client.fetchEvents([filter]);
-    console.log(`🔍 Found ${stateEvents.length} state events for invite ${inviteCode}:`, stateEvents.map(e => ({ kind: e.kind, created_at: e.created_at })));
+    const allEvents = await client.fetchEvents([filter]);
+    console.log(`🔍 [getInviteStatus] Found ${allEvents.length} total state events for group ${localGroupId}`);
+    
+    // Log all events for debugging
+    if (allEvents.length > 0) {
+      console.log(`🔍 [getInviteStatus] All events:`, allEvents.map(e => ({
+        id: e.id?.slice(0, 16),
+        kind: e.kind,
+        tags: e.tags,
+        created_at: e.created_at
+      })));
+    }
+    
+    // Filter events by invite code locally (since #code tag is not indexable)
+    const stateEvents = allEvents.filter(e => {
+      const codeTag = e.tags.find((t: string[]) => t[0] === 'code');
+      const matches = codeTag && codeTag[1] === inviteCode;
+      if (codeTag) {
+        console.log(`🔍 [getInviteStatus] Event ${e.id?.slice(0, 8)} code tag: "${codeTag[1]}" vs "${inviteCode}" = ${matches}`);
+      }
+      return matches;
+    });
+    console.log(`🔍 [getInviteStatus] Found ${stateEvents.length} state events for invite ${inviteCode}:`, stateEvents.map(e => ({ kind: e.kind, created_at: e.created_at })));
 
     // Sort by timestamp (most recent first)
     stateEvents.sort((a, b) => b.created_at - a.created_at);

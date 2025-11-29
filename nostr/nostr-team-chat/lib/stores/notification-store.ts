@@ -224,9 +224,10 @@ export const useNotificationStore = create<NotificationStore>()((set, get) => ({
                 status = 'pending'; // Default to pending if status fetch fails
               }
 
-              // Skip notifications that have been deleted
-              if (status === 'deleted') {
-                console.log(`🗑️ Skipping deleted invite notification: ${inviteCode}`);
+              // Skip notifications that have been deleted, accepted, or declined
+              // These are "final" states and the user shouldn't see them as notifications
+              if (status === 'deleted' || status === 'accepted' || status === 'declined') {
+                console.log(`🗑️ Skipping ${status} invite notification: ${inviteCode}`);
                 continue;
               }
 

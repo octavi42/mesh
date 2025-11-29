@@ -5,12 +5,12 @@ import { Sheet } from '@silk-hq/components';
 import { X, MessageSquare, UserPlus, AtSign, Check, XIcon, Trash2 } from 'lucide-react';
 import { SHEET_ANIMATIONS } from '@/lib/constants/sheet-animations';
 import { useNotificationStore } from '@/lib/stores/notification-store';
-import { acceptRelayInvite, getInviteByCode, declineInvite, markInviteSeen, deleteInvite } from '@/lib/nostr/invites';
+import { acceptRelayInvite, getInviteByCode, markInviteSeen, deleteInvite } from '@/lib/nostr/invites';
 import { forceRefreshWorkspaces } from '@/lib/hooks/use-nip29-workspaces';
 import { useNDK } from '@/lib/hooks/use-ndk';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
-import { acceptInviteWithRetry, declineInviteWithRetry, deleteInviteWithRetry, handleNotificationError } from '@/lib/utils/notification-utils';
+import { acceptInviteWithRetry, deleteInviteWithRetry, handleNotificationError } from '@/lib/utils/notification-utils';
 import type { Notification } from '@/lib/db/schema';
 import './notification-detail-sheet.css';
 
@@ -108,39 +108,6 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
       setActionStatus('error');
 
       const friendlyMessage = handleNotificationError(error as Error, 'accept invitation');
-      setStatusMessage(friendlyMessage);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // Handle declining an invite
-  const handleDeclineInvite = async () => {
-    if (notification.type !== 'invite' || !notification.data) return;
-
-    setIsProcessing(true);
-
-    try {
-      const { inviteCode, groupId } = notification.data;
-
-      // Use retry logic for declining invite
-      await declineInviteWithRetry(notification.id, async () => {
-        await declineInvite(groupId as string, inviteCode as string);
-      });
-
-      setActionStatus('success');
-      setStatusMessage('Invite declined');
-
-      // Remove the notification after showing the declined status
-      setTimeout(() => {
-        deleteNotification(notification.id);
-      }, 2000);
-
-    } catch (error) {
-      console.error('Failed to decline invite:', error);
-      setActionStatus('error');
-
-      const friendlyMessage = handleNotificationError(error as Error, 'decline invitation');
       setStatusMessage(friendlyMessage);
     } finally {
       setIsProcessing(false);
@@ -269,12 +236,9 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
                           <span className={`font-medium ${
                             (notification as any).status === 'accepted'
                               ? 'text-green-600'
-                              : (notification as any).status === 'declined'
-                              ? 'text-red-600'
                               : 'text-yellow-600'
                           }`}>
                             {(notification as any).status === 'accepted' && 'Accepted'}
-                            {(notification as any).status === 'declined' && 'Declined'}
                             {((notification as any).status === 'pending' || (notification as any).status === 'seen') && 'Pending'}
                           </span>
                         </div>
@@ -309,7 +273,7 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
                         <>
                           <button
                             onClick={handleAcceptInvite}
-                            disabled={isProcessing || (notification as any).status === 'accepted' || (notification as any).status === 'declined'}
+                            disabled={isProcessing || (notification as any).status === 'accepted'}
                             className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
                             {isProcessing ? (
@@ -326,23 +290,6 @@ export function NotificationDetailSheet({ trigger, notification }: NotificationD
                               <>
                                 <Check className="w-4 h-4" />
                                 Accept Invitation
-                              </>
-                            )}
-                          </button>
-                          <button
-                            onClick={handleDeclineInvite}
-                            disabled={isProcessing || (notification as any).status === 'accepted' || (notification as any).status === 'declined'}
-                            className="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                          >
-                            {(notification as any).status === 'declined' ? (
-                              <>
-                                <XIcon className="w-4 h-4" />
-                                Already Declined
-                              </>
-                            ) : (
-                              <>
-                                <XIcon className="w-4 h-4" />
-                                Decline Invitation
                               </>
                             )}
                           </button>

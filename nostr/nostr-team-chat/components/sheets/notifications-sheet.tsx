@@ -203,12 +203,9 @@ export function NotificationsSheet({ trigger }: NotificationsSheetProps) {
                             <span className={`text-xs px-2 py-1 rounded font-medium ${
                               (notification as any).status === 'accepted'
                                 ? 'bg-green-100 text-green-700'
-                                : (notification as any).status === 'declined'
-                                ? 'bg-red-100 text-red-700'
                                 : 'bg-yellow-100 text-yellow-700'
                             }`}>
                               {(notification as any).status === 'accepted' && '✅ Accepted'}
-                              {(notification as any).status === 'declined' && '❌ Declined'}
                               {((notification as any).status === 'pending' || (notification as any).status === 'seen') && '⏳ Pending'}
                             </span>
                           )}

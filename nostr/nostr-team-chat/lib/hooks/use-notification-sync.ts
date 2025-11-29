@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { getGlobalNIP29Client } from '@/lib/nostr/nip29/client-transition';
 import { getInviteStatus } from '@/lib/nostr/invites';
 import { useNotificationStore } from '@/lib/stores/notification-store';
@@ -12,6 +12,9 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 export function useNotificationSync() {
   const { pubkey } = useAuthStore();
   const { updateNotificationStatus, notifications } = useNotificationStore();
+  
+  // Track processed event IDs to prevent duplicate processing
+  const processedEvents = useRef(new Set<string>());
 
   useEffect(() => {
     if (!pubkey) {
@@ -39,6 +42,13 @@ export function useNotificationSync() {
         console.log('🔄 Subscribing to invite state updates with filter:', filter);
 
         const subscription = client.subscribe([filter], async (event) => {
+          // Skip if we've already processed this event
+          if (processedEvents.current.has(event.id)) {
+            console.log('🔄 Skipping already processed event:', event.id?.slice(0, 16));
+            return;
+          }
+          processedEvents.current.add(event.id);
+          
           console.log('🔄 Received invite state event:', {
             kind: event.kind,
             id: event.id,
@@ -70,8 +80,25 @@ export function useNotificationSync() {
               // Get the full group ID from the notification
               const fullGroupId = matchingNotification.data?.groupId as string;
 
-              // Fetch updated status from relay
-              const updatedStatus = await getInviteStatus(fullGroupId, inviteCode, pubkey);
+              // Small delay to allow relay to index the event before querying
+              await new Promise(resolve => setTimeout(resolve, 500));
+
+              // Fetch updated status from relay with timeout
+              let updatedStatus: 'pending' | 'seen' | 'accepted' | 'declined' | 'deleted' = 'pending';
+              try {
+                const statusPromise = getInviteStatus(fullGroupId, inviteCode, pubkey);
+                const timeoutPromise = new Promise<never>((_, reject) => 
+                  setTimeout(() => reject(new Error('Status fetch timeout')), 5000)
+                );
+                updatedStatus = await Promise.race([statusPromise, timeoutPromise]);
+              } catch (statusError) {
+                console.warn('🔄 Status fetch failed or timed out, using event kind to determine status');
+                // Fallback: determine status from the event kind we just received
+                if (event.kind === 9025) updatedStatus = 'deleted';
+                else if (event.kind === 9023) updatedStatus = 'declined';
+                else if (event.kind === 9024) updatedStatus = 'seen';
+                else if (event.kind === 9021) updatedStatus = 'accepted';
+              }
 
               console.log('🔄 Updating notification status:', {
                 notificationId: matchingNotification.id,
