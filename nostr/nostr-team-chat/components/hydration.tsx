@@ -13,7 +13,8 @@ export default function Hydration() {
     cleanupCorruptedWorkspaces();
     cleanupCorruptedChatStore();
 
-    // Then manually trigger hydration for persisted stores
+    // Trigger hydration for persisted stores
+    // This is needed in Next.js because SSR creates stores without localStorage access
     useAuthStore.persist.rehydrate();
     useWorkspaceStore.persist.rehydrate();
 

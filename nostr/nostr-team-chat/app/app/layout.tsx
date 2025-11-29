@@ -1,11 +1,35 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useLayoutEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useAppInitialization } from '@/lib/hooks/use-app-initialization-clean';
 import { useNIP29Workspaces } from '@/lib/hooks/use-nip29-workspaces';
 import { AppLayout } from '@/components/layout/AppLayout';
+
+// Helper to get auth state directly from localStorage (synchronous, no race conditions)
+function getAuthFromLocalStorage(): { isAuthenticated: boolean; pubkey: string | null } {
+  if (typeof window === 'undefined') {
+    return { isAuthenticated: false, pubkey: null };
+  }
+  
+  try {
+    const storedAuth = localStorage.getItem('nostr-auth');
+    if (storedAuth) {
+      const parsed = JSON.parse(storedAuth);
+      if (parsed?.state?.isAuthenticated && parsed?.state?.pubkey) {
+        return {
+          isAuthenticated: true,
+          pubkey: parsed.state.pubkey
+        };
+      }
+    }
+  } catch (e) {
+    // Invalid JSON or other error
+  }
+  
+  return { isAuthenticated: false, pubkey: null };
+}
 
 export default function ProtectedLayout({
   children,
@@ -14,9 +38,36 @@ export default function ProtectedLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, loading, hasHydrated, pubkey } = useAuthStore();
+  const { isAuthenticated: storeIsAuthenticated, loading, hasHydrated, pubkey } = useAuthStore();
   const { isInitialized, isInitializing, error } = useAppInitialization();
-  const [authVerificationComplete, setAuthVerificationComplete] = useState(false);
+
+  // Track if we're on client - use a ref to avoid re-render
+  const [mounted, setMounted] = useState(false);
+  
+  // Check localStorage SYNCHRONOUSLY during render (not in effect)
+  // This is the only reliable way to get the value before any effects run
+  const localStorageAuth = typeof window !== 'undefined' 
+    ? getAuthFromLocalStorage() 
+    : { isAuthenticated: false, pubkey: null };
+  
+  // Log on every render to debug
+  console.log('🔄 RENDER:', {
+    mounted,
+    pathname,
+    storeIsAuthenticated,
+    localStorageAuth: localStorageAuth.isAuthenticated,
+    hasHydrated,
+    loading
+  });
+  
+  // Use useLayoutEffect to set mounted BEFORE paint
+  useLayoutEffect(() => {
+    console.log('📦 useLayoutEffect - setting mounted');
+    setMounted(true);
+  }, []);
+  
+  // User is authenticated if EITHER the store says so OR localStorage has valid auth
+  const isAuthenticated = storeIsAuthenticated || localStorageAuth.isAuthenticated;
 
   // Initialize workspaces once per authenticated session - persists during navigation
   useNIP29Workspaces();
@@ -25,29 +76,16 @@ export default function ProtectedLayout({
   useEffect(() => {
     console.log('🔍 Layout auth state change:', {
       pathname,
+      storeIsAuthenticated,
+      localStorageAuth: localStorageAuth.isAuthenticated,
       isAuthenticated,
       loading,
       hasHydrated,
       hasPubkey: !!pubkey,
       pubkey: pubkey?.slice(0, 8),
-      authVerificationComplete,
       timestamp: new Date().toISOString()
     });
-  }, [pathname, isAuthenticated, loading, hasHydrated, pubkey, authVerificationComplete]);
-
-  // Add a delay to allow auth verification to complete after hydration
-  useEffect(() => {
-    if (hasHydrated) {
-      const timer = setTimeout(() => {
-        console.log('🕐 Auth verification grace period complete');
-        setAuthVerificationComplete(true);
-      }, 1500); // Give 1.5 seconds for auth verification
-
-      return () => clearTimeout(timer);
-    } else {
-      setAuthVerificationComplete(false);
-    }
-  }, [hasHydrated]);
+  }, [pathname, storeIsAuthenticated, isAuthenticated, loading, hasHydrated, pubkey, localStorageAuth.isAuthenticated]);
 
   // Add global error handling to prevent HMR ping errors from causing page refreshes
   useEffect(() => {
@@ -75,54 +113,46 @@ export default function ProtectedLayout({
     };
   }, []);
 
-  // Redirect to home if not authenticated (only for protected routes, after grace period)
+  // Redirect to home if not authenticated (only for protected routes)
+  // isAuthenticated already includes localStorage check, so this is safe
   useEffect(() => {
-    // Only redirect if we're on a protected route AND definitely not authenticated AND auth verification is complete
     const isProtectedRoute = pathname.startsWith('/app');
 
-    if (hasHydrated && !loading && !isAuthenticated && isProtectedRoute && authVerificationComplete) {
-      console.log('❌ Not authenticated on protected route after verification, redirecting to /', {
-        pathname,
-        hasHydrated,
-        loading,
-        isAuthenticated,
-        authVerificationComplete
-      });
-      router.push('/');
-    } else if (hasHydrated && !loading && !isAuthenticated && isProtectedRoute && !authVerificationComplete) {
-      console.log('⏳ Waiting for auth verification before redirect decision', {
-        pathname,
-        hasHydrated,
-        loading,
-        isAuthenticated,
-        authVerificationComplete
-      });
-    } else if (hasHydrated && !loading && !isAuthenticated && !isProtectedRoute) {
-      console.log('ℹ️ Not authenticated but on public route, no redirect needed', {
-        pathname
-      });
-    }
-  }, [isAuthenticated, loading, hasHydrated, router, pathname, authVerificationComplete]);
-
-  // Show loading while checking auth or initializing or during auth verification grace period
-  if (!hasHydrated || loading || (hasHydrated && !authVerificationComplete && pathname.startsWith('/app'))) {
-    console.log('🔄 Showing loading screen:', {
+    console.log('🔍 Redirect check:', {
+      pathname,
+      isProtectedRoute,
+      mounted,
       hasHydrated,
       loading,
-      authVerificationComplete,
-      pathname,
+      storeIsAuthenticated,
+      localStorageAuth: localStorageAuth.isAuthenticated,
       isAuthenticated,
-      reason: !hasHydrated ? 'not hydrated' : loading ? 'loading' : 'auth verification grace period'
+      wouldRedirect: isProtectedRoute && mounted && hasHydrated && !loading && !isAuthenticated
     });
 
-    let loadingMessage = 'Loading...';
-    if (!hasHydrated) {
-      loadingMessage = 'Loading user data...';
-    } else if (loading) {
-      loadingMessage = 'Verifying authentication...';
-    } else if (!authVerificationComplete) {
-      loadingMessage = 'Checking authentication...';
+    // Only redirect if:
+    // 1. We're on a protected route
+    // 2. Component is mounted
+    // 3. Store has finished hydrating
+    // 4. Not currently loading
+    // 5. Not authenticated (checked both store AND localStorage)
+    if (isProtectedRoute && mounted && hasHydrated && !loading && !isAuthenticated) {
+      console.log('❌ Not authenticated on protected route, redirecting to /', {
+        pathname,
+        hasHydrated,
+        mounted,
+        loading,
+        storeIsAuthenticated,
+        localStorageAuth: localStorageAuth.isAuthenticated
+      });
+      router.push('/');
     }
+  }, [isAuthenticated, loading, hasHydrated, mounted, router, pathname, storeIsAuthenticated, localStorageAuth.isAuthenticated]);
+
+  // Show loading while checking auth or initializing
+  // Wait for mount AND store hydration
+  if (!mounted || !hasHydrated || loading) {
+    const loadingMessage = !mounted ? 'Loading...' : !hasHydrated ? 'Loading user data...' : 'Verifying authentication...';
 
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -136,7 +166,7 @@ export default function ProtectedLayout({
     );
   }
 
-  // Don't render anything if not authenticated (will redirect)
+  // Not authenticated - will redirect (handled by useEffect above)
   if (!isAuthenticated) {
     return null;
   }

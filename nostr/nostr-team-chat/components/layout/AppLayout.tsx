@@ -16,19 +16,15 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const router = useRouter();
   const { sidebarOpen, toggleSidebar } = useUIStore();
-  const { isAuthenticated, loading } = useAuthStore();
+  const { isAuthenticated, loading, hasHydrated } = useAuthStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (mounted && !loading && !isAuthenticated) {
-      console.log('❌ AppLayout: Not authenticated, redirecting to /');
-      router.push('/');
-    }
-  }, [mounted, loading, isAuthenticated, router]);
+  // Auth redirect is now handled by app/app/layout.tsx
+  // AppLayout should NOT do its own redirect to avoid race conditions
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -42,7 +38,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleSidebar]);
 
-  if (!mounted || (loading && !isAuthenticated)) {
+  // Wait for mount AND store hydration
+  if (!mounted || !hasHydrated || loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#fafafa] dark:bg-[#0a0a0a]">
         <div className="text-center">
@@ -53,6 +50,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
+  // Auth check is handled by parent layout, so we trust isAuthenticated here
   if (!isAuthenticated) {
     return null;
   }

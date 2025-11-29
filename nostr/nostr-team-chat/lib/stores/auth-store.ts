@@ -180,21 +180,16 @@ export const useAuthStore = create<AuthState>()(
         console.log('🚪 LOGOUT CALLED');
         console.trace('Logout stack trace:');
 
-        // Clear any active workspace subscriptions
-        const currentPubkey = get().pubkey;
-        if (currentPubkey) {
-          try {
-            // Import and clear active subscriptions for this user
-            import('../hooks/use-nip29-workspaces').then(({ clearUserSubscription }) => {
-              if (clearUserSubscription) {
-                clearUserSubscription(currentPubkey.slice(0, 8));
-              }
-            }).catch(error => {
-              console.warn('Failed to clear workspace subscription:', error);
-            });
-          } catch (error) {
-            console.warn('Failed to clear workspace subscription:', error);
-          }
+        // Reset workspace session on logout
+        try {
+          import('../hooks/use-nip29-workspaces').then(({ resetWorkspaceSession }) => {
+            resetWorkspaceSession();
+            console.log('🔄 Workspace session reset on logout');
+          }).catch(error => {
+            console.warn('Failed to reset workspace session:', error);
+          });
+        } catch (error) {
+          console.warn('Failed to reset workspace session:', error);
         }
 
         set({
@@ -215,42 +210,53 @@ export const useAuthStore = create<AuthState>()(
       }),
       onRehydrateStorage: () => {
         console.log('💧 Auth store: Starting hydration from localStorage...');
-        console.log('📦 localStorage value:', localStorage.getItem('nostr-auth'));
         return (state, error) => {
+          // Check if already hydrated to prevent double hydration
+          const currentState = useAuthStore.getState();
+          if (currentState.hasHydrated) {
+            console.log('⏭️ Auth store: Already hydrated, skipping');
+            return;
+          }
+          
           if (error) {
             console.error('❌ Auth store hydration error:', error);
-            if (state) {
-              state.hasHydrated = true;
-              state.loading = false;
+            useAuthStore.setState({ hasHydrated: true, loading: false });
+            return;
+          }
+          
+          // Get state after hydration - Zustand has already merged persisted data
+          const hydratedState = useAuthStore.getState();
+          console.log('✅ Auth store hydrated, current state:', {
+            pubkey: hydratedState.pubkey?.slice(0, 8),
+            isAuthenticated: hydratedState.isAuthenticated
+          });
+          
+          // Set hasHydrated and loading
+          useAuthStore.setState({ 
+            hasHydrated: true, 
+            loading: false 
+          });
+          
+          // If we have auth, optionally verify in background (non-blocking)
+          if (hydratedState.pubkey && hydratedState.isAuthenticated) {
+            console.log('✅ Found persisted auth:', hydratedState.pubkey.slice(0, 8));
+            if (typeof window !== 'undefined' && window.nostr) {
+              window.nostr.getPublicKey().then((pubkey: string) => {
+                if (pubkey !== hydratedState.pubkey) {
+                  console.warn('⚠️ Persisted pubkey mismatch, clearing auth');
+                  useAuthStore.getState().clearAuth();
+                } else {
+                  console.log('✅ Persisted auth verified in background');
+                }
+              }).catch(() => {
+                console.log('ℹ️ Could not verify auth in background, keeping persisted state');
+              });
             }
           } else {
-            console.log('✅ Auth store hydrated with state:', state);
-            if (state) {
-              state.hasHydrated = true;
-              console.log('🏁 Auth store: hasHydrated set to true');
-
-              // If we have persisted auth, verify it's still valid
-              if (state.pubkey && state.isAuthenticated) {
-                console.log('🔍 Found persisted auth, will verify asynchronously...');
-
-                // Use setTimeout to handle async verification without blocking hydration
-                setTimeout(async () => {
-                  try {
-                    console.log('🔍 Starting async auth verification...');
-                    await state.checkAuth();
-                    console.log('✅ Async auth verification complete');
-                  } catch (error) {
-                    console.error('❌ Async auth verification failed:', error);
-                    // Clear auth if verification fails
-                    state.clearAuth();
-                  }
-                }, 0);
-              } else {
-                console.log('ℹ️ No persisted auth found, setting loading to false');
-                state.loading = false;
-              }
-            }
+            console.log('ℹ️ No persisted auth found');
           }
+          
+          console.log('🏁 Auth store: hydration complete');
         };
       },
     }
