@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useChannels } from '@/lib/hooks/use-channels';
+import { useChannelDiscovery } from '@/lib/hooks/use-channel-discovery';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { ChannelLink } from './ChannelLink';
 import { WorkspaceList } from './WorkspaceList';
@@ -17,6 +18,10 @@ export function Sidebar({ isOpen }: SidebarProps) {
   const { currentChannelId, setCurrentChannel, currentWorkspaceId } = useChatStore();
   const channels = useChannels(currentWorkspaceId);
   const [expandedChannelId, setExpandedChannelId] = useState<string | null>(null);
+
+  // Enable real-time channel discovery for the current workspace
+  // This will automatically add new channels when other users create them
+  useChannelDiscovery(currentWorkspaceId);
 
   const handlePopupStateChange = useCallback((channelId: string, isOpen: boolean) => {
     setExpandedChannelId(isOpen ? channelId : null);
