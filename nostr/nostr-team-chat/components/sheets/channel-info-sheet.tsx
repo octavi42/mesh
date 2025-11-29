@@ -94,7 +94,36 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
   // Get current user info
   const { useAuthStore } = require('@/lib/stores/auth-store');
   const { pubkey: currentUserPubkey } = useAuthStore();
-  const isCurrentUserAdmin = currentUserPubkey ? checkIsAdmin(currentUserPubkey) : false;
+  
+  // Check if current user is admin - check multiple sources
+  const isCurrentUserAdmin = useMemo(() => {
+    if (!currentUserPubkey) return false;
+    
+    // Check 1: Using the hook's isAdmin function (checks members array)
+    if (checkIsAdmin(currentUserPubkey)) return true;
+    
+    // Check 2: Directly in members array from the hook
+    const adminMember = members.find(m => m.pubkey === currentUserPubkey && m.isAdmin);
+    if (adminMember) return true;
+    
+    // Check 3: Directly from workspace store's admins array (most reliable source)
+    if (currentWorkspace?.admins?.includes(currentUserPubkey)) return true;
+    
+    return false;
+  }, [currentUserPubkey, checkIsAdmin, members, currentWorkspace]);
+
+  // Debug admin status
+  console.log('Admin Status Debug:', {
+    currentWorkspaceId,
+    currentWorkspaceName: currentWorkspace?.name,
+    currentUserPubkey: currentUserPubkey?.slice(0, 8),
+    isCurrentUserAdmin,
+    membersLoading,
+    membersCount: members.length,
+    adminCount,
+    workspaceAdmins: currentWorkspace?.admins?.map(a => a.slice(0, 8)),
+    membersWithAdminFlag: members.filter(m => m.isAdmin).map(m => ({ pubkey: m.pubkey.slice(0, 8), name: m.name }))
+  });
 
   const handleDeleteClick = () => {
     setIsDeleteMode(true);
@@ -453,80 +482,88 @@ export function ChannelInfoSheet({ trigger }: ChannelInfoSheetProps) {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="pt-4 border-t border-gray-100 relative">
-                  {/* Delete Button */}
-                  <div
-                    className={`transition-all duration-300 ease-out ${
-                      isDeleteMode
-                        ? 'opacity-0 -translate-y-2 pointer-events-none'
-                        : 'opacity-100 translate-y-0 delay-[400ms]'
-                    }`}
-                  >
-                    <button
-                      onClick={handleDeleteClick}
-                      disabled={isDeleting}
-                      className="flex items-center justify-center gap-2 w-full py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete Workspace</span>
-                    </button>
+                {/* Actions - Only show delete option for admins (show loading state while checking) */}
+                {membersLoading ? (
+                  <div className="pt-4 border-t border-gray-100">
+                    <div className="flex items-center justify-center py-3 text-gray-400">
+                      <span className="text-sm">Loading permissions...</span>
+                    </div>
                   </div>
-
-                  {/* Confirmation UI */}
-                  <div
-                    className={`absolute top-4 left-0 right-0 space-y-6 transition-all duration-400 ease-out delay-[400ms] ${
-                      isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
-                    }`}
-                  >
+                ) : isCurrentUserAdmin ? (
+                  <div className="pt-4 border-t border-gray-100 relative">
+                    {/* Delete Button */}
                     <div
-                      className={`text-center transition-all duration-300 ease-out delay-[500ms] ${
-                        isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-                      }`}
-                    >
-                      <h3 className="text-lg font-medium text-red-600 mb-2">Delete Workspace</h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        To confirm deletion, please type <span className="font-semibold text-gray-900">"{currentWorkspace?.name}"</span> below:
-                      </p>
-                    </div>
-
-                    <div
-                      className={`transition-all duration-300 ease-out delay-[600ms] ${
-                        isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-                      }`}
-                    >
-                      <input
-                        type="text"
-                        value={deleteConfirmationName}
-                        onChange={(e) => setDeleteConfirmationName(e.target.value)}
-                        placeholder={`Type "${currentWorkspace?.name}" to confirm`}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all duration-300"
-                        autoFocus={isDeleteMode}
-                      />
-                    </div>
-
-                    <div
-                      className={`flex gap-3 transition-all duration-300 ease-out delay-[700ms] ${
-                        isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                      className={`transition-all duration-300 ease-out ${
+                        isDeleteMode
+                          ? 'opacity-0 -translate-y-2 pointer-events-none'
+                          : 'opacity-100 translate-y-0 delay-[400ms]'
                       }`}
                     >
                       <button
-                        onClick={handleCancelDelete}
+                        onClick={handleDeleteClick}
                         disabled={isDeleting}
-                        className="flex-1 py-3 text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-300 disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 w-full py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                       >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleConfirmDelete}
-                        disabled={!isDeleteButtonEnabled || isDeleting}
-                        className="flex-1 py-3 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isDeleting ? 'Deleting...' : 'Delete Workspace'}
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete Workspace</span>
                       </button>
                     </div>
+
+                    {/* Confirmation UI */}
+                    <div
+                      className={`absolute top-4 left-0 right-0 space-y-6 transition-all duration-400 ease-out delay-[400ms] ${
+                        isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+                      }`}
+                    >
+                      <div
+                        className={`text-center transition-all duration-300 ease-out delay-[500ms] ${
+                          isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                        }`}
+                      >
+                        <h3 className="text-lg font-medium text-red-600 mb-2">Delete Workspace</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                          To confirm deletion, please type <span className="font-semibold text-gray-900">"{currentWorkspace?.name}"</span> below:
+                        </p>
+                      </div>
+
+                      <div
+                        className={`transition-all duration-300 ease-out delay-[600ms] ${
+                          isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                        }`}
+                      >
+                        <input
+                          type="text"
+                          value={deleteConfirmationName}
+                          onChange={(e) => setDeleteConfirmationName(e.target.value)}
+                          placeholder={`Type "${currentWorkspace?.name}" to confirm`}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all duration-300"
+                          autoFocus={isDeleteMode}
+                        />
+                      </div>
+
+                      <div
+                        className={`flex gap-3 transition-all duration-300 ease-out delay-[700ms] ${
+                          isDeleteMode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+                        }`}
+                      >
+                        <button
+                          onClick={handleCancelDelete}
+                          disabled={isDeleting}
+                          className="flex-1 py-3 text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-300 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleConfirmDelete}
+                          disabled={!isDeleteButtonEnabled || isDeleting}
+                          className="flex-1 py-3 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isDeleting ? 'Deleting...' : 'Delete Workspace'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
             </div>
           </Sheet.Content>

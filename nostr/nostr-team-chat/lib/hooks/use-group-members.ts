@@ -44,6 +44,7 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<number>(0);
+  const [lastGroupId, setLastGroupId] = useState<string | undefined>(undefined);
 
   const { workspaces } = useWorkspaceStore();
   const workspace = groupId ? workspaces.find(w => w.id === groupId) : null;
@@ -51,6 +52,17 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
   // Get current user's pubkey to filter them out of display
   const { useAuthStore } = require('@/lib/stores/auth-store');
   const { pubkey: currentUserPubkey } = useAuthStore();
+
+  // Reset members when groupId changes
+  useEffect(() => {
+    if (groupId !== lastGroupId) {
+      console.log('🔄 Group ID changed, resetting members:', { old: lastGroupId?.slice(0, 8), new: groupId?.slice(0, 8) });
+      setMembers([]);
+      setProfiles(new Map());
+      setLastFetched(0);
+      setLastGroupId(groupId);
+    }
+  }, [groupId, lastGroupId]);
 
   // Simple cache to avoid refetching recently fetched data
   const cacheTimeMs = 30000; // 30 seconds
@@ -305,12 +317,13 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
     return () => clearInterval(interval);
   }, [autoRefresh, groupId, refreshInterval, refreshMembers]);
 
-  // Initial fetch effect
+  // Initial fetch effect - force refresh when groupId changes
   useEffect(() => {
     if (groupId) {
-      refreshMembers();
+      // Always force refresh when this effect runs (groupId changed or component mounted)
+      refreshMembers(true);
     }
-  }, [groupId, refreshMembers]);
+  }, [groupId]); // Only depend on groupId, not refreshMembers to avoid infinite loop
 
   // Get member by pubkey
   const getMember = useCallback((pubkey: string) => {
