@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store';
+import { useNDK } from '@/lib/hooks/use-ndk';
 import type { NIP29Workspace } from '@/lib/db/schema';
 
 export function useNIP29Workspace(groupId?: string) {
@@ -15,16 +16,33 @@ export function useNIP29Workspace(groupId?: string) {
     setCurrentWorkspace,
   } = useWorkspaceStore();
 
+  // Use NDK context to check if NDK is ready with signer
+  const { ndk, hasSigner, isConnected } = useNDK();
+  
   const [initialized, setInitialized] = useState(false);
+  const initializingRef = useRef(false);
 
+  // Only initialize when NDK is ready with signer and connected
   useEffect(() => {
-    if (!initialized) {
-      initializeClient().then(() => {
-        setInitialized(true);
-      });
+    const shouldInitialize = ndk && hasSigner && isConnected && !initialized && !initializingRef.current;
+    
+    if (shouldInitialize) {
+      console.log('🔧 useNIP29Workspace: NDK ready, initializing workspace client...');
+      initializingRef.current = true;
+      
+      initializeClient()
+        .then(() => {
+          console.log('✅ useNIP29Workspace: Workspace client initialized');
+          setInitialized(true);
+        })
+        .catch((err) => {
+          console.error('❌ useNIP29Workspace: Failed to initialize workspace client:', err);
+          initializingRef.current = false; // Allow retry
+        });
     }
-  }, [initialized, initializeClient]);
+  }, [ndk, hasSigner, isConnected, initialized, initializeClient]);
 
+  // Sync workspace when initialized and groupId is provided
   useEffect(() => {
     if (initialized && groupId && !workspaces.find((w) => w.groupId === groupId)) {
       syncWorkspace(groupId).then(() => {
@@ -49,15 +67,26 @@ export function useNIP29Workspace(groupId?: string) {
 }
 
 export function useWorkspaceMembers(groupId?: string) {
-  const { workspace } = useNIP29Workspace(groupId);
+  const { workspace, workspaces } = useNIP29Workspace(groupId);
+
+  // Debug log to understand what's happening
+  console.log('🔍 useWorkspaceMembers debug:', {
+    requestedGroupId: groupId,
+    workspaceFound: !!workspace,
+    workspaceGroupId: workspace?.groupId,
+    workspaceAdmins: workspace?.admins,
+    workspaceMembers: workspace?.members,
+    totalWorkspaces: workspaces.length,
+    allWorkspaceIds: workspaces.map(w => w.groupId)
+  });
 
   return {
     members: workspace?.members || [],
     admins: workspace?.admins || [],
-    isAdmin: (pubkey: string) => workspace?.admins.includes(pubkey) || false,
+    isAdmin: (pubkey: string) => workspace?.admins?.includes(pubkey) || false,
     isMember: (pubkey: string) =>
-      workspace?.members.includes(pubkey) ||
-      workspace?.admins.includes(pubkey) ||
+      workspace?.members?.includes(pubkey) ||
+      workspace?.admins?.includes(pubkey) ||
       false,
   };
 }

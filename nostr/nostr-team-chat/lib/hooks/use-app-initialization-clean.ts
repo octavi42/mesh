@@ -43,6 +43,13 @@ export function useAppInitialization() {
     if (hasSigner) {
       console.log('✅ Signer already attached, app ready for:', pubkey.slice(0, 8));
       initializationAttemptedRef.current = true;
+      
+      // Still reset workspace session to ensure fresh fetch
+      import('./use-nip29-workspaces').then(({ resetWorkspaceSession }) => {
+        resetWorkspaceSession();
+        console.log('🔄 Reset workspace session for existing signer');
+      });
+      
       setState({
         isInitialized: true,
         isInitializing: false,
@@ -83,10 +90,12 @@ export function useAppInitialization() {
           }
 
           if (signer) {
+            // Note: attachSigner waits 5-10 seconds internally for NIP-42 auth to complete
+            // We need a longer timeout to avoid race conditions
             await Promise.race([
               attachSigner(signer),
               new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Signer timeout')), 5000)
+                setTimeout(() => reject(new Error('Signer timeout')), 15000)
               )
             ]);
             console.log('✅ Signer attached successfully');

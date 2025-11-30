@@ -49,7 +49,21 @@ export class NDKRelayClient {
   }
 
   async connect(): Promise<void> {
-    const ndk = this.getNDK();
+    // Wait for NDK to be set before trying to connect
+    if (!this.ndkInstance) {
+      console.log('⏳ Waiting for NDK to be initialized before connecting...');
+      // Wait up to 10 seconds for NDK to be set
+      const startTime = Date.now();
+      while (!this.ndkInstance && Date.now() - startTime < 10000) {
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      if (!this.ndkInstance) {
+        console.warn('⚠️ NDK not initialized after waiting, connection may fail');
+        return;
+      }
+    }
+
+    const ndk = this.ndkInstance;
 
     if (!ndk.pool.relays.size) {
       console.log('🔌 Connecting to relays via NDK...');
@@ -289,7 +303,13 @@ export class NDKRelayClient {
   }
 
   isConnected(): boolean {
-    const ndk = this.getNDK();
+    // Safely check if NDK is set before accessing it
+    if (!this.ndkInstance) {
+      console.log('🔍 NDK not initialized yet, returning false for isConnected');
+      return false;
+    }
+    
+    const ndk = this.ndkInstance;
     const connectedRelays = Array.from(ndk.pool.relays.values())
       .filter(relay => {
         // NDKRelayStatus: 0=DISCONNECTED, 1=DISCONNECTING, 2=RECONNECTING, 3=FLAPPING, 4=CONNECTING, 5=CONNECTED, 6=AUTH_REQUIRED, 7=AUTHENTICATING, 8=AUTHENTICATED
@@ -376,7 +396,7 @@ export class NDKRelayClient {
     return hasUsableRelays;
   }
 
-  async fetchEvents(filters: NDKFilter | NDKFilter[]): Promise<NostrEvent[]> {
+  async fetchEvents(filters: NDKFilter | NDKFilter[], timeoutMs: number = 10000): Promise<NostrEvent[]> {
     const ndk = this.getNDK();
 
     const filtersArray = Array.isArray(filters) ? filters : [filters];
@@ -387,7 +407,7 @@ export class NDKRelayClient {
       // Add timeout to prevent hanging
       const fetchPromise = ndk.fetchEvents(filtersArray);
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('NDK fetchEvents timeout after 10s')), 10000)
+        setTimeout(() => reject(new Error(`NDK fetchEvents timeout after ${timeoutMs / 1000}s`)), timeoutMs)
       );
       
       const events = await Promise.race([fetchPromise, timeoutPromise]);
@@ -396,6 +416,11 @@ export class NDKRelayClient {
       console.log(`📥 Fetched ${eventArray.length} events via NDK`);
       return eventArray;
     } catch (error) {
+      // If it's a timeout, log it but don't throw - return empty array instead
+      if (error instanceof Error && error.message.includes('timeout')) {
+        console.warn('⏳ NDK fetchEvents timed out, returning empty results');
+        return [];
+      }
       console.error('❌ Failed to fetch events via NDK:', error);
       throw error;
     }

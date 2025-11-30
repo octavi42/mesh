@@ -374,6 +374,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
 
       syncWorkspace: async (groupId) => {
         try {
+          // Get client - if NDK isn't ready, isConnected will return false and we'll connect
           const client = getGlobalNIP29Client();
 
           // Ensure connection before syncing

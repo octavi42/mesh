@@ -197,35 +197,41 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
         // Fallback: Fetch from relay if workspace data not available
         try {
           console.log(`🔄 Fetching fresh member data from relay for ${targetGroupId}`);
-          const [memberListEvents, adminListEvents] = await Promise.all([
+          
+          // Use Promise.allSettled to handle partial failures gracefully
+          const [memberResult, adminResult] = await Promise.allSettled([
             client.fetchEvents({
               kinds: [39002], // NIP-29 member list
               '#h': [localGroupId],
               limit: 1
-            }),
+            }, 8000), // Shorter timeout for member queries
             client.fetchEvents({
               kinds: [39001], // NIP-29 admin list
               '#h': [localGroupId],
               limit: 1
-            })
+            }, 8000) // Shorter timeout for admin queries
           ]);
 
-          // Extract member pubkeys
-          if (memberListEvents.length > 0) {
-            memberListEvents[0].tags.forEach(tag => {
+          // Extract member pubkeys if successful
+          if (memberResult.status === 'fulfilled' && memberResult.value.length > 0) {
+            memberResult.value[0].tags.forEach(tag => {
               if (tag[0] === 'p') {
                 memberPubkeys.push(tag[1]);
               }
             });
+          } else if (memberResult.status === 'rejected') {
+            console.warn('Failed to fetch member list:', memberResult.reason);
           }
 
-          // Extract admin pubkeys
-          if (adminListEvents.length > 0) {
-            adminListEvents[0].tags.forEach(tag => {
+          // Extract admin pubkeys if successful
+          if (adminResult.status === 'fulfilled' && adminResult.value.length > 0) {
+            adminResult.value[0].tags.forEach(tag => {
               if (tag[0] === 'p') {
                 adminPubkeys.push(tag[1]);
               }
             });
+          } else if (adminResult.status === 'rejected') {
+            console.warn('Failed to fetch admin list:', adminResult.reason);
           }
 
           console.log(`📊 Fetched fresh member data for ${targetGroupId}:`, {
@@ -325,6 +331,25 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
     }
   }, [groupId]); // Only depend on groupId, not refreshMembers to avoid infinite loop
 
+  // Listen for member list changes (kicked user, etc.)
+  useEffect(() => {
+    if (!groupId) return;
+
+    const handleMemberListChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ groupId: string; action: string; userPubkey: string }>;
+      if (customEvent.detail.groupId === groupId) {
+        console.log('🔄 Member list changed event received, refreshing...', customEvent.detail);
+        // Small delay to allow relay to process the event
+        setTimeout(() => refreshMembers(true), 500);
+      }
+    };
+
+    window.addEventListener('member-list-changed', handleMemberListChanged);
+    return () => {
+      window.removeEventListener('member-list-changed', handleMemberListChanged);
+    };
+  }, [groupId, refreshMembers]);
+
   // Get member by pubkey
   const getMember = useCallback((pubkey: string) => {
     return members.find(m => m.pubkey === pubkey);
@@ -356,6 +381,7 @@ export function useGroupMembers(options: UseGroupMembersOptions = {}) {
       image: member.picture || generateAvatarUrl(member.pubkey, member.name),
       pubkey: member.pubkey,
       role: member.role,
+      isAdmin: member.isAdmin, // Include admin status for kick functionality
     }));
   }, [members, currentUserPubkey, generateAvatarUrl]);
 

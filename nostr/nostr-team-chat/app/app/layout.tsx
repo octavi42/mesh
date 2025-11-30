@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useAppInitialization } from '@/lib/hooks/use-app-initialization-clean';
 import { useNIP29Workspaces } from '@/lib/hooks/use-nip29-workspaces';
+import { useKickDetection } from '@/lib/hooks/use-kick-detection';
 import { AppLayout } from '@/components/layout/AppLayout';
 
 // Helper to get auth state directly from localStorage (synchronous, no race conditions)
@@ -71,6 +72,9 @@ export default function ProtectedLayout({
 
   // Initialize workspaces once per authenticated session - persists during navigation
   useNIP29Workspaces();
+
+  // Listen for kick events and handle navigation
+  useKickDetection();
 
   // Debug auth state changes
   useEffect(() => {

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useGroupMembers } from '@/lib/hooks/use-group-members';
+import { useMemberActions } from '@/lib/hooks/use-member-actions';
 import { UserAvatars } from '@/components/ui/user-avatars';
 import { MessageSkeletons } from '@/components/ui/message-skeleton';
 import { MessageList } from '@/components/chat/MessageList';
@@ -36,11 +37,20 @@ export function ChannelView({
     getAvatarUsers,
     loading: membersLoading,
     isAdmin,
-    displayedMemberCount
+    displayedMemberCount,
+    forceRefresh: refreshMembers
   } = useGroupMembers({
     groupId: workspaceId || undefined,
     autoRefresh: true,
     refreshInterval: 60000 // Refresh every minute
+  });
+
+  // Member actions (kick, etc.)
+  const { kickUser } = useMemberActions({
+    groupId: workspaceId,
+    onUserKicked: useCallback(() => {
+      refreshMembers();
+    }, [refreshMembers])
   });
 
   // Set initializing to false when we have messages or when loading is complete
@@ -103,7 +113,9 @@ export function ChannelView({
               size={40}
               maxVisible={5}
               isAdmin={isAdmin(pubkey || '')}
+              currentUserPubkey={pubkey || undefined}
               showInviteButton={true}
+              onKickUser={kickUser}
             />
           </div>
           {membersLoading && displayedMemberCount === 0 && (

@@ -14,6 +14,7 @@ interface User {
   image: string;
   pubkey?: string;
   role?: string;
+  isAdmin?: boolean; // Whether this user is an admin
 }
 
 interface UserAvatarsProps {
@@ -23,9 +24,11 @@ interface UserAvatarsProps {
   maxVisible?: number;
   overlap?: number;
   focusScale?: number;
-  isAdmin?: boolean;
+  isAdmin?: boolean; // Whether the current user (viewer) is an admin
+  currentUserPubkey?: string; // The current logged-in user's pubkey
   showUsersButton?: boolean;
   showInviteButton?: boolean;
+  onKickUser?: (userPubkey: string) => Promise<void>; // Handler to kick a user
 }
 
 export const UserAvatars = ({
@@ -36,8 +39,10 @@ export const UserAvatars = ({
   overlap = 60,
   focusScale = 1.2,
   isAdmin = false,
+  currentUserPubkey,
   showUsersButton = true,
   showInviteButton = false,
+  onKickUser,
 }: UserAvatarsProps) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -96,6 +101,8 @@ export const UserAvatars = ({
               key={user.id}
               users={users}
               isAdmin={isAdmin}
+              currentUserPubkey={currentUserPubkey}
+              onKickUser={onKickUser}
               trigger={
                 <motion.div
                   role="img"
@@ -174,6 +181,8 @@ export const UserAvatars = ({
               key={user.id}
               users={users}
               isAdmin={isAdmin}
+              currentUserPubkey={currentUserPubkey}
+              onKickUser={onKickUser}
               trigger={
                 <motion.div
                   role="img"
@@ -213,6 +222,8 @@ export const UserAvatars = ({
             key={user.id}
             user={user}
             isAdmin={isAdmin}
+            isCurrentUser={currentUserPubkey ? user.pubkey === currentUserPubkey : false}
+            onKickUser={onKickUser}
             trigger={
               <motion.button
                 role="img"

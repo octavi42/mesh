@@ -314,12 +314,15 @@ export function useChannelMessages(channelId: string) {
           testingAccess: true
         });
 
-        // Define timeout utility function
+        // Define timeout utility function that logs warnings instead of errors
         const timeoutPromise = async <T>(promise: Promise<T>, timeoutMs: number, description: string): Promise<T> => {
           return Promise.race([
             promise,
             new Promise<T>((_, reject) =>
-              setTimeout(() => reject(new Error(`${description} timed out after ${timeoutMs}ms`)), timeoutMs)
+              setTimeout(() => {
+                console.warn(`⏳ ${description} timed out after ${timeoutMs}ms - relay may be slow`);
+                reject(new Error(`${description} timed out after ${timeoutMs}ms`));
+              }, timeoutMs)
             )
           ]);
         };
@@ -530,15 +533,11 @@ export function useChannelMessages(channelId: string) {
             console.log('✅ Historical messages fetch completed via manual subscription');
           } catch (manualError) {
             const errorMessage = manualError instanceof Error ? manualError.message : 'Unknown error';
-            console.error('❌ Manual subscription failed:', errorMessage);
+            console.warn('⚠️ Manual subscription issue:', errorMessage);
 
-            // Provide specific guidance for common nsec.app issues
+            // Provide specific guidance for common nsec.app issues (as a single grouped message)
             if (errorMessage.includes('no authenticated relays') || errorMessage.includes('nsec.app may be inactive')) {
-              console.error('💡 This error suggests nsec.app authentication issues:');
-              console.error('💡 1. Ensure nsec.app tab is active and visible');
-              console.error('💡 2. Check if you granted permissions to this domain');
-              console.error('💡 3. Try refreshing nsec.app if it becomes unresponsive');
-              console.error('💡 4. Consider switching to a different key management method if issues persist');
+              console.warn('💡 Authentication issue detected. Tips: 1) Ensure key storage tab is active 2) Check permissions 3) Try refreshing');
             }
 
             // Fallback to original fetchEvents method
@@ -546,12 +545,12 @@ export function useChannelMessages(channelId: string) {
             try {
               historicalMessages = await timeoutPromise(
                 ndk.fetchEvents(filter),
-                20000, // Longer timeout for fallback
+                15000, // Reduced timeout for fallback
                 'Historical messages fetch (fallback)'
               );
               console.log('✅ Historical messages fetch completed via fetchEvents fallback');
             } catch (fallbackError) {
-              console.error('❌ Both subscription and fetchEvents failed:', fallbackError);
+              console.warn('⚠️ Fallback fetch also timed out - relay may be slow or require authentication');
               historicalMessages = new Set(); // Empty set to prevent crashes
             }
           }
@@ -569,7 +568,8 @@ export function useChannelMessages(channelId: string) {
           );
           console.log('✅ Deletion events fetch completed');
         } catch (error) {
-          console.error('❌ Deletion events fetch failed:', error);
+          // Timeout for deletion events is not critical - just use empty set
+          console.warn('⚠️ Deletion events fetch timed out or failed - proceeding without deletion filtering');
           deletionEvents = new Set(); // Empty set as fallback
         }
 

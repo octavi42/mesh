@@ -13,13 +13,16 @@ interface User {
   image: string;
   pubkey?: string;
   role?: string;
+  isAdmin?: boolean; // Whether this user is an admin
 }
 
 interface UserInfoSheetProps {
   user: User;
   trigger: ReactNode;
-  isAdmin?: boolean;
+  isAdmin?: boolean; // Whether the CURRENT user (viewer) is an admin
+  isCurrentUser?: boolean; // Whether this user is the current logged-in user
   onDismissParent?: () => void;
+  onKickUser?: (userPubkey: string) => Promise<void>;
 }
 
 interface ConfirmationSheetProps {
@@ -86,8 +89,17 @@ function ConfirmationSheet({ isOpen, onClose, onConfirm, title, message, confirm
   );
 }
 
-export function UserInfoSheet({ user, trigger, isAdmin = false, onDismissParent }: UserInfoSheetProps) {
+export function UserInfoSheet({ user, trigger, isAdmin = false, isCurrentUser = false, onDismissParent, onKickUser }: UserInfoSheetProps) {
   const dismissButtonRef = useRef<HTMLButtonElement>(null);
+  const [isKicking, setIsKicking] = useState(false);
+
+  // Determine if the kick button should be shown
+  // Current user must be admin AND target user must NOT be admin AND must not be themselves
+  const canKickUser = isAdmin && !user.isAdmin && !isCurrentUser;
+  
+  // Determine if the make admin button should be shown
+  // Current user must be admin AND target user must NOT already be admin AND must not be themselves
+  const canMakeAdmin = isAdmin && !user.isAdmin && !isCurrentUser;
 
   const handleKickClick = () => {
     if (dismissButtonRef.current) {
@@ -98,11 +110,23 @@ export function UserInfoSheet({ user, trigger, isAdmin = false, onDismissParent 
           setTimeout(() => {
             showConfirmation(
               'Kick User',
-              `Are you sure you want to kick ${user.name || 'this user'} from the chat?`,
+              `Are you sure you want to kick ${user.name || 'this user'} from the workspace? They will be removed from all channels.`,
               'Kick',
               'danger',
-              () => {
-                console.log('Confirmed kick user:', user.id);
+              async () => {
+                if (onKickUser && user.pubkey) {
+                  setIsKicking(true);
+                  try {
+                    await onKickUser(user.pubkey);
+                    console.log('Successfully kicked user:', user.pubkey);
+                  } catch (error) {
+                    console.error('Failed to kick user:', error);
+                  } finally {
+                    setIsKicking(false);
+                  }
+                } else {
+                  console.log('Confirmed kick user:', user.id, '(no handler provided)');
+                }
               }
             );
           }, 300);
@@ -111,11 +135,23 @@ export function UserInfoSheet({ user, trigger, isAdmin = false, onDismissParent 
         setTimeout(() => {
           showConfirmation(
             'Kick User',
-            `Are you sure you want to kick ${user.name || 'this user'} from the chat?`,
+            `Are you sure you want to kick ${user.name || 'this user'} from the workspace? They will be removed from all channels.`,
             'Kick',
             'danger',
-            () => {
-              console.log('Confirmed kick user:', user.id);
+            async () => {
+              if (onKickUser && user.pubkey) {
+                setIsKicking(true);
+                try {
+                  await onKickUser(user.pubkey);
+                  console.log('Successfully kicked user:', user.pubkey);
+                } catch (error) {
+                  console.error('Failed to kick user:', error);
+                } finally {
+                  setIsKicking(false);
+                }
+              } else {
+                console.log('Confirmed kick user:', user.id, '(no handler provided)');
+              }
             }
           );
         }, 400);
@@ -180,7 +216,7 @@ export function UserInfoSheet({ user, trigger, isAdmin = false, onDismissParent 
                 <Sheet.Trigger action="dismiss" asChild>
                   <button ref={dismissButtonRef} data-sheet-dismiss style={{ display: 'none' }} />
                 </Sheet.Trigger>
-                <div className="p-8 pb-4 flex-shrink-0">
+                <div className="p-8 pb-4 shrink-0">
                   <div className="mb-6 flex flex-col items-center">
                     <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 mb-4">
                       <img
@@ -213,29 +249,38 @@ export function UserInfoSheet({ user, trigger, isAdmin = false, onDismissParent 
                   </div>
                 </div>
 
-                <div className="p-8 pt-4 flex-shrink-0 mt-auto">
+                <div className="p-8 pt-4 shrink-0 mt-auto">
                   <div className="space-y-2">
                     <button
                       onClick={() => console.log('View profile:', user.id)}
-                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 text-gray-900 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
                     >
                       <UserIcon className="w-4 h-4" />
                       View Profile
                     </button>
-                    <button
-                      onClick={handleAdminClick}
-                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 text-gray-900 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Shield className="w-4 h-4" />
-                      Make Admin
-                    </button>
-                    <button
-                      onClick={handleKickClick}
-                      className="w-full px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <UserMinus className="w-4 h-4" />
-                      Kick from Chat
-                    </button>
+                    
+                    {/* Only show Make Admin button if current user is admin and target is not admin/self */}
+                    {canMakeAdmin && (
+                      <button
+                        onClick={handleAdminClick}
+                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Shield className="w-4 h-4" />
+                        Make Admin
+                      </button>
+                    )}
+                    
+                    {/* Only show Kick button if current user is admin and target is not admin/self */}
+                    {canKickUser && (
+                      <button
+                        onClick={handleKickClick}
+                        disabled={isKicking}
+                        className="w-full px-4 py-3 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <UserMinus className="w-4 h-4" />
+                        {isKicking ? 'Kicking...' : 'Kick from Workspace'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

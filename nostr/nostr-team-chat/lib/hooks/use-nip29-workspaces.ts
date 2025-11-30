@@ -11,10 +11,15 @@ import type { Workspace } from '@/lib/stores/workspace-store-clean';
 // Global flag to ensure workspace fetching happens only once per session
 let workspacesFetched = false;
 
-// Function to reset the session (call on user logout)
+// Function to reset the session (call on user logout or user change)
 export function resetWorkspaceSession() {
   workspacesFetched = false;
   console.log('🔄 Workspace session reset - will fetch on next mount');
+  
+  // Also clear the workspace store to prevent stale data
+  const store = useWorkspaceStore.getState();
+  store.clearWorkspaces();
+  console.log('🔄 Workspace store cleared');
 }
 
 // Function to force refresh workspaces (for debugging deleted groups)
@@ -30,7 +35,7 @@ export function forceRefreshWorkspaces() {
 }
 
 export function useNIP29Workspaces() {
-  const { ndk, isConnected } = useNDK();
+  const { ndk, isConnected, hasSigner } = useNDK();
   const { pubkey } = useAuthStore();
   const { addWorkspace, setLoading, setError, workspaces } = useWorkspaceStore();
   const subscriptionActiveRef = useRef(true);
@@ -49,10 +54,12 @@ export function useNIP29Workspaces() {
   }, [pubkey]);
 
   useEffect(() => {
-    console.log('🔍 useNIP29Workspaces effect triggered:', {
+    console.log(' useNIP29Workspaces effect triggered:', {
       hasNdk: !!ndk,
       hasPubkey: !!pubkey,
       isConnected,
+      hasSigner,
+      hasNdkSigner: !!ndk?.signer,
       pubkey: pubkey?.slice(0, 8),
       workspacesFetched,
       existingWorkspaces: workspaces.length
@@ -60,26 +67,18 @@ export function useNIP29Workspaces() {
 
     // Only run once per session - never during navigation
     if (workspacesFetched) {
-      console.log('⏭️ Workspaces already fetched this session, skipping', {
-        workspacesFetched,
-        hasNdk: !!ndk,
-        hasPubkey: !!pubkey,
-        hasSigner: !!ndk?.signer,
-        pubkey: pubkey?.slice(0, 8)
-      });
+      console.log('⏭️ Workspaces already fetched this session, skipping');
       return;
     }
 
     if (!ndk || !pubkey) {
-      console.log('⏭️ Skipping NIP-29 workspace subscription: missing basic requirements');
+      console.log('⏭️ Skipping: missing ndk or pubkey');
       return;
     }
 
-    // Check if we have a signer (required for authenticated access)
-    if (!ndk.signer) {
-      console.log('⏭️ Skipping NIP-29 workspace subscription: no signer attached', {
-        message: 'Use "Connect to Relay" button to attach signer and fetch workspaces'
-      });
+    // Wait for connection
+    if (!isConnected) {
+      console.log('⏭️ Skipping: not connected yet');
       return;
     }
 
@@ -200,6 +199,15 @@ export function useNIP29Workspaces() {
                 updatedAt: Date.now()
               });
               console.log(`${logPrefix} Updated existing workspace admin data for ${groupId}`);
+              
+              // Emit member-list-changed for live events to trigger UI refresh
+              if (isLive) {
+                const adminChangeEvent = new CustomEvent('member-list-changed', {
+                  detail: { groupId, action: 'admins-updated', adminCount: adminPubkeys.length }
+                });
+                window.dispatchEvent(adminChangeEvent);
+                console.log(`🔴 ${logPrefix} Emitted member-list-changed (admins) for group ${groupId}`);
+              }
             }
           }
 
@@ -217,6 +225,22 @@ export function useNIP29Workspaces() {
               .map((tag: string[]) => tag[1])
               .filter(Boolean);
 
+            // Check if current user was kicked (only for live events)
+            const currentUserPubkey = useAuthStore.getState().pubkey;
+            const previousMembers = groupMembers.get(groupId) || [];
+            const wasInGroup = previousMembers.includes(currentUserPubkey || '');
+            const isStillInGroup = memberPubkeys.includes(currentUserPubkey || '');
+            
+            if (isLive && wasInGroup && !isStillInGroup && currentUserPubkey) {
+              console.log(`🚨 ${logPrefix} Current user was removed from group ${groupId}!`);
+              
+              // Emit a custom event that components can listen to
+              const kickEvent = new CustomEvent('user-kicked-from-workspace', {
+                detail: { groupId, userPubkey: currentUserPubkey }
+              });
+              window.dispatchEvent(kickEvent);
+            }
+
             groupMembers.set(groupId, memberPubkeys);
             console.log(`${logPrefix} Updated members for group ${groupId}:`, memberPubkeys.length);
 
@@ -230,6 +254,15 @@ export function useNIP29Workspaces() {
                 updatedAt: Date.now()
               });
               console.log(`${logPrefix} Updated existing workspace member data for ${groupId}`);
+              
+              // Emit member-list-changed for live events to trigger UI refresh
+              if (isLive) {
+                const memberChangeEvent = new CustomEvent('member-list-changed', {
+                  detail: { groupId, action: 'updated', memberCount: memberPubkeys.length }
+                });
+                window.dispatchEvent(memberChangeEvent);
+                console.log(`🔴 ${logPrefix} Emitted member-list-changed for group ${groupId}`);
+              }
             }
           }
 
@@ -408,10 +441,10 @@ export function useNIP29Workspaces() {
         }
 
 
-        // LIVE SUBSCRIPTION: Only subscribe to managed group events including deletions
+        // LIVE SUBSCRIPTION: Only subscribe to managed group events including deletions and kicks
         console.log('🔴 Starting live subscription for managed group events including deletions...');
 
-        const managedGroupKinds = [39000, 39001, 39002, 9007, 9008] as NDKKind[];
+        const managedGroupKinds = [39000, 39001, 39002, 9001, 9007, 9008] as NDKKind[]; // Added 9001 (RemoveUser)
         const liveSubscription = ndk.subscribe({
           kinds: managedGroupKinds,
           since: latestTimestamp + 1 // Only new events after historical data
@@ -438,6 +471,36 @@ export function useNIP29Workspaces() {
               const store = useWorkspaceStore.getState();
               store.removeWorkspace(groupId);
               console.log('🔴 LIVE Removed deleted workspace:', groupId);
+            }
+          } else if (event.kind === 9001) {
+            // Handle user removal (kind 9001 - RemoveUser)
+            const groupId = event.tags.find((tag: string[]) => tag[0] === 'h')?.[1];
+            const removedPubkey = event.tags.find((tag: string[]) => tag[0] === 'p')?.[1];
+            const currentUserPubkey = useAuthStore.getState().pubkey;
+            
+            console.log('🔴 LIVE RemoveUser event (9001):', {
+              groupId,
+              removedPubkey: removedPubkey?.slice(0, 8),
+              isCurrentUser: currentUserPubkey === removedPubkey
+            });
+            
+            if (groupId && removedPubkey) {
+              if (currentUserPubkey === removedPubkey) {
+                console.log('🚨 LIVE Current user removed from group:', groupId);
+                
+                // Emit a custom event for immediate UI update
+                const kickEvent = new CustomEvent('user-kicked-from-workspace', {
+                  detail: { groupId, userPubkey: removedPubkey }
+                });
+                window.dispatchEvent(kickEvent);
+              } else {
+                // Another user was removed - emit member-list-changed to refresh the list
+                console.log('🔴 LIVE Another user removed from group:', groupId, removedPubkey.slice(0, 8));
+                const memberChangeEvent = new CustomEvent('member-list-changed', {
+                  detail: { groupId, action: 'user-removed', userPubkey: removedPubkey }
+                });
+                window.dispatchEvent(memberChangeEvent);
+              }
             }
           } else {
             processEvent(event, true, deletedGroupIds);
@@ -482,7 +545,7 @@ export function useNIP29Workspaces() {
       }
     };
 
-  }, [ndk, pubkey, ndk?.signer]); // Run when signer is ready, but only once per session
+  }, [ndk, pubkey, isConnected]); // Re-run when connection state changes
 }
 
 // Hook to create a new workspace

@@ -10,6 +10,7 @@ import { useMessageStore } from '@/lib/stores/message-store';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useGroupMembers } from '@/lib/hooks/use-group-members';
+import { useMemberActions } from '@/lib/hooks/use-member-actions';
 
 interface ChannelViewProps {
   channelId: string;
@@ -26,11 +27,20 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     getAvatarUsers,
     loading: membersLoading,
     isAdmin,
-    displayedMemberCount
+    displayedMemberCount,
+    forceRefresh: refreshMembers
   } = useGroupMembers({
     groupId: currentWorkspaceId || undefined,
     autoRefresh: true,
     refreshInterval: 60000 // Refresh every minute
+  });
+
+  // Member actions (kick, etc.)
+  const { kickUser } = useMemberActions({
+    groupId: currentWorkspaceId || '',
+    onUserKicked: useCallback(() => {
+      refreshMembers();
+    }, [refreshMembers])
   });
   // Get static references to prevent re-renders
   const sendMessage = useMessageStore((state) => state.sendMessage);
@@ -140,7 +150,9 @@ export function ChannelView({ channelId }: ChannelViewProps) {
               size={40}
               maxVisible={5}
               isAdmin={isAdmin(pubkey || '')}
+              currentUserPubkey={pubkey || undefined}
               showInviteButton={true}
+              onKickUser={kickUser}
             />
           </div>
           {membersLoading && displayedMemberCount === 0 && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useChannels, syncChannelsForWorkspace } from '@/lib/hooks/use-channels';
 import { useWorkspaceStore } from '@/lib/stores/workspace-store-clean';
@@ -11,6 +11,7 @@ import { MessageSquarePlus, Hash } from 'lucide-react';
 import { UserAvatars } from '@/components/ui/user-avatars';
 import { useGroupMembers } from '@/lib/hooks/use-group-members';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useMemberActions } from '@/lib/hooks/use-member-actions';
 
 export default function WorkspacePage() {
   const params = useParams();
@@ -35,13 +36,22 @@ export default function WorkspacePage() {
     loading: membersLoading,
     isAdmin,
     displayedMemberCount,
-    memberCount
+    memberCount,
+    forceRefresh: refreshMembers
   } = useGroupMembers({
     groupId: actualWorkspaceId || undefined,
     autoRefresh: true,
     refreshInterval: 60000 // Refresh every minute
   });
 
+  // Member actions (kick, etc.)
+  const { kickUser, isKicking } = useMemberActions({
+    groupId: actualWorkspaceId,
+    onUserKicked: useCallback(() => {
+      // Refresh member list after kicking
+      refreshMembers();
+    }, [refreshMembers])
+  });
 
   const channels = useChannels(actualWorkspaceId);
   const isLoading = isLoadingWorkspace; // Show loading when workspace is being set
@@ -101,7 +111,7 @@ export default function WorkspacePage() {
     return (
       <div className="flex flex-col h-full">
         {/* Workspace Header */}
-        <div className="flex-shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800">
+        <div className="shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
               {workspace.name}
@@ -119,7 +129,9 @@ export default function WorkspacePage() {
                 size={40}
                 maxVisible={5}
                 isAdmin={isAdmin(pubkey || '')}
+                currentUserPubkey={pubkey || undefined}
                 showInviteButton={true}
+                onKickUser={kickUser}
               />
             </div>
           </div>
@@ -162,7 +174,7 @@ export default function WorkspacePage() {
   return (
     <div className="flex flex-col h-full">
       {/* Workspace Header */}
-      <div className="flex-shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800">
+      <div className="shrink-0 flex h-16 items-center justify-between pl-6 pr-20 bg-white/70 dark:bg-black/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
             {workspace.name}
@@ -180,7 +192,9 @@ export default function WorkspacePage() {
               size={40}
               maxVisible={5}
               isAdmin={isAdmin(pubkey || '')}
+              currentUserPubkey={pubkey || undefined}
               showInviteButton={true}
+              onKickUser={kickUser}
             />
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Sheet } from '@silk-hq/components';
-import { X, Search, UserPlus } from 'lucide-react';
+import { X, Search, UserPlus, Shield } from 'lucide-react';
 import { SHEET_ANIMATIONS } from '@/lib/constants/sheet-animations';
 import { UserInfoSheet } from './user-info-sheet';
 import { InviteUserSheet } from './invite-user-sheet';
@@ -14,15 +14,24 @@ interface User {
   image: string;
   pubkey?: string;
   role?: string;
+  isAdmin?: boolean; // Whether this user is an admin
 }
 
 interface AllUsersSheetProps {
   users: User[];
   trigger: React.ReactNode;
-  isAdmin?: boolean;
+  isAdmin?: boolean; // Whether the current user (viewer) is an admin
+  currentUserPubkey?: string; // The current logged-in user's pubkey
+  onKickUser?: (userPubkey: string) => Promise<void>; // Handler to kick a user
 }
 
-export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheetProps) {
+export function AllUsersSheet({ 
+  users, 
+  trigger, 
+  isAdmin = false, 
+  currentUserPubkey,
+  onKickUser 
+}: AllUsersSheetProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showInviteSheet, setShowInviteSheet] = useState(false);
   const inviteButtonRef = useRef<HTMLButtonElement>(null);
@@ -68,7 +77,7 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                 <Sheet.Trigger action="dismiss" asChild>
                   <button ref={dismissButtonRef} style={{ display: 'none' }} />
                 </Sheet.Trigger>
-                <div className="p-8 flex-shrink-0">
+                <div className="p-8 shrink-0">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">All Members</h2>
                     <div className="flex items-center gap-2">
@@ -108,10 +117,12 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                       key={user.id}
                       user={user}
                       isAdmin={isAdmin}
+                      isCurrentUser={currentUserPubkey ? user.pubkey === currentUserPubkey : false}
                       onDismissParent={handleDismissAll}
+                      onKickUser={onKickUser}
                       trigger={
-                        <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:bg-gray-900 transition-colors cursor-pointer">
-                          <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 flex-shrink-0">
+                        <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+                          <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 shrink-0">
                             <img
                               src={user.image}
                               alt={user.name || 'User'}
@@ -119,7 +130,14 @@ export function AllUsersSheet({ users, trigger, isAdmin = false }: AllUsersSheet
                             />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{user.name || 'Anonymous'}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user.name || 'Anonymous'}</p>
+                              {user.isAdmin && (
+                                <span title="Admin">
+                                  <Shield className="w-3 h-3 text-blue-500" />
+                                </span>
+                              )}
+                            </div>
                             {user.pubkey && (
                               <p className="text-xs text-gray-500 truncate font-mono">{user.pubkey.slice(0, 16)}...</p>
                             )}
