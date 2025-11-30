@@ -4,6 +4,7 @@ import { Providers } from "./providers";
 import { GlobalConfirmationDialog } from "@/components/ui/global-confirmation-dialog";
 import { Toaster } from "sonner";
 import Hydration from "@/components/hydration";
+import { PostHogPageView } from "@/components/analytics/PostHogPageView";
 import "./globals.css";
 import "./silk.css";
 
@@ -48,6 +49,7 @@ export default function RootLayout({
       >
         <Hydration />
         <Providers>
+          <PostHogPageView />
           {children}
           <GlobalConfirmationDialog />
           <Toaster position="top-right" richColors />
