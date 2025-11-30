@@ -12,20 +12,11 @@ interface ChannelListProps {
 export function ChannelList({ channels, workspaceId }: ChannelListProps) {
   const pathname = usePathname();
 
-  console.log('🔍 ChannelList render:', { pathname, workspaceId, channelsCount: channels.length });
-
   return (
     <div className="p-4 space-y-2">
       {channels.map((channel) => {
         const channelPath = `/app/w/${workspaceId}/c/${channel.id}`;
         const isCurrentChannel = pathname === channelPath;
-
-        console.log('🔍 Channel comparison:', {
-          channelId: channel.id,
-          channelPath,
-          pathname,
-          isCurrentChannel
-        });
 
         return (
         <Link
@@ -41,7 +32,6 @@ export function ChannelList({ channels, workspaceId }: ChannelListProps) {
           onClick={(e) => {
             if (isCurrentChannel) {
               e.preventDefault();
-              console.log('⏭️ Already in channel, ignoring click:', channel.id);
             }
           }}
         >
