@@ -84,9 +84,9 @@ export function LoginButton({ className = '' }: LoginButtonProps) {
 
   if (loading) {
     return (
-      <div className={`flex items-center gap-2 px-5 py-2.5 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse ${className}`}>
-        <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded" />
-        <span className="text-gray-400">Loading...</span>
+      <div className={`flex items-center gap-2 px-5 py-2.5 bg-neutral-200 dark:bg-neutral-800 rounded-lg animate-pulse ${className}`}>
+        <div className="w-4 h-4 bg-neutral-300 dark:bg-neutral-700 rounded" />
+        <span className="text-neutral-400">Loading...</span>
       </div>
     );
   }
@@ -96,14 +96,14 @@ export function LoginButton({ className = '' }: LoginButtonProps) {
       <div className={`flex items-center gap-3 ${className}`}>
         <button
           onClick={() => router.push('/app')}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 rounded-lg font-medium transition-colors"
         >
           Enter App
           <ArrowRight className="w-4 h-4" />
         </button>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-lg font-medium transition-colors"
         >
           <LogOut className="w-4 h-4" />
           Logout
@@ -115,10 +115,10 @@ export function LoginButton({ className = '' }: LoginButtonProps) {
   return (
     <button
       onClick={handleLogin}
-      className={`flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors ${className}`}
+      className={`flex items-center gap-2 px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 rounded-lg font-medium transition-colors ${className}`}
     >
       <LogIn className="w-4 h-4" />
-      Connect Nostr
+      Connect with Nostr
     </button>
   );
 }
