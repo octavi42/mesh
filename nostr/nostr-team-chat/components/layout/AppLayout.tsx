@@ -8,6 +8,7 @@ import { IconBar } from './IconBar';
 import { Sidebar } from './Sidebar';
 import { AccountSheet } from '@/components/sheets/account-sheet';
 import { ConnectionHealthMonitor, ReconnectButton } from '@/components/auth/ConnectionHealthMonitor';
+import { SectionErrorBoundary } from '@/components/error-boundary';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -100,12 +101,16 @@ export function AppLayout({ children }: AppLayoutProps) {
         <AccountSheet />
       </div>
 
-      <Sidebar isOpen={sidebarOpen} />
+      <SectionErrorBoundary>
+        <Sidebar isOpen={sidebarOpen} />
+      </SectionErrorBoundary>
 
       <main className="flex-1 overflow-hidden">
         <ConnectionHealthMonitor />
         <ReconnectButton />
-        {children}
+        <SectionErrorBoundary>
+          {children}
+        </SectionErrorBoundary>
       </main>
     </div>
   );

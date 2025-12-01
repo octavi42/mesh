@@ -150,3 +150,19 @@ export const analytics = {
     analytics.track('logout_completed');
   },
 };
+
+// Track errors for monitoring
+export function trackError(error: Error, context?: Record<string, any>) {
+  if (POSTHOG_KEY) {
+    posthog.capture('$exception', {
+      $exception_message: error.message,
+      $exception_type: error.name,
+      $exception_stack_trace_raw: error.stack,
+      ...context,
+    });
+  }
+  // Always log to console in development
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Tracked error:', error, context);
+  }
+}

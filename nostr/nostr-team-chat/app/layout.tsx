@@ -5,6 +5,7 @@ import { GlobalConfirmationDialog } from "@/components/ui/global-confirmation-di
 import { Toaster } from "sonner";
 import Hydration from "@/components/hydration";
 import { PostHogPageView } from "@/components/analytics/PostHogPageView";
+import { ErrorBoundary } from "@/components/error-boundary";
 import "./globals.css";
 import "./silk.css";
 
@@ -48,12 +49,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Hydration />
-        <Providers>
-          <PostHogPageView />
-          {children}
-          <GlobalConfirmationDialog />
-          <Toaster position="top-right" richColors />
-        </Providers>
+        <ErrorBoundary>
+          <Providers>
+            <PostHogPageView />
+            {children}
+            <GlobalConfirmationDialog />
+            <Toaster position="top-right" richColors />
+          </Providers>
+        </ErrorBoundary>
       </body>
     </html>
   );
