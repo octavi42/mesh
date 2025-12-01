@@ -116,4 +116,31 @@ db.version(4).stores({
   notifications: 'id, userId, type, createdAt, read',
 });
 
+// Safari-specific: Handle IndexedDB issues
+// Safari in private browsing mode throws errors on IndexedDB operations
+// This ensures the app doesn't crash and provides graceful fallback
+db.on('blocked', () => {
+  console.warn('⚠️ Database blocked - please close other tabs using this app');
+});
+
+db.on('versionchange', () => {
+  console.log('🔄 Database version changed - reloading...');
+  db.close();
+  window.location.reload();
+});
+
+// Open database explicitly for Safari compatibility
+if (typeof window !== 'undefined') {
+  db.open().catch((err) => {
+    console.error('❌ Failed to open database:', err);
+    // Check if it's a Safari private browsing error
+    if (err.name === 'InvalidStateError' || 
+        err.message?.includes('BlobURLs are not yet supported') ||
+        err.message?.includes('QuotaExceededError')) {
+      console.warn('⚠️ Safari private browsing detected or storage quota exceeded');
+      console.warn('⚠️ Some features may not work correctly. Please use normal browsing mode.');
+    }
+  });
+}
+
 export { db };

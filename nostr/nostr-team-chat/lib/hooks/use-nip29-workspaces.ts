@@ -86,6 +86,13 @@ export function useNIP29Workspaces() {
     workspacesFetched = true; // Mark as fetched immediately
     setLoading(true);
 
+    // Safety timeout: Stop loading after 15 seconds no matter what
+    // This prevents infinite loading states on slow/failed connections
+    const loadingTimeout = setTimeout(() => {
+      console.log('⏱️ Loading timeout reached - forcing loading state to false');
+      setLoading(false);
+    }, 15000);
+
     // Note: We've removed content discovery to only show managed groups
     // Existing cached workspaces will gradually be replaced as we fetch managed ones
 
@@ -515,6 +522,7 @@ export function useNIP29Workspaces() {
         // Cleanup function
         return () => {
           console.log('🛑 Stopping NIP-29 workspace subscriptions');
+          clearTimeout(loadingTimeout);
           subscriptionActiveRef.current = false;
           try {
             liveSubscription.stop();
@@ -527,6 +535,7 @@ export function useNIP29Workspaces() {
       } catch (error) {
         console.error('❌ Failed to fetch workspace data:', error);
         setError(error instanceof Error ? error.message : 'Data fetching failed');
+        clearTimeout(loadingTimeout);
         setLoading(false);
       }
     };

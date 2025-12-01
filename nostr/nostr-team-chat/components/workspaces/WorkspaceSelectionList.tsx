@@ -99,6 +99,10 @@ export function WorkspaceSelectionList({ isLoading = false }: WorkspaceSelection
             ))}
           </div>
         </div>
+        {/* Always show Create Workspace button even during loading */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <CreateWorkspaceModal />
+        </div>
       </div>
     );
   }
