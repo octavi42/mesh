@@ -14,19 +14,11 @@ export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  if (messages.length === 0) {
-    return null;
-  }
-
   const TIME_GROUPING_WINDOW = 5 * 60 * 1000;
 
   const messageGroups = useMemo(() => {
+    if (messages.length === 0) return [];
+    
     const groups: Array<{ messages: typeof messages; groupId: string }> = [];
     let currentGroup: typeof messages = [];
 
@@ -50,7 +42,17 @@ export function MessageList({ messages, currentUserPubkey }: MessageListProps) {
     }
 
     return groups;
+  }, [messages, TIME_GROUPING_WINDOW]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages]);
+
+  if (messages.length === 0) {
+    return null;
+  }
 
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden p-6" style={{ minHeight: 0 }}>
