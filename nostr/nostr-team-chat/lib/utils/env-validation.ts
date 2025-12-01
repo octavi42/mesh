@@ -3,7 +3,18 @@
  * 
  * Validates required environment variables at startup to prevent
  * cryptic runtime errors in production.
+ * 
+ * Note: NEXT_PUBLIC_* variables must be accessed directly (not via bracket notation)
+ * for Next.js to inline them at build time.
  */
+
+// Environment variable values (accessed directly for Next.js inlining)
+const ENV_VALUES = {
+  NEXT_PUBLIC_NIP29_RELAY_URL: process.env.NEXT_PUBLIC_NIP29_RELAY_URL,
+  NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
+  NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+} as const;
 
 // Required environment variables (app won't work without these)
 const REQUIRED_ENV_VARS = [
@@ -32,7 +43,7 @@ export function validateEnv(): EnvValidationResult {
 
   // Check required variables
   for (const envVar of REQUIRED_ENV_VARS) {
-    const value = process.env[envVar];
+    const value = ENV_VALUES[envVar as keyof typeof ENV_VALUES];
     if (!value || value.trim() === '') {
       missing.push(envVar);
     }
@@ -40,7 +51,7 @@ export function validateEnv(): EnvValidationResult {
 
   // Check recommended variables
   for (const envVar of RECOMMENDED_ENV_VARS) {
-    const value = process.env[envVar];
+    const value = ENV_VALUES[envVar as keyof typeof ENV_VALUES];
     if (!value || value.trim() === '') {
       warnings.push(envVar);
     }
@@ -90,9 +101,10 @@ export function initEnvValidation(): void {
 
 /**
  * Get a required environment variable or throw an error
+ * Note: For NEXT_PUBLIC_* vars, use the env object below instead
  */
-export function getRequiredEnv(key: string): string {
-  const value = process.env[key];
+export function getRequiredEnv(key: keyof typeof ENV_VALUES): string {
+  const value = ENV_VALUES[key];
   if (!value || value.trim() === '') {
     throw new Error(
       `Missing required environment variable: ${key}. ` +
@@ -105,24 +117,29 @@ export function getRequiredEnv(key: string): string {
 /**
  * Get an optional environment variable with a default value
  */
-export function getOptionalEnv(key: string, defaultValue: string = ''): string {
-  return process.env[key] || defaultValue;
+export function getOptionalEnv(key: keyof typeof ENV_VALUES, defaultValue: string = ''): string {
+  return ENV_VALUES[key] || defaultValue;
 }
 
 // Type-safe environment variable getters
+// Uses direct access for Next.js build-time inlining
 export const env = {
   // Required
   get relayUrl(): string {
-    return getRequiredEnv('NEXT_PUBLIC_NIP29_RELAY_URL');
+    const value = process.env.NEXT_PUBLIC_NIP29_RELAY_URL;
+    if (!value) {
+      throw new Error('Missing required environment variable: NEXT_PUBLIC_NIP29_RELAY_URL');
+    }
+    return value;
   },
 
   // Optional with defaults
   get appName(): string {
-    return getOptionalEnv('NEXT_PUBLIC_APP_NAME', 'Nostr Team Chat');
+    return process.env.NEXT_PUBLIC_APP_NAME || 'Nostr Team Chat';
   },
 
   get appUrl(): string {
-    return getOptionalEnv('NEXT_PUBLIC_APP_URL', 'https://localhost:3000');
+    return process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000';
   },
 
   get posthogKey(): string | undefined {
@@ -130,13 +147,12 @@ export const env = {
   },
 
   get posthogHost(): string {
-    return getOptionalEnv('NEXT_PUBLIC_POSTHOG_HOST', 'https://us.i.posthog.com');
+    return process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
   },
 
   get logLevel(): string {
-    return getOptionalEnv('NEXT_PUBLIC_LOG_LEVEL', 
-      process.env.NODE_ENV === 'production' ? 'error' : 'debug'
-    );
+    return process.env.NEXT_PUBLIC_LOG_LEVEL || 
+      (process.env.NODE_ENV === 'production' ? 'error' : 'debug');
   },
 
   get isDevelopment(): boolean {

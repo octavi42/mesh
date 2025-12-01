@@ -21,8 +21,64 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Nostr Team Chat",
-  description: "Decentralized team collaboration on Nostr",
+  title: {
+    default: "Nostr Team Chat",
+    template: "%s | Nostr Team Chat",
+  },
+  description: "Decentralized team collaboration on Nostr. Private, secure, and censorship-resistant messaging for teams.",
+  keywords: ["nostr", "team chat", "decentralized", "messaging", "collaboration", "secure", "private"],
+  authors: [{ name: "Nostr Team Chat" }],
+  creator: "Nostr Team Chat",
+  
+  // OpenGraph - for Facebook, LinkedIn, Slack, Discord, etc.
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000",
+    siteName: "Nostr Team Chat",
+    title: "Nostr Team Chat",
+    description: "Decentralized team collaboration on Nostr. Private, secure, and censorship-resistant messaging for teams.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Nostr Team Chat - Decentralized Team Collaboration",
+      },
+    ],
+  },
+  
+  // Twitter Card
+  twitter: {
+    card: "summary_large_image",
+    title: "Nostr Team Chat",
+    description: "Decentralized team collaboration on Nostr. Private, secure, and censorship-resistant.",
+    images: ["/og-image.png"],
+  },
+  
+  // Favicon and icons
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  
+  // App manifest for PWA
+  manifest: "/manifest.json",
+  
+  // Theme color for browser chrome
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
+  
+  // Robots
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

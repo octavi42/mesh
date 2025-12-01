@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="45" fill="url(#grad)"/>
+  <!-- Chat bubble icon -->
+  <path d="M30 35 L70 35 Q75 35 75 40 L75 55 Q75 60 70 60 L55 60 L50 70 L45 60 L30 60 Q25 60 25 55 L25 40 Q25 35 30 35 Z" fill="white"/>
+  <!-- Lightning bolt (Nostr symbol) -->
+  <path d="M52 42 L46 50 L50 50 L48 58 L54 50 L50 50 L52 42 Z" fill="#6366f1"/>
+</svg>

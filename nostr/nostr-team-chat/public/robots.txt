@@ -1,0 +1,11 @@
+# Robots.txt for Nostr Team Chat
+
+User-agent: *
+Allow: /
+
+# Block authenticated app routes from indexing
+Disallow: /app/
+Disallow: /workspace/
+
+# Sitemap
+Sitemap: https://yourapp.com/sitemap.xml
