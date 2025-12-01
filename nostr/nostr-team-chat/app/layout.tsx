@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import Hydration from "@/components/hydration";
 import { PostHogPageView } from "@/components/analytics/PostHogPageView";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { OfflineIndicator } from "@/components/ui/offline-indicator";
 import "./globals.css";
 import "./silk.css";
 
@@ -51,6 +52,7 @@ export default function RootLayout({
         <Hydration />
         <ErrorBoundary>
           <Providers>
+            <OfflineIndicator />
             <PostHogPageView />
             {children}
             <GlobalConfirmationDialog />
