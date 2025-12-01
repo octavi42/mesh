@@ -8,8 +8,9 @@ import { useEffect } from 'react';
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 
-// Initialize PostHog only on client-side and in production (or if key is provided)
+// Initialize PostHog only on client-side and if key is provided
 if (typeof window !== 'undefined' && POSTHOG_KEY) {
+  console.log('📊 PostHog: Initializing with key:', POSTHOG_KEY.substring(0, 10) + '...');
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     // Capture pageviews automatically
@@ -18,7 +19,9 @@ if (typeof window !== 'undefined' && POSTHOG_KEY) {
     capture_pageleave: true,
     // Disable in development unless explicitly enabled
     loaded: (posthog) => {
+      console.log('📊 PostHog: Loaded successfully!');
       if (process.env.NODE_ENV === 'development') {
+        console.log('📊 PostHog: Running in development mode');
         // Optionally disable in development
         // posthog.opt_out_capturing();
       }
@@ -68,6 +71,7 @@ interface PostHogProviderProps {
 export function PostHogProvider({ children }: PostHogProviderProps) {
   // If no PostHog key, just render children without the provider
   if (!POSTHOG_KEY) {
+    console.log('📊 PostHog: No key provided, skipping initialization');
     return <>{children}</>;
   }
 
