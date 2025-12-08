@@ -90,7 +90,7 @@ function Navigation() {
               <MessageSquare className="w-4 h-4 text-white dark:text-neutral-900" />
             </div>
             <span className="text-lg font-semibold text-neutral-900 dark:text-white tracking-tight">
-              NostrChat
+              Mesh
             </span>
           </div>
 
@@ -321,7 +321,7 @@ function WhySection() {
                 <div className="flex items-start gap-4">
                   <CheckCircle2 className="w-6 h-6 text-green-500 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-neutral-400 dark:text-neutral-600 mb-1">With NostrChat</p>
+                    <p className="text-sm font-medium text-neutral-400 dark:text-neutral-600 mb-1">With Mesh</p>
                     <p className="text-white dark:text-neutral-900">{item.nostr}</p>
                   </div>
                 </div>
@@ -502,7 +502,7 @@ function Footer() {
                 <MessageSquare className="w-4 h-4 text-white dark:text-neutral-900" />
               </div>
               <span className="text-lg font-semibold text-neutral-900 dark:text-white">
-                NostrChat
+                Mesh
               </span>
             </div>
             <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
@@ -587,7 +587,7 @@ function Footer() {
         <div className="mt-12 pt-8 border-t border-neutral-200 dark:border-neutral-800">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-sm text-neutral-500">
-              © {new Date().getFullYear()} NostrChat. Open source under MIT License.
+              © {new Date().getFullYear()} Mesh. Open source under MIT License.
             </p>
             <p className="text-xs text-neutral-400 font-mono">
               npub1...your-key-here
