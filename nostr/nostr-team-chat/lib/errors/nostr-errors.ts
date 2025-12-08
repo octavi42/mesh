@@ -1,5 +1,5 @@
 /**
- * Custom error types for the Nostr Team Chat application
+ * Custom error types for the Mesh application
  * Provides structured error handling with recovery strategies
  */
 

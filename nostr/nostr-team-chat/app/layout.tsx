@@ -22,28 +22,28 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Nostr Team Chat",
-    template: "%s | Nostr Team Chat",
+    default: "Mesh",
+    template: "%s | Mesh",
   },
   description: "Decentralized team collaboration on Nostr. Private, secure, and censorship-resistant messaging for teams.",
   keywords: ["nostr", "team chat", "decentralized", "messaging", "collaboration", "secure", "private"],
-  authors: [{ name: "Nostr Team Chat" }],
-  creator: "Nostr Team Chat",
+  authors: [{ name: "Mesh" }],
+  creator: "Mesh",
   
   // OpenGraph - for Facebook, LinkedIn, Slack, Discord, etc.
   openGraph: {
     type: "website",
     locale: "en_US",
     url: process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000",
-    siteName: "Nostr Team Chat",
-    title: "Nostr Team Chat",
+    siteName: "Mesh",
+    title: "Mesh",
     description: "Decentralized team collaboration on Nostr. Private, secure, and censorship-resistant messaging for teams.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Nostr Team Chat - Decentralized Team Collaboration",
+        alt: "Mesh - Decentralized Team Collaboration",
       },
     ],
   },
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   // Twitter Card
   twitter: {
     card: "summary_large_image",
-    title: "Nostr Team Chat",
+    title: "Mesh",
     description: "Decentralized team collaboration on Nostr. Private, secure, and censorship-resistant.",
     images: ["/og-image.png"],
   },

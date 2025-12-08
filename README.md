@@ -1,4 +1,4 @@
-# Nostr Team Chat
+# Mesh
 
 A decentralized team communication platform built on the Nostr protocol. Features real-time group chat with NIP-29 compliant relay support.
 
@@ -6,7 +6,7 @@ A decentralized team communication platform built on the Nostr protocol. Feature
 
 | Directory | Description | Tech Stack |
 |-----------|-------------|------------|
-| `nostr/nostr-team-chat/` | Team chat web application | Next.js, TypeScript, Nostr |
+| `nostr/nostr-team-chat/` | Mesh web application | Next.js, TypeScript, Nostr |
 | `nostr/groups_relay/` | NIP-29 compliant groups relay server | Rust |
 
 ## ✨ Features
@@ -60,7 +60,7 @@ Relay UI available at `http://localhost:8080`
 NEXT_PUBLIC_NIP29_RELAY_URL=wss://groups.yourdomain.com
 
 # App Configuration
-NEXT_PUBLIC_APP_NAME=Nostr Team Chat
+NEXT_PUBLIC_APP_NAME=Mesh
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 ```
 

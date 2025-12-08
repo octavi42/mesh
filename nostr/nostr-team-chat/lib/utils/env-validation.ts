@@ -135,7 +135,7 @@ export const env = {
 
   // Optional with defaults
   get appName(): string {
-    return process.env.NEXT_PUBLIC_APP_NAME || 'Nostr Team Chat';
+    return process.env.NEXT_PUBLIC_APP_NAME || 'Mesh';
   },
 
   get appUrl(): string {

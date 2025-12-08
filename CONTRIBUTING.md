@@ -1,4 +1,4 @@
-# Contributing to Nostr Team Chat
+# Contributing to Mesh
 
 Thank you for your interest in contributing! This document provides guidelines and information for contributors.
 

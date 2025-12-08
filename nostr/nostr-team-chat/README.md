@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mesh
+
+A decentralized team collaboration app built on the Nostr protocol, implementing [NIP-29](https://github.com/nostr-protocol/nips/blob/master/29.md) for group communication.
+
+## Features
+
+- 🔐 **Decentralized Authentication** - Sign in with Nostr keys (NIP-07 extensions)
+- 💬 **Group Chat** - Real-time messaging using NIP-29 relay groups
+- 👥 **Team Workspaces** - Organize conversations by teams and channels
+- 🌐 **Censorship Resistant** - No central authority controls your data
+- 🔒 **Privacy First** - End-to-end encryption support
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
+- **Protocol**: Nostr (NIP-07, NIP-29)
+- **State Management**: Zustand
+- **UI Components**: Radix UI, shadcn/ui
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- A Nostr key (browser extension like Alby or nos2x recommended)
+- Access to a NIP-29 relay
+
+### Installation
 
 ```bash
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env.local
+
+# Configure your relay URL in .env.local
+# NEXT_PUBLIC_NIP29_RELAY_URL=wss://your-relay.com
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to use the app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_NIP29_RELAY_URL` | Yes | WebSocket URL of your NIP-29 relay |
+| `NEXT_PUBLIC_APP_NAME` | No | App display name (default: "Mesh") |
+| `NEXT_PUBLIC_APP_URL` | No | Public URL for SEO/sharing |
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+app/                 # Next.js App Router pages
+components/          # React components
+  ├── chat/         # Chat-related components
+  ├── landing/      # Landing page
+  ├── sheets/       # Modal sheets
+  └── ui/           # Base UI components
+lib/                 # Utilities and hooks
+  ├── hooks/        # Custom React hooks
+  ├── nostr/        # Nostr protocol utilities
+  ├── stores/       # Zustand stores
+  └── utils/        # Helper functions
+types/               # TypeScript definitions
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Related
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [Groups Relay](../groups_relay) - The NIP-29 relay that powers Mesh
+- [NIP-29 Specification](https://github.com/nostr-protocol/nips/blob/master/29.md)
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT - See [LICENSE](../LICENSE) in the repository root.

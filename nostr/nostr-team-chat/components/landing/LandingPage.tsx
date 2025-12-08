@@ -84,9 +84,9 @@ export function LandingPage() {
             <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">N</span>
+                  <span className="text-white font-bold text-lg">M</span>
                 </div>
-                <span className="text-xl font-semibold text-gray-900 dark:text-white">Nostr Team Chat</span>
+                <span className="text-xl font-semibold text-gray-900 dark:text-white">Mesh</span>
               </div>
 
               {!isHydrated ? (

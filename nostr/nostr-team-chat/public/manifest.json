@@ -1,6 +1,6 @@
 {
-  "name": "Nostr Team Chat",
-  "short_name": "TeamChat",
+  "name": "Mesh",
+  "short_name": "Mesh",
   "description": "Decentralized team collaboration on Nostr",
   "start_url": "/",
   "display": "standalone",

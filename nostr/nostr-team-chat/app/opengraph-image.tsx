@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-export const alt = 'Nostr Team Chat - Decentralized Team Collaboration';
+export const alt = 'Mesh - Decentralized Team Collaboration';
 export const size = {
   width: 1200,
   height: 630,
@@ -62,7 +62,7 @@ export default async function Image() {
             letterSpacing: '-0.02em',
           }}
         >
-          Nostr Team Chat
+          Mesh
         </div>
 
         {/* Subtitle */}

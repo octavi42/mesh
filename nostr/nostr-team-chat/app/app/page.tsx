@@ -34,11 +34,11 @@ function EmptyPanel() {
     <div className="flex-1 flex flex-col items-center justify-center p-8">
       <div className="text-center max-w-md">
         <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <span className="text-white font-bold text-2xl">N</span>
+          <span className="text-white font-bold text-2xl">M</span>
         </div>
 
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-          Welcome to Nostr Team Chat
+          Welcome to Mesh
         </h1>
 
         <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
