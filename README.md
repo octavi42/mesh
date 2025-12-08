@@ -1,130 +1,78 @@
-# TeamAI
+# Nostr Team Chat
 
-A modular workspace for team collaboration tools, integrations, and Nostr-based communication.
+A decentralized team communication platform built on the Nostr protocol. Features real-time group chat with NIP-29 compliant relay support.
 
 ## 🏗️ Project Structure
 
-This monorepo contains multiple applications:
-
 | Directory | Description | Tech Stack |
 |-----------|-------------|------------|
-| `ui/` | Main team collaboration UI with chat, projects, and user management | Next.js, Supabase, TypeScript |
-| `dash/` | Integration dashboard with Composio for connecting third-party services | Next.js, Composio API, TypeScript |
-| `mcp-dashboard/` | MCP (Model Context Protocol) dashboard | Next.js, TypeScript |
-| `nostr/` | Nostr-based decentralized team chat and relay | Rust, Next.js |
+| `nostr/nostr-team-chat/` | Team chat web application | Next.js, TypeScript, Nostr |
+| `nostr/groups_relay/` | NIP-29 compliant groups relay server | Rust |
 
-### Nostr Subprojects
+## ✨ Features
 
-| Directory | Description |
-|-----------|-------------|
-| `nostr/groups_relay/` | NIP-29 compliant groups relay server (Rust) |
-| `nostr/nostr-team-chat/` | Nostr-based team chat application |
-| `nostr/nostr-login-test/` | Nostr authentication testing |
-| `nostr/silk-main/` | Silk library examples |
+- **Decentralized**: Built on Nostr protocol - no central server required
+- **NIP-29 Groups**: Full support for relay-based group chats
+- **Real-time**: Instant message delivery via WebSocket
+- **Self-hosted**: Run your own relay for complete data ownership
+- **Privacy-focused**: Cryptographic identity with Nostr keys
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 - Node.js 18+
-- npm or yarn
-- (Optional) Rust toolchain for the relay
-- (Optional) Docker for containerized deployments
+- (Optional) Rust toolchain for running your own relay
+- (Optional) Docker for containerized relay deployment
 
-### Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/octavi42/teamai.git
-   cd teamai
-   ```
-
-2. **Choose a project and set up environment variables**
-
-   Each project has its own `.env.example` file. Copy it to `.env.local`:
-   ```bash
-   # For the main UI
-   cd ui
-   cp .env.example .env.local
-   # Edit .env.local with your Supabase credentials
-   
-   # For the integration dashboard
-   cd ../dash
-   cp .env.example .env.local
-   # Edit .env.local with your Composio API key
-   ```
-
-3. **Install dependencies and run**
-   ```bash
-   npm install
-   npm run dev
-   ```
-
-## 📦 Individual Project Setup
-
-### UI (Main Application)
-
-The main team collaboration interface with:
-- Real-time chat
-- Project management
-- User authentication via Supabase
-
-```bash
-cd ui
-cp .env.example .env.local
-# Add your Supabase credentials
-npm install
-npm run dev
-```
-
-See [ui/SUPABASE_SETUP.md](ui/SUPABASE_SETUP.md) for detailed Supabase configuration.
-
-### Dashboard (Composio Integrations)
-
-Integration dashboard for connecting third-party services:
-
-```bash
-cd dash
-cp .env.example .env.local
-# Add your Composio API key from https://app.composio.dev/
-npm install
-npm run dev
-```
-
-See [dash/COMPOSIO_SETUP.md](dash/COMPOSIO_SETUP.md) for setup details.
-
-### Nostr Team Chat
-
-Decentralized team chat using Nostr protocol:
+### Running the Chat App
 
 ```bash
 cd nostr/nostr-team-chat
 cp .env.example .env.local
+# Edit .env.local with your relay URL
 npm install
 npm run dev
 ```
 
-### Groups Relay (Rust)
+Open [http://localhost:3000](http://localhost:3000)
 
-NIP-29 compliant Nostr relay:
+### Running Your Own Relay
 
 ```bash
 cd nostr/groups_relay
-cargo build --release
+
+# With Cargo
 cargo run
+
+# Or with Docker
+docker compose up --build
 ```
 
-See [nostr/groups_relay/README.md](nostr/groups_relay/README.md) for configuration.
+Relay UI available at `http://localhost:8080`
 
-## 🔐 Environment Variables
+## 🔧 Configuration
 
-Each project requires specific environment variables. See the `.env.example` files in each directory:
+### Chat App (`nostr/nostr-team-chat/.env.example`)
 
-- `ui/.env.example` - Supabase configuration
-- `dash/.env.example` - Composio API configuration
-- `nostr/nostr-team-chat/.env.example` - Nostr relay configuration
+```bash
+# Nostr Relay URL
+NEXT_PUBLIC_NIP29_RELAY_URL=wss://groups.yourdomain.com
 
-**⚠️ Never commit `.env.local` files with real credentials!**
+# App Configuration
+NEXT_PUBLIC_APP_NAME=Nostr Team Chat
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+```
+
+### Relay (`nostr/groups_relay/`)
+
+See [groups_relay/README.md](nostr/groups_relay/README.md) for detailed relay configuration.
+
+## � Documentation
+
+- [NIP-29 Specification](https://github.com/nostr-protocol/nips/blob/master/29.md) - Relay-based Groups
+- [Nostr Protocol](https://nostr.com) - Learn about Nostr
+- [Groups Relay Docs](nostr/groups_relay/README.md) - Relay setup and configuration
 
 ## 🤝 Contributing
 
@@ -138,12 +86,11 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-**Note:** The `nostr/groups_relay` subproject is licensed under AGPL-3.0.
+- **Chat App** (`nostr/nostr-team-chat/`): MIT License - see [LICENSE](LICENSE)
+- **Groups Relay** (`nostr/groups_relay/`): AGPL-3.0 - see [nostr/groups_relay/LICENSE](nostr/groups_relay/LICENSE)
 
 ## 🔗 Links
 
-- [Supabase](https://supabase.com) - Backend for the main UI
-- [Composio](https://composio.dev) - Integration platform for the dashboard
 - [Nostr Protocol](https://nostr.com) - Decentralized social protocol
+- [NIP-29](https://github.com/nostr-protocol/nips/blob/master/29.md) - Groups specification
+- [Awesome Nostr](https://github.com/aljazceru/awesome-nostr) - Nostr resources

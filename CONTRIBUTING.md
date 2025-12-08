@@ -1,6 +1,6 @@
-# Contributing to TeamAI
+# Contributing to Nostr Team Chat
 
-Thank you for your interest in contributing to TeamAI! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing! This document provides guidelines and information for contributors.
 
 ## 📋 Table of Contents
 
@@ -96,7 +96,7 @@ git checkout -b feature/your-feature-name
 
 ## Coding Standards
 
-### TypeScript/JavaScript
+### TypeScript/JavaScript (Chat App)
 
 - Use TypeScript for type safety
 - Follow existing code style (ESLint configuration)
@@ -110,7 +110,7 @@ git checkout -b feature/your-feature-name
 - Use proper prop typing
 - Follow the existing file structure
 
-### Rust (for groups_relay)
+### Rust (Groups Relay)
 
 - Follow Rust conventions and idioms
 - Use `cargo fmt` for formatting
@@ -150,20 +150,17 @@ Use the GitHub Issues feature with the "enhancement" label.
 
 ## Project-Specific Guidelines
 
-### UI Project (`ui/`)
-- Follow Supabase best practices
-- Ensure RLS policies are properly configured
-- Test authentication flows thoroughly
+### Chat App (`nostr/nostr-team-chat/`)
+- Follow NIP-29 specification for group features
+- Test with multiple Nostr clients for compatibility
+- Handle WebSocket reconnection gracefully
+- Support both NIP-07 browser extensions and direct key input
 
-### Dashboard Project (`dash/`)
-- Test OAuth flows with Composio
-- Handle API errors gracefully
-- Keep API keys secure
-
-### Nostr Projects (`nostr/`)
-- Follow NIP specifications
-- Test relay compatibility
-- Document protocol extensions
+### Groups Relay (`nostr/groups_relay/`)
+- Ensure NIP compliance for all implemented NIPs
+- Add comprehensive tests for event validation
+- Document any protocol extensions
+- Consider performance implications for relay operations
 
 ## Questions?
 
