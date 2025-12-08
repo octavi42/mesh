@@ -77,7 +77,7 @@ function Navigation() {
   const navLinks = [
     { name: 'Features', href: '#features' },
     { name: 'How it Works', href: '#how-it-works' },
-    { name: 'GitHub', href: 'https://github.com', external: true },
+    { name: 'GitHub', href: 'https://github.com/octavi42/teamai', external: true },
   ];
 
   return (
@@ -225,7 +225,7 @@ function HeroSection() {
               <LoginButton className="w-full sm:w-auto px-8 py-4 text-lg shadow-lg hover:shadow-xl" />
             )}
             <a
-              href="https://github.com"
+              href="https://github.com/octavi42/teamai"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto px-8 py-4 bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-white rounded-xl font-semibold text-lg hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors border border-neutral-200 dark:border-neutral-800"
@@ -462,7 +462,7 @@ function OpenSourceSection() {
             Audit our code. Contribute. Fork it. We believe in radical transparency.
           </p>
           <a
-            href="https://github.com"
+            href="https://github.com/octavi42/teamai"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center px-6 py-3 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl font-medium hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors"
@@ -525,7 +525,9 @@ function Footer() {
                 </svg>
               </a>
               <a
-                href="#"
+                href="https://github.com/octavi42/teamai"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors"
               >
                 <Github className="w-5 h-5" />
