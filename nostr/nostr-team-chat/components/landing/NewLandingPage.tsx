@@ -244,12 +244,16 @@ function HeroSection() {
           className="mt-16 relative"
         >
           <div className="aspect-video max-w-4xl mx-auto bg-neutral-100 dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-2xl overflow-hidden">
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center p-8">
-                <MessageSquare className="w-16 h-16 mx-auto text-neutral-300 dark:text-neutral-700 mb-4" />
-                <p className="text-neutral-400 dark:text-neutral-600 text-sm">App Interface Preview</p>
-              </div>
-            </div>
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            >
+              <source src="/launch_video.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
           </div>
         </motion.div>
       </div>
