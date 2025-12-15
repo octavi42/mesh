@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { DataManager, type Message, type LoadMessagesOptions } from '@/lib/data/data-manager';
 import { useErrorHandler } from './use-error-handling';
 import { NostrError, ErrorCode } from '@/lib/errors/nostr-errors';
+import { useNDK } from '@/lib/hooks/use-ndk';
 
 export interface MessageState {
   messages: Message[];
@@ -63,22 +64,14 @@ export function useMessagesOptimized(options: UseMessagesOptions): MessageState 
     enableAutoRetry: false
   });
 
-  // Initialize data manager
+  // Get NDK from context (must be called at component level, not inside useEffect)
+  const { ndk } = useNDK();
+
+  // Initialize data manager when NDK is available
   useEffect(() => {
-    const initDataManager = async () => {
-      try {
-        const { useNDK } = await import('@/lib/hooks/use-ndk');
-        const { ndk } = useNDK.getState();
-
-        if (ndk) {
-          dataManagerRef.current = new DataManager(ndk);
-        }
-      } catch (error) {
-        console.error('Failed to initialize data manager:', error);
-      }
-    };
-
-    initDataManager();
+    if (ndk && !dataManagerRef.current) {
+      dataManagerRef.current = new DataManager(ndk);
+    }
 
     return () => {
       // Cleanup live subscription
@@ -86,7 +79,7 @@ export function useMessagesOptimized(options: UseMessagesOptions): MessageState 
         liveSubscriptionCleanupRef.current();
       }
     };
-  }, []);
+  }, [ndk]);
 
   // Load initial messages when channel changes
   useEffect(() => {

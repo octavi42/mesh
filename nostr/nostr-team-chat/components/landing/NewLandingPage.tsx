@@ -86,9 +86,12 @@ function Navigation() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-neutral-900 dark:bg-white rounded-lg flex items-center justify-center">
-              <MessageSquare className="w-4 h-4 text-white dark:text-neutral-900" />
-            </div>
+            <img
+              src="/mesh_logo.png"
+              alt="Mesh Logo"
+              className="w-10 h-10 bg-white dark:bg-neutral-900 object-contain"
+              style={{ background: 'none' }}
+            />
             <span className="text-lg font-semibold text-neutral-900 dark:text-white tracking-tight">
               Mesh
             </span>
