@@ -59,10 +59,13 @@ export const metadata: Metadata = {
   // Favicon and icons
   icons: {
     icon: [
-      { url: "/favicon-new.png", type: "image/png", sizes: "32x32" },
-      { url: "/favicon-new.png", type: "image/png", sizes: "64x64" },
+      { url: "/favicon.ico", type: "image/x-icon" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icon.svg", type: "image/svg+xml" },
     ],
     apple: "/apple-touch-icon.png",
+    shortcut: "/favicon.ico",
   },
   
   // App manifest for PWA
@@ -89,6 +92,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
